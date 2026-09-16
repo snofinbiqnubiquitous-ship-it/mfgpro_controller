@@ -11,7 +11,8 @@ from wcwidth import wcwidth
 
 
 ENCODING = "cp932"
-COLS, ROWS = 132, 24
+# QAD / VT100 の標準画面サイズは 80桁 × 24行
+COLS, ROWS = 80, 24
 KEY_SEQUENCES = {
     "Return": "\r", "KP_Enter": "\r", "space": " ",
     "BackSpace": "\b", "Tab": "\t", "Escape": "\x1b",
@@ -125,15 +126,17 @@ class TerminalSession:
             dirty = self.screen.dirty
             if not dirty and cursor_state == self.last_cursor:
                 return None
+            cols = self.screen.columns
+            rows = self.screen.lines
             # pyte columns count wide characters twice; Tk indexes Unicode chars.
             offset = sum(len(self.screen.buffer[cursor.y][col].data)
-                         for col in range(min(cursor.x, COLS - 1)))
+                         for col in range(min(cursor.x, cols - 1)))
             position = None if cursor.hidden else (cursor.y, offset)
             changed = {}
             if dirty:
                 for row in sorted(dirty):
-                    if 0 <= row < ROWS:
-                        changed[row] = extract_row_data(self.screen.buffer[row], COLS)
+                    if 0 <= row < rows:
+                        changed[row] = extract_row_data(self.screen.buffer[row], cols)
                 dirty.clear()
             self.last_cursor = cursor_state
             return changed, position

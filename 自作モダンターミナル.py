@@ -69,12 +69,13 @@ PREFERRED_UI_FONTS = (
 )
 
 PREFERRED_TERMINAL_FONTS = (
-    "Hiragino Sans",
-    "Hiragino Kaku Gothic ProN",
-    "ヒラギノ角ゴシック",
-    "BIZ UDゴシック",  # モリサワ製モダン等幅フォント（Windows 10/11標準）
+    "Cascadia Mono",  # Windows 11/10標準 ターミナル等幅（罫線・英数・半角カナの幅が完全一致）
+    "Cascadia Code",
+    "Consolas",       # Windows標準 等幅（罫線と英数の幅が完全一致）
+    "Courier New",
     "Source Code Pro",
-    "Consolas",
+    "BIZ UDゴシック",
+    "MS Gothic",
     "ＭＳ ゴシック",
     "monospace",
 )
@@ -166,6 +167,8 @@ class TerminalApp(ctk.CTk):
         self.closing = False
         self.rendered_lines = [None] * ROWS
         self.font_size = 14
+        self.auto_fit = True
+        self._resize_job = None
         self.key_buttons = []
         self._build_menu()
         self._build_header()
@@ -175,6 +178,7 @@ class TerminalApp(ctk.CTk):
         self._show_message("")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.update_job = self.after(33, self._poll)
+        self.after(100, self._apply_auto_fit)
 
     def _button(self, parent, text, command, primary=False):
         return ActionButton(parent, text, command, primary, font_family=self.ui_font_family)
@@ -199,6 +203,9 @@ class TerminalApp(ctk.CTk):
         view.add_command(label="文字を大きく", command=lambda: self.change_font_size(1))
         view.add_command(label="文字を小さく", command=lambda: self.change_font_size(-1))
         view.add_command(label="標準サイズ", command=lambda: self.change_font_size(reset=True))
+        view.add_separator()
+        self.auto_fit_var = tk.BooleanVar(value=True)
+        view.add_checkbutton(label="画面サイズに自動調整 (Auto Fit)", variable=self.auto_fit_var, command=self.toggle_auto_fit)
         view.add_separator()
         view.add_command(label="ターミナルにフォーカス", command=self.focus_terminal)
         menubar.add_cascade(label="表示", menu=view)
@@ -254,6 +261,7 @@ class TerminalApp(ctk.CTk):
                                  font=ctk.CTkFont(family=self.ui_font_family, size=12))
         self.footer.grid(row=1, column=0, padx=8, pady=(8, 0), sticky="w")
         self.footer.grid_remove()
+        panel.bind("<Configure>", self._on_panel_resize)
 
     def _build_toolbar(self):
         toolbar = ctk.CTkFrame(self, width=244, fg_color=COLORS["panel"], corner_radius=16,
@@ -427,8 +435,55 @@ class TerminalApp(ctk.CTk):
     def focus_terminal(self):
         self.textbox.focus_set()
 
+    def _on_panel_resize(self, event):
+        if not self.auto_fit or self.closing:
+            return
+        if self._resize_job is not None:
+            self.after_cancel(self._resize_job)
+        self._resize_job = self.after(80, self._apply_auto_fit)
+
+    def _apply_auto_fit(self):
+        self._resize_job = None
+        if not self.auto_fit or self.closing:
+            return
+        w = self.textbox.winfo_width()
+        h = self.textbox.winfo_height()
+        if w <= 100 or h <= 100:
+            return
+
+        import tkinter.font as tkfont
+        target_cols = getattr(self.session, "columns", COLS) if self.session else COLS
+        target_rows = ROWS
+
+        best_size = 10
+        for size in range(28, 9, -1):
+            f = tkfont.Font(family=self.terminal_font_family, size=size)
+            char_w = f.measure("M")
+            char_h = f.metrics("linespace")
+            needed_w = char_w * target_cols + 24
+            needed_h = char_h * target_rows + 24
+            if needed_w <= w and needed_h <= h:
+                best_size = size
+                break
+
+        if best_size != self.font_size:
+            self.font_size = best_size
+            self.terminal_font.configure(size=self.font_size)
+            try:
+                self.textbox._textbox.tag_config("bold", font=(self.terminal_font_family, self.font_size, "bold"))
+            except Exception:
+                pass
+
+    def toggle_auto_fit(self):
+        self.auto_fit = self.auto_fit_var.get()
+        if self.auto_fit:
+            self._apply_auto_fit()
+
     def change_font_size(self, delta=0, reset=False):
-        self.font_size = 14 if reset else max(10, min(24, self.font_size + delta))
+        if self.auto_fit:
+            self.auto_fit = False
+            self.auto_fit_var.set(False)
+        self.font_size = 14 if reset else max(10, min(32, self.font_size + delta))
         self.terminal_font.configure(size=self.font_size)
         try:
             self.textbox._textbox.tag_config("bold", font=(self.terminal_font_family, self.font_size, "bold"))
@@ -453,13 +508,16 @@ class TerminalApp(ctk.CTk):
             "F1〜F4 / Enter / Space / Esc / Ctrl+F / Tab / 矢印キーに対応。\n\n"
             "ターミナル内のTabはQADへ送信されます。\n"
             "Ctrl+Shift+Tabで上部のボタンへフォーカスを移せます。\n"
-            "文字サイズは「表示」メニューで変更できます。\n"
+            "文字サイズはウィンドウに合わせて自動調整されます（「表示」メニューで切替可能）。\n"
             "画面が狭い場合は下部の横スクロールを使用してください。",
             parent=self,
         )
 
     def on_close(self):
         self.closing = True
+        if self._resize_job is not None:
+            self.after_cancel(self._resize_job)
+            self._resize_job = None
         if self.update_job is not None:
             self.after_cancel(self.update_job)
             self.update_job = None
