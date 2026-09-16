@@ -11,8 +11,8 @@ from wcwidth import wcwidth
 
 
 ENCODING = "cp932"
-# QAD / VT100 の標準画面サイズは 80桁 × 24行
-COLS, ROWS = 80, 24
+# 設計書準拠: データ欠落・折り返し防止のためSSH通信および仮想端末は132桁を確保
+COLS, ROWS = 132, 24
 KEY_SEQUENCES = {
     "Return": "\r", "KP_Enter": "\r", "space": " ",
     "BackSpace": "\b", "Tab": "\t", "Escape": "\x1b",
@@ -128,18 +128,31 @@ class TerminalSession:
                 return None
             cols = self.screen.columns
             rows = self.screen.lines
-            # pyte columns count wide characters twice; Tk indexes Unicode chars.
+
+            # 80列を超える文字が存在するか判定（通常画面なら80桁にフィットして描画幅を最大化）
+            has_wide = False
+            for r in range(rows):
+                buf = self.screen.buffer[r]
+                for c in range(80, cols):
+                    if buf[c].data != " ":
+                        has_wide = True
+                        break
+                if has_wide:
+                    break
+
+            active_cols = cols if has_wide else 80
+
             offset = sum(len(self.screen.buffer[cursor.y][col].data)
-                         for col in range(min(cursor.x, cols - 1)))
+                         for col in range(min(cursor.x, active_cols - 1)))
             position = None if cursor.hidden else (cursor.y, offset)
             changed = {}
             if dirty:
                 for row in sorted(dirty):
                     if 0 <= row < rows:
-                        changed[row] = extract_row_data(self.screen.buffer[row], cols)
+                        changed[row] = extract_row_data(self.screen.buffer[row], active_cols)
                 dirty.clear()
             self.last_cursor = cursor_state
-            return changed, position
+            return changed, position, active_cols
 
     def _run(self):
         ssh = paramiko.SSHClient()

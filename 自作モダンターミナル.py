@@ -42,15 +42,15 @@ USER = "takehik"
 PASS = "nhy7mju8"
 
 
-# 白と淡いグレーを基調に、操作とフォーカスにだけ青を使う。
+# 薄いグレーを基調とした落ち着いたモダンターミナル配色
 COLORS = {
-    "background": "#F3F4F6", "panel": "#FAFAFB", "terminal": "#FFFDFC",
-    "button": "#E9ECF1", "hover": "#DDE3EC", "accent": "#356BC4",
-    "accent_hover": "#285BAF", "focus": "#6187C7", "text": "#292D35",
-    "muted": "#646B77", "success": "#27734F", "warning": "#8A5E20",
-    "error": "#B23838", "border": "#DDE1E7", "cursor": "#CCDDF5",
-    "on_accent": "#FFFFFF", "disabled": "#9198A3", "disabled_bg": "#EFF0F3",
-    "scrollbar": "#CBD0D8", "scrollbar_hover": "#ADB6C4",
+    "background": "#F1F5F9", "panel": "#F8FAFC", "terminal": "#E2E8F0",
+    "button": "#E2E8F0", "hover": "#CBD5E1", "accent": "#356BC4",
+    "accent_hover": "#285BAF", "focus": "#6187C7", "text": "#0F172A",
+    "muted": "#64748B", "success": "#16A34A", "warning": "#D97706",
+    "error": "#DC2626", "border": "#CBD5E1", "cursor": "#3B82F6",
+    "on_accent": "#FFFFFF", "disabled": "#94A3B8", "disabled_bg": "#E2E8F0",
+    "scrollbar": "#CBD5E1", "scrollbar_hover": "#94A3B8",
 }
 
 
@@ -227,23 +227,27 @@ class TerminalApp(ctk.CTk):
 
     def _build_terminal(self):
         panel = ctk.CTkFrame(self, fg_color=COLORS["background"], corner_radius=0)
-        panel.grid(row=1, column=0, padx=(20, 12), pady=16, sticky="nsew")
+        panel.grid(row=1, column=0, padx=(16, 8), pady=(8, 12), sticky="nsew")
         panel.grid_columnconfigure(0, weight=1)
         panel.grid_rowconfigure(0, weight=1)
+        self.font_size = 17
+        self.active_cols = 80
         self.terminal_font = ctk.CTkFont(family=self.terminal_font_family, size=self.font_size)
         self.textbox = ctk.CTkTextbox(
             panel, font=self.terminal_font, fg_color=COLORS["terminal"],
-            text_color=COLORS["text"], wrap="none", corner_radius=14,
+            text_color=COLORS["text"], wrap="none", corner_radius=12,
             border_width=1, border_color=COLORS["border"],
             scrollbar_button_color=COLORS["scrollbar"],
             scrollbar_button_hover_color=COLORS["scrollbar_hover"],
         )
         self.textbox.grid(row=0, column=0, sticky="nsew")
+        # 罫線の縦線が上下で隙間なく完全に繋がるよう行間パディングを0に設定
+        self.textbox._textbox.configure(spacing1=0, spacing2=0, spacing3=0)
         self.textbox.tag_config("remote_cursor", background=COLORS["cursor"])
-        # 暗転（反転表示）: サーバー応答(SGR 7)による反転をダーク背景＋白文字で明確に表現
-        self.textbox.tag_config("reverse", background="#22262F", foreground="#FFFFFF")
-        # メニュー入力連動ハイライト: 入力欄の番号に対応する項目を即時暗転
-        self.textbox.tag_config("menu_highlight", background="#1B2E4B", foreground="#FFFFFF")
+        # 暗転（反転表示）: 薄いグレー背景の中で黒く引き締まる完全な暗転表示
+        self.textbox.tag_config("reverse", background="#0F172A", foreground="#F8FAFC")
+        # メニュー入力連動ハイライト: 入力番号に対応する項目を即時暗転
+        self.textbox.tag_config("menu_highlight", background="#0F172A", foreground="#F8FAFC")
         # 下線 (SGR 4)
         self.textbox.tag_config("underline", underline=True)
         # 太字 (SGR 1)
@@ -259,14 +263,14 @@ class TerminalApp(ctk.CTk):
         self.textbox.bind("<<Cut>>", lambda event: "break")
         self.footer = ctk.CTkLabel(panel, text="", text_color=COLORS["error"],
                                  font=ctk.CTkFont(family=self.ui_font_family, size=12))
-        self.footer.grid(row=1, column=0, padx=8, pady=(8, 0), sticky="w")
+        self.footer.grid(row=1, column=0, padx=8, pady=(6, 0), sticky="w")
         self.footer.grid_remove()
         panel.bind("<Configure>", self._on_panel_resize)
 
     def _build_toolbar(self):
-        toolbar = ctk.CTkFrame(self, width=244, fg_color=COLORS["panel"], corner_radius=16,
+        toolbar = ctk.CTkFrame(self, width=210, fg_color=COLORS["panel"], corner_radius=14,
                               border_width=1, border_color=COLORS["border"])
-        toolbar.grid(row=1, column=1, padx=(0, 20), pady=16, sticky="new")
+        toolbar.grid(row=1, column=1, padx=(0, 16), pady=(8, 12), sticky="new")
         toolbar.grid_columnconfigure((0, 1), weight=1, uniform="keys")
         row = 0
         for _, buttons in TOOLBAR_GROUPS:
@@ -343,7 +347,11 @@ class TerminalApp(ctk.CTk):
         snapshot = self.session.snapshot()
         if snapshot is None:
             return
-        changed, cursor = snapshot
+        changed, cursor, active_cols = snapshot
+        if getattr(self, "active_cols", 80) != active_cols:
+            self.active_cols = active_cols
+            if self.auto_fit:
+                self._apply_auto_fit()
         # テキストまたはスタイル属性に変更がある行を抽出
         changed = {row: data for row, data in changed.items() if self.rendered_lines[row] != data}
         if changed:
@@ -452,16 +460,17 @@ class TerminalApp(ctk.CTk):
             return
 
         import tkinter.font as tkfont
-        target_cols = getattr(self.session, "columns", COLS) if self.session else COLS
+        target_cols = getattr(self, "active_cols", 80)
         target_rows = ROWS
 
-        best_size = 10
-        for size in range(28, 9, -1):
+        best_size = 12
+        # 横幅と高さを最大限に活かして大きな文字で表示する（12pt〜28pt）
+        for size in range(28, 11, -1):
             f = tkfont.Font(family=self.terminal_font_family, size=size)
             char_w = f.measure("M")
             char_h = f.metrics("linespace")
-            needed_w = char_w * target_cols + 24
-            needed_h = char_h * target_rows + 24
+            needed_w = char_w * target_cols + 16
+            needed_h = char_h * target_rows + 16
             if needed_w <= w and needed_h <= h:
                 best_size = size
                 break
