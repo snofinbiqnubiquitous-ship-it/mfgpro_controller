@@ -41,22 +41,118 @@ USER = "takehik"
 PASS = "nhy7mju8"
 
 
-# 業務画面の可読性を優先した青系のダークテーマ。
+# 白と淡いグレーを基調に、操作とフォーカスにだけ青を使う。
 COLORS = {
-    "background": "#101522", "panel": "#192234", "terminal": "#0B101A",
-    "button": "#293751", "hover": "#394D70", "accent": "#536BCC",
-    "accent_hover": "#627CDE", "focus": "#A9BCFF", "text": "#EDF2FF",
-    "muted": "#B4C0D6", "success": "#80DDB6", "warning": "#FFD38A",
-    "error": "#FFAAA8", "border": "#435473", "cursor": "#405186",
+    "background": "#F3F4F6", "panel": "#FAFAFB", "terminal": "#FFFDFC",
+    "button": "#E9ECF1", "hover": "#DDE3EC", "accent": "#356BC4",
+    "accent_hover": "#285BAF", "focus": "#6187C7", "text": "#292D35",
+    "muted": "#646B77", "success": "#27734F", "warning": "#8A5E20",
+    "error": "#B23838", "border": "#DDE1E7", "cursor": "#CCDDF5",
+    "on_accent": "#FFFFFF", "disabled": "#9198A3", "disabled_bg": "#EFF0F3",
+    "scrollbar": "#CBD0D8", "scrollbar_hover": "#ADB6C4",
 }
+
+
+# --- フォント設定 ---
+# システムにインストールされているフォントから優先順に自動選択します。
+# （ヒラギノ角ゴシックを優先。Windows標準ではモダンなYu Gothic UI / BIZ UDゴシック等にフォールバック）
+PREFERRED_UI_FONTS = (
+    "Hiragino Sans",
+    "Hiragino Kaku Gothic ProN",
+    "ヒラギノ角ゴシック",
+    "Hiragino Kaku Gothic Pro",
+    "Yu Gothic UI",
+    "游ゴシック",
+    "Segoe UI",
+    "sans-serif",
+)
+
+PREFERRED_TERMINAL_FONTS = (
+    "Hiragino Sans",
+    "Hiragino Kaku Gothic ProN",
+    "ヒラギノ角ゴシック",
+    "BIZ UDゴシック",  # モリサワ製モダン等幅フォント（Windows 10/11標準）
+    "Source Code Pro",
+    "Consolas",
+    "ＭＳ ゴシック",
+    "monospace",
+)
+
+
+def find_first_available_font(candidates, fallback="sans-serif"):
+    """利用可能なフォントファミリから最初に見つかったものを返す"""
+    try:
+        import tkinter.font as tkfont
+        available = set(tkfont.families())
+        for f in candidates:
+            if f in available:
+                return f
+    except Exception:
+        pass
+    return candidates[0] if candidates else fallback
+
+
+class ActionButton(ctk.CTkFrame):
+    """Rounded surface with native button activation and keyboard traversal."""
+
+    def __init__(self, parent, text, command, primary=False, font_family="Yu Gothic UI"):
+        self.primary = primary
+        self.surface = COLORS["accent"] if primary else COLORS["button"]
+        super().__init__(parent, fg_color=self.surface, corner_radius=11,
+                         border_width=2, border_color=self.surface)
+        self.grid_columnconfigure(0, weight=1)
+        self._control = tk.Button(
+            self, text=text, command=command, font=(font_family, 10),
+            bg=self.surface, fg=COLORS["on_accent"] if primary else COLORS["text"],
+            activebackground=COLORS["accent_hover"] if primary else COLORS["hover"],
+            activeforeground=COLORS["on_accent"] if primary else COLORS["text"],
+            disabledforeground=COLORS["disabled"], relief="flat", bd=0,
+            highlightthickness=0, cursor="hand2", takefocus=True, padx=4, pady=6,
+        )
+        self._control.grid(row=0, column=0, padx=9, pady=4, sticky="ew")
+        self._control.bind("<FocusIn>", lambda event: super(ActionButton, self).configure(border_color=COLORS["focus"]))
+        self._control.bind("<FocusOut>", lambda event: super(ActionButton, self).configure(border_color=self.surface))
+        self._control.bind("<Enter>", lambda event: self._hover(True))
+        self._control.bind("<Leave>", lambda event: self._hover(False))
+
+    def _hover(self, entered):
+        if self._control.cget("state") == "disabled":
+            return
+        color = COLORS["accent_hover" if self.primary else "hover"] if entered else self.surface
+        super().configure(fg_color=color)
+        self._control.configure(bg=color)
+
+    def configure(self, require_redraw=False, **kwargs):
+        state = kwargs.pop("state", None)
+        super().configure(require_redraw=require_redraw, **kwargs)
+        if state is not None:
+            enabled = state != "disabled"
+            self.surface = COLORS["accent" if self.primary else "button"] if enabled else COLORS["disabled_bg"]
+            self._control.configure(state=state, bg=self.surface, takefocus=enabled,
+                                    cursor="hand2" if enabled else "arrow")
+            super().configure(fg_color=self.surface, border_color=self.surface)
+
+    def cget(self, name):
+        if name in ("state", "text"):
+            return self._control.cget(name)
+        return super().cget(name)
+
+    def focus_set(self):
+        self._control.focus_set()
+
+    def invoke(self):
+        return self._control.invoke()
 
 
 class TerminalApp(ctk.CTk):
     def __init__(self):
-        ctk.set_appearance_mode("dark")
+        ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
         super().__init__()
-        self.title("QAD / MFG:PRO — Modern Terminal")
+        self.ui_font_family = find_first_available_font(PREFERRED_UI_FONTS, fallback="Yu Gothic UI")
+        self.terminal_font_family = find_first_available_font(PREFERRED_TERMINAL_FONTS, fallback="BIZ UDゴシック")
+
+        self.title("QAD / MFG:PRO")
         self.geometry("1460x780")
         self.minsize(1020, 660)
         self.configure(fg_color=COLORS["background"])
@@ -75,23 +171,12 @@ class TerminalApp(ctk.CTk):
         self._build_terminal()
         self._build_toolbar()
         self._set_state("未接続")
-        self._show_message("QAD / MFG:PRO\n\n上部の「ログイン / 接続」から開始してください。\n"
-                           "右のツールバー、またはキーボードから操作できます。")
+        self._show_message("")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.update_job = self.after(33, self._poll)
 
     def _button(self, parent, text, command, primary=False):
-        # Native buttons support Tab traversal, Space activation and focus rings.
-        color = COLORS["accent"] if primary else COLORS["button"]
-        return tk.Button(
-            parent, text=text, command=command, font=("Yu Gothic UI", 10, "bold"),
-            bg=color, fg=COLORS["text"], activebackground=COLORS["accent_hover"]
-            if primary else COLORS["hover"], activeforeground=COLORS["text"],
-            disabledforeground=COLORS["muted"], relief="flat", bd=0,
-            highlightthickness=2, highlightbackground=COLORS["panel"],
-            highlightcolor=COLORS["focus"], cursor="hand2", takefocus=True,
-            padx=10, pady=8,
-        )
+        return ActionButton(parent, text, command, primary, font_family=self.ui_font_family)
 
     def _build_menu(self):
         menubar = tk.Menu(self)
@@ -122,37 +207,30 @@ class TerminalApp(ctk.CTk):
         self.configure(menu=menubar)
 
     def _build_header(self):
-        header = ctk.CTkFrame(self, fg_color=COLORS["panel"], corner_radius=0)
+        header = ctk.CTkFrame(self, fg_color=COLORS["background"], corner_radius=0)
         header.grid(row=0, column=0, columnspan=2, sticky="ew")
-        header.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(header, text="QAD / MFG:PRO", text_color=COLORS["text"],
-                     font=ctk.CTkFont(family="Yu Gothic UI", size=22, weight="bold")).grid(
-                         row=0, column=0, padx=(20, 16), pady=(14, 0), sticky="w")
-        ctk.CTkLabel(header, text=f"{HOST}  /  {USER}", text_color=COLORS["muted"],
-                     font=ctk.CTkFont(family="Yu Gothic UI", size=13)).grid(
-                         row=1, column=0, padx=20, pady=(0, 14), sticky="w")
-        self.status_label = ctk.CTkLabel(header, text="未接続", font=ctk.CTkFont(family="Yu Gothic UI", size=14))
-        self.status_label.grid(row=0, column=1, rowspan=2, sticky="e", padx=16)
-        self.connect_btn = self._button(header, "ログイン / 接続", self.connect_to_server, True)
-        self.connect_btn.grid(row=0, column=2, rowspan=2, padx=(0, 8), pady=16)
+        header.grid_columnconfigure(0, weight=1)
+        self.status_label = ctk.CTkLabel(header, text="未接続", font=ctk.CTkFont(family=self.ui_font_family, size=14))
+        self.status_label.grid(row=0, column=0, sticky="w", padx=24, pady=(14, 0))
+        self.connect_btn = self._button(header, "ログイン", self.connect_to_server, True)
+        self.connect_btn.grid(row=0, column=1, padx=(0, 8), pady=(14, 0))
         self.disconnect_btn = self._button(header, "切断", self.disconnect_server)
-        self.disconnect_btn.grid(row=0, column=3, rowspan=2, padx=(0, 20), pady=16)
+        self.disconnect_btn.grid(row=0, column=2, padx=(0, 20), pady=(14, 0))
 
     def _build_terminal(self):
-        panel = ctk.CTkFrame(self, fg_color=COLORS["panel"], corner_radius=12)
-        panel.grid(row=1, column=0, padx=(16, 8), pady=16, sticky="nsew")
+        panel = ctk.CTkFrame(self, fg_color=COLORS["background"], corner_radius=0)
+        panel.grid(row=1, column=0, padx=(20, 12), pady=16, sticky="nsew")
         panel.grid_columnconfigure(0, weight=1)
-        panel.grid_rowconfigure(1, weight=1)
-        ctk.CTkLabel(panel, text="TERMINAL", text_color=COLORS["muted"],
-                     font=ctk.CTkFont(family="Yu Gothic UI", size=12, weight="bold")).grid(
-                         row=0, column=0, padx=16, pady=(8, 4), sticky="w")
-        self.terminal_font = ctk.CTkFont(family="ＭＳ ゴシック", size=self.font_size)
+        panel.grid_rowconfigure(0, weight=1)
+        self.terminal_font = ctk.CTkFont(family=self.terminal_font_family, size=self.font_size)
         self.textbox = ctk.CTkTextbox(
             panel, font=self.terminal_font, fg_color=COLORS["terminal"],
-            text_color=COLORS["text"], wrap="none", corner_radius=8,
-            border_width=2, border_color=COLORS["border"],
+            text_color=COLORS["text"], wrap="none", corner_radius=14,
+            border_width=1, border_color=COLORS["border"],
+            scrollbar_button_color=COLORS["scrollbar"],
+            scrollbar_button_hover_color=COLORS["scrollbar_hover"],
         )
-        self.textbox.grid(row=1, column=0, padx=8, pady=(0, 8), sticky="nsew")
+        self.textbox.grid(row=0, column=0, sticky="nsew")
         self.textbox.tag_config("remote_cursor", background=COLORS["cursor"])
         self.textbox.bind("<Key>", self.on_key_press)
         self.textbox.bind("<FocusIn>", lambda event: self.textbox.configure(border_color=COLORS["focus"]))
@@ -160,25 +238,19 @@ class TerminalApp(ctk.CTk):
         # Local widget edits must never masquerade as received server output.
         self.textbox.bind("<<Paste>>", lambda event: "break")
         self.textbox.bind("<<Cut>>", lambda event: "break")
-        self.footer = ctk.CTkLabel(panel, text="VT100  ·  132 × 24  ·  CP932",
-                                 text_color=COLORS["muted"], font=ctk.CTkFont(family="Yu Gothic UI", size=12))
-        self.footer.grid(row=2, column=0, padx=16, pady=(0, 8), sticky="w")
+        self.footer = ctk.CTkLabel(panel, text="", text_color=COLORS["error"],
+                                 font=ctk.CTkFont(family=self.ui_font_family, size=12))
+        self.footer.grid(row=1, column=0, padx=8, pady=(8, 0), sticky="w")
+        self.footer.grid_remove()
 
     def _build_toolbar(self):
-        toolbar = ctk.CTkFrame(self, width=244, fg_color=COLORS["panel"], corner_radius=12)
-        toolbar.grid(row=1, column=1, padx=(0, 16), pady=16, sticky="nsew")
+        toolbar = ctk.CTkFrame(self, width=244, fg_color=COLORS["panel"], corner_radius=16,
+                              border_width=1, border_color=COLORS["border"])
+        toolbar.grid(row=1, column=1, padx=(0, 20), pady=16, sticky="new")
         toolbar.grid_columnconfigure((0, 1), weight=1, uniform="keys")
-        ctk.CTkLabel(toolbar, text="キーツールバー", height=24, text_color=COLORS["text"],
-                     font=ctk.CTkFont(family="Yu Gothic UI", size=17, weight="bold")).grid(
-                         row=0, column=0, columnspan=2, padx=16, pady=(12, 0), sticky="w")
-        ctk.CTkLabel(toolbar, text="クリックでキーを送信", height=20, text_color=COLORS["muted"],
-                     font=ctk.CTkFont(family="Yu Gothic UI", size=12)).grid(
-                         row=1, column=0, columnspan=2, padx=16, sticky="w")
-        row = 2
-        for title, buttons in TOOLBAR_GROUPS:
-            ctk.CTkLabel(toolbar, text=title, height=18, text_color=COLORS["muted"],
-                         font=ctk.CTkFont(family="Yu Gothic UI", size=12)).grid(
-                             row=row, column=0, columnspan=2, padx=16, pady=(10, 2), sticky="w")
+        row = 0
+        for _, buttons in TOOLBAR_GROUPS:
+            toolbar.grid_rowconfigure(row, minsize=16)
             row += 1
             for index, (label, key) in enumerate(buttons):
                 button = self._button(toolbar, label, lambda k=key: self.send_key(k), key == "F1")
@@ -214,7 +286,8 @@ class TerminalApp(ctk.CTk):
             return
         self.session = TerminalSession(HOST, PORT, USER, PASS, self.events)
         self._set_state("接続中…", "warning")
-        self._show_message(f"{HOST} に接続しています…")
+        self._show_message("")
+        self._show_input_error("")
         self.session.start()
 
     def _poll(self):
@@ -280,12 +353,19 @@ class TerminalApp(ctk.CTk):
             self.session.send(data)
         except UnicodeEncodeError:
             self.bell()
-            self.footer.configure(text="送信できません：CP932で表現できない文字です。")
+            self._show_input_error("送信できません：CP932で表現できない文字です。")
         except queue.Full:
             self.bell()
-            self.footer.configure(text="送信待ちが多いため、キー入力を一度止めてください。")
+            self._show_input_error("送信待ちが多いため、キー入力を一度止めてください。")
         else:
-            self.footer.configure(text="VT100  ·  132 × 24  ·  CP932")
+            self._show_input_error("")
+
+    def _show_input_error(self, message):
+        self.footer.configure(text=message)
+        if message:
+            self.footer.grid()
+        else:
+            self.footer.grid_remove()
 
     def send_key(self, key):
         self._send(KEY_SEQUENCES[key])
