@@ -1,0 +1,139 @@
+"""QAD terminal transport. This module never touches Tk widgets."""
+
+import codecs
+import queue
+import socket
+import threading
+
+import paramiko
+import pyte
+
+
+ENCODING = "cp932"
+COLS, ROWS = 132, 24
+KEY_SEQUENCES = {
+    "Return": "\r", "KP_Enter": "\r", "space": " ",
+    "BackSpace": "\b", "Tab": "\t", "Escape": "\x1b",
+    "F1": "\x1bOP", "F2": "\x1bOQ", "F3": "\x1bOR", "F4": "\x1bOS",
+    "Up": "\x1b[A", "Down": "\x1b[B", "Right": "\x1b[C", "Left": "\x1b[D",
+    "Ctrl+F": "\x06",
+}
+
+# ボタン名とキーの対応。QADの画面ごとに意味が違うキーは機能名を付けない。
+TOOLBAR_GROUPS = (
+    ("ファンクション", (("F1  実行", "F1"), ("F2", "F2"),
+                          ("F3", "F3"), ("F4", "F4"))),
+    ("入力・操作", (("Enter  決定", "Return"), ("Space  次頁", "space"),
+                     ("Esc", "Escape"), ("Ctrl + F", "Ctrl+F"),
+                     ("Tab", "Tab"), ("Backspace", "BackSpace"))),
+    ("カーソル移動", (("↑  上", "Up"), ("↓  下", "Down"),
+                       ("←  左", "Left"), ("→  右", "Right"))),
+)
+
+
+def key_sequence(keysym, char="", state=0):
+    """Keyboard and toolbar use the same VT100 mappings."""
+    if state & 0x4 and keysym.lower() == "f":
+        return KEY_SEQUENCES["Ctrl+F"]
+    return KEY_SEQUENCES.get(keysym, char)
+
+
+class TerminalSession:
+    """One worker owns the SSH connection, decoder, and virtual screen.
+
+    The GUI consumes dirty rows under a lock; outgoing keystrokes are queued
+    so a blocked network never blocks Tk. Each connection gets fresh state.
+    """
+
+    def __init__(self, host, port, username, password, events):
+        self.host, self.port = host, port
+        self.username, self.password = username, password
+        self.events = events
+        self.screen = pyte.Screen(COLS, ROWS)
+        self.stream = pyte.Stream(self.screen)
+        self.decoder = codecs.getincrementaldecoder(ENCODING)(errors="replace")
+        self.lock = threading.Lock()
+        self.stop_event = threading.Event()
+        self.outgoing = queue.Queue(maxsize=256)
+        self.last_cursor = None
+
+    def start(self):
+        threading.Thread(target=self._run, daemon=True, name="qad-ssh").start()
+
+    def stop(self):
+        self.stop_event.set()
+
+    def send(self, text):
+        # Strict encoding prevents silently submitting a different value to QAD.
+        self.outgoing.put_nowait(text.encode(ENCODING))
+
+    def feed(self, data, final=False):
+        with self.lock:
+            self.stream.feed(self.decoder.decode(data, final=final))
+
+    def snapshot(self):
+        """Return only changed rows; idle calls don't construct screen.display."""
+        with self.lock:
+            cursor = self.screen.cursor
+            cursor_state = (cursor.y, cursor.x, cursor.hidden)
+            dirty = self.screen.dirty
+            if not dirty and cursor_state == self.last_cursor:
+                return None
+            # pyte columns count wide characters twice; Tk indexes Unicode chars.
+            offset = sum(len(self.screen.buffer[cursor.y][col].data)
+                         for col in range(min(cursor.x, COLS - 1)))
+            position = None if cursor.hidden else (cursor.y, offset)
+            lines = self.screen.display if dirty else ()
+            changed = {row: lines[row] for row in sorted(dirty) if 0 <= row < ROWS}
+            dirty.clear()
+            self.last_cursor = cursor_state
+            return changed, position
+
+    def _run(self):
+        ssh = paramiko.SSHClient()
+        shell = None
+        error = None
+        try:
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(self.host, port=self.port, username=self.username,
+                        password=self.password, timeout=10,
+                        banner_timeout=10, auth_timeout=10)
+            if self.stop_event.is_set():
+                return
+            shell = ssh.invoke_shell(term="vt100", width=COLS, height=ROWS)
+            shell.settimeout(0.05)
+            if self.stop_event.is_set():
+                return
+            self.events.put((self, "connected", None))
+            while not self.stop_event.is_set():
+                # Bound each batch so key repeat cannot starve reception.
+                for _ in range(16):
+                    if self.stop_event.is_set():
+                        break
+                    try:
+                        data = self.outgoing.get_nowait()
+                    except queue.Empty:
+                        break
+                    shell.sendall(data)
+                if self.stop_event.is_set():
+                    break
+                try:
+                    chunk = shell.recv(65536)
+                except socket.timeout:
+                    continue
+                if not chunk:  # EOF, including orderly remote disconnect.
+                    self.feed(b"", final=True)
+                    break
+                self.feed(chunk)
+        except Exception as exc:
+            if not self.stop_event.is_set():
+                error = str(exc)
+        finally:
+            try:
+                if shell is not None:
+                    shell.close()
+            finally:
+                try:
+                    ssh.close()
+                finally:
+                    self.events.put((self, "closed", error))
