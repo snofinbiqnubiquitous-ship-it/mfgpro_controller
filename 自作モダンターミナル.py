@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import queue
+import re
 import sys
 
 # Explorerの関連付けは通常、ライブラリ未導入の標準Pythonを使用する。
@@ -232,6 +233,17 @@ class TerminalApp(ctk.CTk):
         )
         self.textbox.grid(row=0, column=0, sticky="nsew")
         self.textbox.tag_config("remote_cursor", background=COLORS["cursor"])
+        # 暗転（反転表示）: サーバー応答(SGR 7)による反転をダーク背景＋白文字で明確に表現
+        self.textbox.tag_config("reverse", background="#22262F", foreground="#FFFFFF")
+        # メニュー入力連動ハイライト: 入力欄の番号に対応する項目を即時暗転
+        self.textbox.tag_config("menu_highlight", background="#1B2E4B", foreground="#FFFFFF")
+        # 下線 (SGR 4)
+        self.textbox.tag_config("underline", underline=True)
+        # 太字 (SGR 1)
+        try:
+            self.textbox._textbox.tag_config("bold", font=(self.terminal_font_family, self.font_size, "bold"))
+        except Exception:
+            self.textbox.tag_config("bold", foreground=COLORS["accent"])
         self.textbox.bind("<Key>", self.on_key_press)
         self.textbox.bind("<FocusIn>", lambda event: self.textbox.configure(border_color=COLORS["focus"]))
         self.textbox.bind("<FocusOut>", lambda event: self.textbox.configure(border_color=COLORS["border"]))
@@ -278,6 +290,8 @@ class TerminalApp(ctk.CTk):
         self.textbox.configure(state="normal")
         self.textbox.delete("1.0", "end")
         self.textbox.insert("1.0", message)
+        for tag in ("reverse", "menu_highlight", "underline", "bold", "remote_cursor"):
+            self.textbox.tag_remove(tag, "1.0", "end")
         self.textbox.configure(state="disabled")
         self.rendered_lines = [None] * ROWS
 
@@ -322,20 +336,59 @@ class TerminalApp(ctk.CTk):
         if snapshot is None:
             return
         changed, cursor = snapshot
-        # Ignore dirty marks whose visible text is unchanged (e.g. SGR changes).
-        changed = {row: line for row, line in changed.items() if self.rendered_lines[row] != line}
+        # テキストまたはスタイル属性に変更がある行を抽出
+        changed = {row: data for row, data in changed.items() if self.rendered_lines[row] != data}
         if changed:
             self.textbox.configure(state="normal")
-            for row, line in changed.items():
-                index = f"{row + 1}.0"
-                self.textbox.delete(index, f"{row + 1}.end")
-                self.textbox.insert(index, line)
-                self.rendered_lines[row] = line
+            for row, (line, spans) in changed.items():
+                start_idx = f"{row + 1}.0"
+                end_idx = f"{row + 1}.end"
+                self.textbox.delete(start_idx, end_idx)
+                self.textbox.insert(start_idx, line)
+                # 既存の行スタイルタグをクリア
+                for tag in ("reverse", "underline", "bold"):
+                    self.textbox.tag_remove(tag, start_idx, end_idx)
+                # スタイル属性を適用
+                for s_idx, e_idx, tags in spans:
+                    for tag in tags:
+                        self.textbox.tag_add(tag, f"{row + 1}.{s_idx}", f"{row + 1}.{e_idx}")
+                self.rendered_lines[row] = (line, spans)
+
+            # メニュー入力連動ハイライト（入力欄の番号に対応するメニュー項目を自動暗転）
+            self._apply_menu_highlight()
             self.textbox.configure(state="disabled")
+
         self.textbox.tag_remove("remote_cursor", "1.0", "end")
         if cursor is not None:
             row, column = cursor
             self.textbox.tag_add("remote_cursor", f"{row + 1}.{column}", f"{row + 1}.{column + 1}")
+
+    def _apply_menu_highlight(self):
+        """メニュー選択プロンプトの入力番号に対応するメニュー項目を検知して暗転（ハイライト）する"""
+        self.textbox.tag_remove("menu_highlight", "1.0", "end")
+        input_num = None
+        for row in range(ROWS):
+            line_data = self.rendered_lines[row]
+            if not line_data:
+                continue
+            line = line_data[0]
+            # 'Please select a function' または 'Selection:' 行の入力値を検出
+            m = re.search(r'(?:Please select a function.*?(?:EXIT|\b)|Selection:)\s+([0-9]+)', line)
+            if m:
+                input_num = m.group(1)
+                break
+
+        if not input_num:
+            return
+
+        pattern = re.compile(rf'(?<!\d){input_num}\.\s*([^│]+?)(?=\s{{2,}}\d+\.|\s*│|\Z)')
+        for row in range(ROWS):
+            line_data = self.rendered_lines[row]
+            if not line_data:
+                continue
+            line = line_data[0]
+            for m in pattern.finditer(line):
+                self.textbox.tag_add("menu_highlight", f"{row + 1}.{m.start()}", f"{row + 1}.{m.end()}")
 
     def on_key_press(self, event):
         # Ctrl+Shift+Tab releases terminal focus; plain Tab is sent to QAD.
@@ -377,6 +430,10 @@ class TerminalApp(ctk.CTk):
     def change_font_size(self, delta=0, reset=False):
         self.font_size = 14 if reset else max(10, min(24, self.font_size + delta))
         self.terminal_font.configure(size=self.font_size)
+        try:
+            self.textbox._textbox.tag_config("bold", font=(self.terminal_font_family, self.font_size, "bold"))
+        except Exception:
+            pass
 
     def disconnect_server(self):
         if self.session is None:
@@ -384,7 +441,8 @@ class TerminalApp(ctk.CTk):
         self.session.stop()
         self.session = None
         self.is_connected = False
-        self.textbox.tag_remove("remote_cursor", "1.0", "end")
+        for tag in ("remote_cursor", "reverse", "menu_highlight", "underline", "bold"):
+            self.textbox.tag_remove(tag, "1.0", "end")
         self._set_state("切断済み")
 
     def show_help(self):

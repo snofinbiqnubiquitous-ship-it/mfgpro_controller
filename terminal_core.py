@@ -7,6 +7,7 @@ import threading
 
 import paramiko
 import pyte
+from wcwidth import wcwidth
 
 
 ENCODING = "cp932"
@@ -38,6 +39,49 @@ def key_sequence(keysym, char="", state=0):
     return KEY_SEQUENCES.get(keysym, char)
 
 
+def extract_row_data(line, cols):
+    """pyteの1行分のbufferからUnicodeテキストとスタイルスパン (start, end, tags) を抽出する。
+    全角文字（wcwidth==2）のスタブをスキップし、TkinterのUnicode文字インデックスに合致させる。
+    """
+    chars = []
+    spans = []
+    is_wide_char = False
+    current_tags = ()
+    span_start = 0
+
+    for x in range(cols):
+        if is_wide_char:
+            is_wide_char = False
+            continue
+        c = line[x]
+        data = c.data
+        if not data:
+            continue
+        is_wide_char = (len(data) > 0 and wcwidth(data[0]) == 2)
+
+        tags = []
+        if c.reverse:
+            tags.append("reverse")
+        if c.underscore:
+            tags.append("underline")
+        if c.bold:
+            tags.append("bold")
+        tags = tuple(sorted(tags))
+
+        idx = len(chars)
+        if tags != current_tags:
+            if current_tags:
+                spans.append((span_start, idx, current_tags))
+            current_tags = tags
+            span_start = idx
+        chars.append(data)
+
+    if current_tags:
+        spans.append((span_start, len(chars), current_tags))
+
+    return "".join(chars), spans
+
+
 class TerminalSession:
     """One worker owns the SSH connection, decoder, and virtual screen.
 
@@ -51,6 +95,8 @@ class TerminalSession:
         self.events = events
         self.screen = pyte.Screen(COLS, ROWS)
         self.stream = pyte.Stream(self.screen)
+        # DEC Special Character and Line Drawing Set（罫線文字）を有効化
+        self.stream.use_utf8 = False
         self.decoder = codecs.getincrementaldecoder(ENCODING)(errors="replace")
         self.lock = threading.Lock()
         self.stop_event = threading.Event()
@@ -72,7 +118,7 @@ class TerminalSession:
             self.stream.feed(self.decoder.decode(data, final=final))
 
     def snapshot(self):
-        """Return only changed rows; idle calls don't construct screen.display."""
+        """Return only changed rows with text and style spans; idle calls return None."""
         with self.lock:
             cursor = self.screen.cursor
             cursor_state = (cursor.y, cursor.x, cursor.hidden)
@@ -83,9 +129,12 @@ class TerminalSession:
             offset = sum(len(self.screen.buffer[cursor.y][col].data)
                          for col in range(min(cursor.x, COLS - 1)))
             position = None if cursor.hidden else (cursor.y, offset)
-            lines = self.screen.display if dirty else ()
-            changed = {row: lines[row] for row in sorted(dirty) if 0 <= row < ROWS}
-            dirty.clear()
+            changed = {}
+            if dirty:
+                for row in sorted(dirty):
+                    if 0 <= row < ROWS:
+                        changed[row] = extract_row_data(self.screen.buffer[row], COLS)
+                dirty.clear()
             self.last_cursor = cursor_state
             return changed, position
 
