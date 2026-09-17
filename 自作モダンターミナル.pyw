@@ -947,11 +947,60 @@ class TerminalApp(ctk.CTk):
             return False
 
         # 1. 上部タイトル判定 (メインメニュー / Main Menu)
-        header_text = "\n".join(lines[:4])
-        if any(k in header_text for k in ["メインメニュー", "Main Menu", "MFG/PRO"]):
+    def is_main_menu(self):
+        """現在の画面がQADメインメニュー（mfmenu / Main Menu）かどうかを判定（右肩日付は変数として無視）"""
+        lines = []
+        if getattr(self, "raw_lines", None):
+            lines = [self.raw_lines[r][0] for r in sorted(self.raw_lines.keys()) if self.raw_lines.get(r)]
+        if not lines:
+            try:
+                content = self.textbox.get("1.0", "end")
+                lines = content.splitlines()
+            except Exception:
+                lines = []
+
+        full_text = "\n".join(lines)
+        if not full_text.strip():
+            return False
+
+        full_lower = full_text.lower()
+
+        # 1. 2行目ヘッダーの「mfmenu」と「Main Menu」の完全合致（右肩日付は変数として無視）
+        # 例: │mfmenu                             Main Menu                          09/18/26│
+        for line in lines[:5]:
+            l_lower = line.lower()
+            if "mfmenu" in l_lower and "main menu" in l_lower:
+                return True
+
+        # 2. プロンプト判定: "F4 or blank to EXIT"（メインメニュー特有の終了メッセージ）
+        if "f4 or blank to exit" in full_lower:
             return True
 
-        # 2. プロンプト判定 (メニュー選択プロンプト)
+        # 3. 単独の mfmenu コマンド名判定
+        if re.search(r'\bmfmenu\b', full_lower):
+            return True
+
+        return False
+
+    def is_menu_screen(self):
+        """現在の画面がメインメニューまたはサブメニュー選択画面かどうかを判定"""
+        if self.is_main_menu():
+            return True
+
+        lines = []
+        if getattr(self, "raw_lines", None):
+            lines = [self.raw_lines[r][0] for r in sorted(self.raw_lines.keys()) if self.raw_lines.get(r)]
+        if not lines:
+            try:
+                content = self.textbox.get("1.0", "end")
+                lines = content.splitlines()
+            except Exception:
+                lines = []
+
+        full_text = "\n".join(lines)
+        if not full_text.strip():
+            return False
+
         menu_prompts = [
             "Please select a function",
             "select a function",
@@ -966,7 +1015,6 @@ class TerminalApp(ctk.CTk):
             if p.lower() in full_lower:
                 return True
 
-        # 3. メニューリストパターン判定 (複数の "1. 項目保守" 形式が並んでいるか)
         menu_item_matches = re.findall(r'(?<!\d)\b\d{1,2}\.\s+[^\s│]{2,}', full_text)
         if len(menu_item_matches) >= 3:
             return True
@@ -974,36 +1022,36 @@ class TerminalApp(ctk.CTk):
         return False
 
     def jump_to_menu(self, code):
-        """指定されたメニュー番号へ直接ジャンプ（画面状態を判別し、必要な場合のみF4で脱出）"""
+        """指定されたメニュー番号へ直接ジャンプ（メイン画面ならF4を押さず直接入力、業務画面ならF4で戻って入力）"""
         if not self.is_connected or not self.session:
             self._show_input_error("サーバーに接続されていません")
             return
 
-        # 現在の画面状態を判定（メイン画面・メニュー画面ならF4不要、業務画面ならF4で戻る）
-        already_in_menu = self.is_menu_screen()
+        # 現在の画面がメインメニュー（mfmenu）かどうかを判定
+        is_main = self.is_main_menu()
 
         # メインスレッド側で即座に状況を表示
-        if already_in_menu:
-            self._show_input_error(f"直接ジャンプ: {code}")
+        if is_main:
+            self._show_input_error(f"メイン画面から直接ジャンプ: {code}")
         else:
             self._show_input_error(f"メニューに戻ってジャンプ: {code}")
 
         def _do_jump():
             try:
                 import time
-                if already_in_menu:
-                    # すでにメイン画面・メニュー画面にいる場合: F4を押すとエラーになるため直接送信
+                if is_main:
+                    # メイン画面にいる場合: F4を押すとEXITエラーになるため、F4を押さずに直接送信
                     self.session.send(f"{code}\r")
                 else:
                     # 業務画面・入力フィールドにいる場合: F4でメニューに戻ってから番号を送信
                     self.session.send(KEY_SEQUENCES["F4"])
 
-                    # メニュー画面に切り替わるのをスマート待機（最大1.0秒）
+                    # メイン画面（またはメニュー画面）に切り替わるのをスマート待機（最大1.2秒）
                     waited = 0.0
-                    while waited < 1.0:
+                    while waited < 1.2:
                         time.sleep(0.1)
                         waited += 0.1
-                        if self.is_menu_screen():
+                        if self.is_main_menu() or self.is_menu_screen():
                             break
 
                     time.sleep(0.15)
