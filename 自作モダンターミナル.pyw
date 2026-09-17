@@ -10,6 +10,37 @@ import sys
 import tempfile
 import threading
 import time
+import logging
+from logging.handlers import RotatingFileHandler
+
+# --- デバッグログ設定 (terminal_debug.log) ---
+LOG_FILE = Path(__file__).resolve().parent / "terminal_debug.log"
+logger = logging.getLogger("ModernTerminal")
+logger.setLevel(logging.DEBUG)
+if not logger.handlers:
+    try:
+        rfh = RotatingFileHandler(str(LOG_FILE), maxBytes=5 * 1024 * 1024, backupCount=2, encoding="utf-8")
+        rfh.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+        logger.addHandler(rfh)
+    except Exception as _log_e:
+        pass
+
+def log_debug(msg):
+    logger.debug(msg)
+
+def log_info(msg):
+    logger.info(msg)
+
+def log_warning(msg):
+    logger.warning(msg)
+
+def log_error(msg, exc_info=False):
+    logger.error(msg, exc_info=exc_info)
+
+log_info("=" * 70)
+log_info(f"QAD Modern Terminal 起動 - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+log_info(f"Python: {sys.version} | 実行パス: {sys.executable}")
+log_info("=" * 70)
 
 # Explorerの関連付けは通常、ライブラリ未導入の標準Pythonを使用する。
 # このプロジェクトの仮想環境があれば、GUIのimportより先に切り替える（pythonwを優先）。
@@ -286,15 +317,21 @@ def parse_report_text_to_table(text):
     """QADのレポート画面テキスト（固定長ハイフン区切りまたは汎用空白区切り）を2次元配列にパース"""
     lines = [l.rstrip() for l in text.splitlines() if l.strip()]
     if not lines:
+        log_debug("parse_report_text_to_table: 入力行が空です")
         return []
 
-    # 1. '--- --- ---' 形式のヘッダー区切り線を検出
+    log_debug(f"parse_report_text_to_table: 開始 (入力行数={len(lines)})")
+
+    # 1. '--- --- ---' 形式のヘッダー区切り線を検出 (全行から探索)
     sep_idx = -1
+    sep_pattern = re.compile(r'[-─]{2,}\s+[-─]{2,}')
     for i, line in enumerate(lines):
-        clean = line.strip().replace("│", " ").strip()
-        if clean.startswith("---") and "---" in clean:
-            sep_idx = i
-            break
+        clean = line.replace("│", " ").strip()
+        if sep_pattern.search(clean) or clean.count("---") >= 2 or (clean.startswith("---") and len(clean) >= 15):
+            if not any(c in line for c in ("┌", "┐", "└", "┘", "├", "┤")):
+                sep_idx = i
+                log_debug(f"parse_report_text_to_table: 区切り線行を検出 (行インデックス={i}): {clean[:60]}")
+                break
 
     if sep_idx > 0:
         header_line = lines[sep_idx - 1].replace("│", " ")
@@ -302,7 +339,7 @@ def parse_report_text_to_table(text):
 
         # ハイフンのブロックからカラムの開始・終了バイト位置を算出（CP932バイト幅対応）
         b_sep = sep_line.encode("cp932", errors="replace")
-        parts = [p for p in re.finditer(r"-+", sep_line)]
+        parts = [p for p in re.finditer(r"[-─]+", sep_line)]
         slices = []
         for j, p in enumerate(parts):
             start = p.start()
@@ -318,10 +355,36 @@ def parse_report_text_to_table(text):
             clean_l = line.strip().strip("│┌┐└┘├┤─").strip()
             if not clean_l:
                 continue
-            if "End of Report" in line or "Report Criteria" in line:
+            clean_lower = clean_l.lower()
+            if "end of report" in clean_lower or "レポート終了" in clean_l:
                 break
-            if "Page:" in line or ".p" in line.lower() or "Date:" in line or clean_l.startswith("---") or "press space" in clean_l.lower():
+
+            # 1. 罫線文字を含む行（2ページ目以降のヘッダー枠線など）
+            if any(c in line for c in ("┌", "┐", "└", "┘", "├", "┤", "─")):
                 continue
+
+            # 2. 画面タイトル・プログラム番号・会社名・Criteriaなどの除外
+            if (
+                "criteria" in clean_lower or "livejpdb" in clean_lower or "エイブリィ" in line
+                or "inventory snapshot" in clean_lower or "report criteria" in clean_lower
+                or "page:" in clean_lower or ".p" in clean_lower or "date:" in clean_lower
+                or "time:" in clean_lower or "user:" in clean_lower
+            ):
+                continue
+
+            # 3. プログラム番号形式 (例: 99.3.6.1, 99.3.21.4) で始まる行
+            if re.search(r'^\d+\.\d+(?:\.\d+)*', clean_l):
+                continue
+
+            # 4. 区切り線行またはプロンプト行の除外 (日英両対応)
+            if (
+                clean_l.startswith("---")
+                or sep_pattern.search(line.replace("│", " ").strip())
+                or any(p in clean_lower for p in ["press space", "space to continue", "space bar", "more..."])
+                or any(p in clean_l for p in ["スペース", "ｽﾍﾟｰｽ", "継続", "続行", "終了するには"])
+            ):
+                continue
+
 
             raw_col = line.replace("│", " ")
             b_line = raw_col.encode("cp932", errors="replace")
@@ -343,29 +406,41 @@ def parse_report_text_to_table(text):
                 if t_row not in seen_rows:
                     seen_rows.add(t_row)
                     rows.append(row)
+        log_info(f"parse_report_text_to_table: 固定長パース成功 (列数={len(headers)}, データ行数={len(rows)-1})")
         return rows
 
     # 2. 汎用フォールバック（ヘッダー区切り線がない表や一覧画面）
     rows = []
     for line in lines:
         clean = line.strip().strip("│┌┐└┘├┤─").strip()
-        if not clean or clean.startswith("---") or "End of Report" in clean or "press space" in clean.lower():
+        clean_lower = clean.lower()
+        if (
+            not clean or clean.startswith("---")
+            or "end of report" in clean_lower or "レポート終了" in clean
+            or any(p in clean_lower for p in ["press space", "space to continue", "space bar", "more..."])
+            or any(p in clean for p in ["スペース", "ｽﾍﾟｰｽ", "継続", "続行", "終了するには"])
+        ):
             continue
         cols = [c.strip() for c in re.split(r"\s{2,}|\t", clean) if c.strip()]
         if cols:
             rows.append(cols)
+    log_info(f"parse_report_text_to_table: 空白区切りパース完了 (行数={len(rows)})")
     return rows
 
 
 def paste_to_new_excel(rows, title="QAD_Report"):
     """新規Excelブックを開き、全セルを文字列書式(@)に設定してデータを一括展開する（前ゼロ落ち・指数変換を完全防止）"""
     if not rows:
+        log_warning("paste_to_new_excel: 展開するデータが空です")
         return False, "展開するデータがありません"
 
     num_rows = len(rows)
     num_cols = max(len(r) for r in rows) if rows else 0
     if num_rows == 0 or num_cols == 0:
+        log_warning("paste_to_new_excel: 有効な行・列が0です")
         return False, "有効なデータ行がありません"
+
+    log_info(f"paste_to_new_excel: 開始 (行数={num_rows}, 列数={num_cols}, タイトル={title})")
 
     # 1. win32com による Excel COM 直接操作（前ゼロ落ち・指数変換なしの完全文字列貼り付け）
     try:
@@ -401,11 +476,13 @@ def paste_to_new_excel(rows, title="QAD_Report"):
             except Exception:
                 pass
             excel.Visible = True
-            return True, f"Excelに {num_rows - 1} 件のデータを展開しました（文字列書式）"
+            msg = f"Excelに {num_rows - 1} 件のデータを展開しました（文字列書式）"
+            log_info(f"paste_to_new_excel: COM操作成功 - {msg}")
+            return True, msg
         finally:
             pythoncom.CoUninitialize()
     except Exception as exc:
-        print(f"Excel COM連携エラー (フォールバックへ): {exc}", file=sys.stderr)
+        log_warning(f"Excel COM連携エラー (フォールバックCSVへ移行): {exc}")
 
     # 2. フォールバック: BOM付きUTF-8 CSV で直接起動
     try:
@@ -417,9 +494,13 @@ def paste_to_new_excel(rows, title="QAD_Report"):
             writer = csv.writer(f)
             writer.writerows(rows)
         os.startfile(str(csv_path))
-        return True, f"CSVを生成しExcelで起動しました ({num_rows - 1} 件)"
+        msg = f"CSVを生成しExcelで起動しました ({num_rows - 1} 件)"
+        log_info(f"paste_to_new_excel: フォールバックCSV起動成功 - {csv_path} ({msg})")
+        return True, msg
     except Exception as e:
+        log_error(f"paste_to_new_excel: CSVフォールバックも失敗: {e}", exc_info=True)
         return False, f"Excel起動失敗: {e}"
+
 
 
 class ActionButton(ctk.CTkFrame):
@@ -839,6 +920,7 @@ class TerminalApp(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
         self.grid_rowconfigure(2, weight=0)
+        self.grid_rowconfigure(3, weight=0)
 
         self.session = None
         self.events = queue.Queue()
@@ -853,11 +935,16 @@ class TerminalApp(ctk.CTk):
         self.shortcut_buttons = []
         self._is_capturing_report = False
         self._last_report_capture_time = 0.0
+        self._is_waiting_query = False
+        self._query_wait_start_time = 0.0
+        self._current_status_type = "info"
+        self._status_clear_timer = None
 
         self._build_menu()
         self._build_header()
         self._build_terminal()
         self._build_shortcut_bar()
+        self._build_statusbar()
         self._set_state("未接続")
         self._show_message("")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -1069,6 +1156,42 @@ class TerminalApp(ctk.CTk):
         self.add_shortcut_btn.grid(row=0, column=2, padx=(4, 10), pady=4)
 
         self._refresh_shortcut_buttons()
+
+    def _build_statusbar(self):
+        """最下段の常時表示ステータスバーを構築（処理中の進捗・クエリ待機・Excel展開を可視化）"""
+        self.statusbar = ctk.CTkFrame(
+            self, height=28, fg_color=self.ui_colors["panel"],
+            corner_radius=6, border_width=1, border_color=self.ui_colors["border"]
+        )
+        self.statusbar.grid(row=3, column=0, padx=8, pady=(0, 6), sticky="ew")
+        self.statusbar.grid_columnconfigure(0, weight=1)
+
+        self.bottom_status_label = ctk.CTkLabel(
+            self.statusbar, text="● 未接続",
+            text_color=self.ui_colors["muted"],
+            font=ctk.CTkFont(family=self.ui_font_family, size=12),
+            anchor="w"
+        )
+        self.bottom_status_label.grid(row=0, column=0, padx=12, pady=2, sticky="w")
+
+        self.statusbar_info_label = ctk.CTkLabel(
+            self.statusbar, text="",
+            text_color=self.ui_colors["muted"],
+            font=ctk.CTkFont(family=self.ui_font_family, size=11),
+            anchor="e"
+        )
+        self.statusbar_info_label.grid(row=0, column=1, padx=12, pady=2, sticky="e")
+        self._update_status_info()
+
+    def _update_status_info(self):
+        """ステータスバー右側の端末情報（文字コード、列数、Excel自動展開設定）を更新"""
+        if not hasattr(self, "statusbar_info_label"):
+            return
+        auto_excel = "ON" if self.config.get("auto_excel_export", True) else "OFF"
+        cols = getattr(self, "active_cols", 80)
+        self.statusbar_info_label.configure(
+            text=f"CP932 | {cols}x24 | レポート自動Excel: {auto_excel}"
+        )
 
     def _refresh_shortcut_buttons(self):
         """登録されたショートカットボタン一覧を再描画"""
@@ -1298,18 +1421,18 @@ class TerminalApp(ctk.CTk):
 
     def export_to_excel(self, event=None):
         """画面上の表データ（または複数ページレポート）をCSV化してExcelで直接起動"""
+        log_info("export_to_excel: 手動実行が呼び出されました")
         text = self._get_current_screen_text()
         if not text.strip():
-            self._show_input_error("出力対象の画面データがありません")
+            self.set_status("❌ 出力対象の画面データがありません", "error", clear_delay=4)
             return "break"
 
-        # 複数ページレポートの途中（'space bar to continue' 等）か判定
+        # 複数ページレポートの途中（'space bar to continue' 等、日英両対応）か判定
         lower_text = text.lower()
-        has_more_pages = any(p in lower_text for p in [
-            "press space bar to continue",
-            "space to continue",
-            "press space to continue",
-        ])
+        has_more_pages = (
+            any(p in lower_text for p in ["press space", "space to continue", "space bar", "more..."])
+            or any(p in text for p in ["スペース", "ｽﾍﾟｰｽ", "継続", "続行", "終了するには"])
+        )
 
         if has_more_pages and self.is_connected and self.session is not None:
             self._fetch_all_pages_and_open_excel()
@@ -1324,38 +1447,68 @@ class TerminalApp(ctk.CTk):
             if text.strip():
                 self._parse_and_open_excel(text, title="qad_screen")
             else:
-                self._show_input_error("未接続です")
+                self.set_status("❌ 未接続です", "error", clear_delay=4)
             return
 
         def _worker():
-            self._show_input_error("⏳ レポートを全ページ自動取得中... (Space送信)")
+            log_info("手動レポート全ページ取得ワーカーを開始します")
+            self.set_status("⏳ レポートを全ページ自動取得中... (Space送信)", "working")
             all_screens = []
-            max_pages = 200
+            max_pages = 300
             page_count = 0
             last_text = ""
+            consecutive_same = 0
 
-            while page_count < max_pages:
+            CONTINUE_KEYS = ["press space", "space to continue", "space bar", "more...", "スペース", "ｽﾍﾟｰｽ", "継続", "続行"]
+            END_KEYS = ["end of report", "レポート終了", "selection:", "セレクション"]
+
+            while page_count < max_pages and not self.closing:
                 cur_text = self._get_current_screen_text()
                 if cur_text and cur_text != last_text:
                     all_screens.append(cur_text)
                     last_text = cur_text
                     page_count += 1
+                    consecutive_same = 0
+                    log_info(f"手動取得: {page_count} ページ目取得")
+                    self.set_status(f"📊 レポートデータを自動取得中: {page_count} ページ目 (Space送信)...", "working")
+                else:
+                    consecutive_same += 1
+                    if consecutive_same >= 5:
+                        break
 
                 lower = cur_text.lower() if cur_text else ""
-                if "end of report" in lower or "selection:" in lower:
+                if any(k in lower for k in END_KEYS):
+                    log_info(f"終了プロンプト検出: 取得完了")
                     break
 
-                if any(p in lower for p in ["press space bar to continue", "space to continue", "press space to continue"]):
+                if self.is_main_menu() or self.is_menu_screen():
+                    log_info("メニュー画面に戻ったため取得終了")
+                    break
+
+                has_continue = any(k in lower for k in CONTINUE_KEYS) or any(k in cur_text for k in ["スペース", "ｽﾍﾟｰｽ", "継続", "続行"])
+                if has_continue:
                     try:
                         self.session.send(" ")
-                    except Exception:
+                    except Exception as e:
+                        log_error(f"Space送信エラー: {e}")
                         break
                     time.sleep(0.3)
                 else:
-                    break
+                    time.sleep(0.25)
+                    check_text = self._get_current_screen_text()
+                    check_lower = check_text.lower() if check_text else ""
+                    if any(k in check_lower for k in CONTINUE_KEYS) or any(k in check_text for k in ["スペース", "ｽﾍﾟｰｽ"]):
+                        try:
+                            self.session.send(" ")
+                        except Exception:
+                            break
+                        time.sleep(0.3)
+                    else:
+                        break
 
             if not all_screens:
-                self._show_input_error("レポートデータが取得できませんでした")
+                log_warning("手動全画面取得結果が空でした")
+                self.set_status("❌ レポートデータが取得できませんでした", "error", clear_delay=4)
                 return
 
             full_text = "\n".join(all_screens)
@@ -1365,13 +1518,19 @@ class TerminalApp(ctk.CTk):
 
     def _parse_and_open_excel(self, text, title="QAD_Report"):
         """テキストを表データにパースし、新規Excelを開いて全セルを文字列として貼り付ける"""
+        self.set_status("📋 レポートデータを解析中...", "working")
         rows = parse_report_text_to_table(text)
         if not rows or (len(rows) == 1 and not any(rows[0])):
-            self._show_input_error("解析可能な表データが見つかりませんでした")
+            log_warning("表データパース失敗")
+            self.set_status("❌ 解析可能な表データが見つかりませんでした", "error", clear_delay=4)
             return
 
+        self.set_status(f"🚀 Excelを新規作成し、全セルを文字列形式(@)で展開中...", "working")
         success, msg = paste_to_new_excel(rows, title=title)
-        self._show_input_error(msg)
+        if success:
+            self.set_status(f"✅ {msg}", "success", clear_delay=8)
+        else:
+            self.set_status(f"❌ {msg}", "error", clear_delay=6)
 
     def copy_selection_or_screen(self, event=None):
         """テキスト選択範囲があれば選択部分を、なければ画面全体をコピー"""
@@ -1463,13 +1622,15 @@ class TerminalApp(ctk.CTk):
         val = bool(self.auto_excel_var.get())
         self.config["auto_excel_export"] = val
         save_config(self.config)
+        self._update_status_info()
         if val:
-            self._show_input_error("レポート出力を自動でExcelに展開（文字列書式）を有効化しました")
+            self.set_status("レポート出力を自動でExcelに展開（文字列書式）を有効化しました", "info", clear_delay=4)
         else:
-            self._show_input_error("レポート自動Excel展開を無効化しました")
+            self.set_status("レポート自動Excel展開を無効化しました", "info", clear_delay=4)
 
     def _check_is_report_output(self):
         """現在の画面が QAD レポート出力（local 出力）であるかを高精度に判定"""
+        # メインメニューや通常メニュー画面は除外
         if self.is_main_menu() or self.is_menu_screen():
             return False
 
@@ -1485,40 +1646,76 @@ class TerminalApp(ctk.CTk):
         if len(lines) < 3:
             return False
 
-        # 1. ハイフン区切り線（--- --- ---）が存在するか
-        has_hyphen_sep = False
-        for line in lines[:10]:
-            clean = line.strip().replace("│", " ").strip()
-            if clean.startswith("---") and "---" in clean:
-                has_hyphen_sep = True
-                break
+        # 1. 画面全体（全行）からカラム区切り線を検出
+        # 99.3.6.1 では条件指定ヘッダーが多数あり、区切り線が11〜15行目に現れる
+        sep_row_idx = -1
+        sep_pattern = re.compile(r'[-─]{2,}\s+[-─]{2,}')
+        for idx, line in enumerate(lines):
+            clean = line.replace("│", " ").strip()
+            # 複数列のハイフン区切り線パターン、または連続ハイフンが複数ある行、または行頭から15文字以上のハイフン
+            if sep_pattern.search(clean) or clean.count("---") >= 2 or (clean.startswith("---") and len(clean) >= 15):
+                # 枠線記号（┌, ┐, └, ┘, ├, ┤）を含まない
+                if not any(c in line for c in ("┌", "┐", "└", "┘", "├", "┤")):
+                    sep_row_idx = idx
+                    break
 
-        if not has_hyphen_sep:
+        if sep_row_idx == -1:
             return False
 
-        # 2. 改ページまたは終了プロンプト（Press space bar to continue / End of Report 等）が存在するか
-        full_lower = "\n".join(lines).lower()
-        has_prompt = any(p in full_lower for p in [
-            "press space bar to continue",
-            "space to continue",
-            "press space to continue",
-            "end of report",
-        ])
+        # 2. プロンプトまたは待機フラグの判定
+        full_text = "\n".join(lines)
+        full_lower = full_text.lower()
 
-        return has_prompt
+        # 継続プロンプト / 終了プロンプト（日英両対応）
+        has_prompt = (
+            any(p in full_lower for p in ["press space", "space to continue", "space bar", "more...", "-- more --", "end of report", "return to exit"])
+            or any(p in full_text for p in ["スペース", "ｽﾍﾟｰｽ", "継続", "続行", "終了するには", "レポート終了"])
+        )
+
+        # クエリ実行待機中フラグ（F1押下後）が立っていれば、区切り線が出現した時点で直ちにTrue
+        if getattr(self, "_is_waiting_query", False):
+            log_info(f"_check_is_report_output: 一致！ (クエリ待機中 + 区切り線行 {sep_row_idx} 検出: {lines[sep_row_idx][:50]})")
+            return True
+
+        # プロンプトが検出された場合もTrue
+        if has_prompt:
+            log_info(f"_check_is_report_output: 一致！ (区切り線行 {sep_row_idx} + プロンプト検出)")
+            return True
+
+        # プロンプトがまだ画面最下行に届いていない場合でも、区切り線があり、かつ上部にカラムヘッダー、下部にデータ行があればTrue
+        if sep_row_idx >= 1 and sep_row_idx < len(lines) - 1:
+            data_lines = [l for l in lines[sep_row_idx + 1:] if l.strip()]
+            if len(data_lines) >= 1:
+                log_info(f"_check_is_report_output: 一致！ (区切り線行 {sep_row_idx} + データ行 {len(data_lines)} 行検出)")
+                return True
+
+        return False
 
     def _start_auto_report_capture(self):
         """サーバーからの local レポート出力を自動で全ページ受信し、Excelを開いて文字列として貼り付ける"""
         if self._is_capturing_report:
             return
         self._is_capturing_report = True
+        self._is_waiting_query = False  # クエリ待機完了
 
         def _worker():
-            self._show_input_error("📊 QADレポート出力を検出しました。全データを自動取得中... (Space送信)")
+            log_info("=== レポート自動取得・Excel展開ワーカー起動 ===")
+            self.set_status("📊 QADレポート出力を検出しました。全データを自動取得中... (Space送信)", "working")
             all_screens = []
-            max_pages = 200
+            max_pages = 300
             page_count = 0
             last_text = ""
+            consecutive_same_count = 0
+
+            # 継続プロンプト判定用キーワード（日英両対応）
+            CONTINUE_KEYWORDS = [
+                "press space", "space to continue", "space bar", "more...", "-- more --",
+                "スペース", "ｽﾍﾟｰｽ", "継続", "続行", "<return>", "return to exit"
+            ]
+            # 終了キーワード
+            END_KEYWORDS = [
+                "end of report", "レポート終了", "selection:", "セレクション"
+            ]
 
             try:
                 while page_count < max_pages and not self.closing:
@@ -1527,47 +1724,92 @@ class TerminalApp(ctk.CTk):
                         all_screens.append(cur_text)
                         last_text = cur_text
                         page_count += 1
-                        self._show_input_error(f"📊 レポート取得中: {page_count} ページ目...")
+                        consecutive_same_count = 0
+                        log_info(f"レポート取得: {page_count} ページ目取得完了 (文字数: {len(cur_text)})")
+                        self.set_status(f"📊 レポートデータを自動取得中: {page_count} ページ目 (Space送信)...", "working")
+                    else:
+                        consecutive_same_count += 1
+                        if consecutive_same_count >= 5:
+                            log_info(f"画面変化なしが {consecutive_same_count} 回継続したためページ送り終了")
+                            break
 
                     lower = cur_text.lower() if cur_text else ""
-                    if "end of report" in lower or "selection:" in lower:
+
+                    # 終了判定
+                    if any(k in lower for k in END_KEYWORDS):
+                        log_info(f"レポート終了プロンプトを検出: {lower[-80:]}")
+                        break
+
+                    # メインメニューやメニュー画面に戻っていたら終了
+                    if self.is_main_menu() or self.is_menu_screen():
+                        log_info("メニュー画面に戻ったためレポート取得終了")
                         break
 
                     # 継続プロンプトがあれば Space キーを送信して次ページへ
-                    if any(p in lower for p in ["press space bar to continue", "space to continue", "press space to continue"]):
+                    has_continue = any(k in lower for k in CONTINUE_KEYWORDS) or any(k in cur_text for k in ["スペース", "ｽﾍﾟｰｽ", "継続", "続行"])
+                    if has_continue:
                         try:
                             if self.is_connected and self.session is not None:
+                                log_debug(f"Space キー送信 (page {page_count})")
                                 self.session.send(" ")
-                        except Exception:
+                        except Exception as e:
+                            log_error(f"Space キー送信エラー: {e}")
                             break
                         time.sleep(0.3)
                     else:
-                        time.sleep(0.2)
+                        # プロンプトが見当たらない場合、少し待って再確認
+                        time.sleep(0.25)
                         check_text = self._get_current_screen_text()
                         check_lower = check_text.lower() if check_text else ""
-                        if not any(p in check_lower for p in ["press space bar to continue", "space to continue", "press space to continue"]):
+                        if any(k in check_lower for k in CONTINUE_KEYWORDS) or any(k in check_text for k in ["スペース", "ｽﾍﾟｰｽ"]):
+                            try:
+                                if self.is_connected and self.session is not None:
+                                    log_debug(f"再確認後 Space キー送信 (page {page_count})")
+                                    self.session.send(" ")
+                            except Exception:
+                                break
+                            time.sleep(0.3)
+                        else:
+                            # 継続プロンプトなし ＆ 終了プロンプトなし → 1ページのみのレポート等
+                            log_info("継続プロンプトが見当たらないため取得完了と判断")
                             break
 
                 if not all_screens:
-                    self._show_input_error("レポートデータが取得できませんでした")
+                    log_warning("全画面取得結果が空でした")
+                    self.set_status("❌ レポートデータが取得できませんでした", "error", clear_delay=5)
                     return
+
+                log_info(f"全 {len(all_screens)} ページの取得完了。パース処理を開始します...")
+                self.set_status("📋 レポートデータを解析中...", "working")
 
                 full_text = "\n".join(all_screens)
                 rows = parse_report_text_to_table(full_text)
+
                 if not rows or (len(rows) == 1 and not any(rows[0])):
-                    self._show_input_error("レポートの表データをパースできませんでした")
+                    log_warning(f"パース失敗: 行数={len(rows) if rows else 0}")
+                    self.set_status("❌ レポートの表データをパースできませんでした", "error", clear_delay=5)
                     return
 
-                self._show_input_error(f"📊 Excelを起動して全 {len(rows) - 1} 件を文字列として展開中...")
+                log_info(f"パース成功: カラム数={len(rows[0])}, データ行数={len(rows) - 1}")
+                self.set_status(f"🚀 Excelを新規作成し、全 {len(rows) - 1} 件を文字列として展開中...", "working")
+
                 success, msg = paste_to_new_excel(rows, title="QAD_Report")
-                self._show_input_error(msg)
+                log_info(f"Excel展開結果: success={success}, msg={msg}")
+
+                if success:
+                    self.set_status(f"✅ {msg}", "success", clear_delay=8)
+                else:
+                    self.set_status(f"❌ {msg}", "error", clear_delay=6)
             except Exception as e:
-                self._show_input_error(f"自動Excel出力エラー: {e}")
+                log_error(f"自動Excel出力例外エラー: {e}", exc_info=True)
+                self.set_status(f"❌ 自動Excel出力エラー: {e}", "error", clear_delay=6)
             finally:
                 self._is_capturing_report = False
+                self._is_waiting_query = False
                 self._last_report_capture_time = time.time()
 
         threading.Thread(target=_worker, daemon=True, name="auto-excel-capture").start()
+
 
     # --- カラーパレット・テーマ切替処理 ---
     def open_color_palette(self):
@@ -1690,13 +1932,20 @@ class TerminalApp(ctk.CTk):
                 self.is_connected = True
                 self._show_message("\n".join([" " * COLS] * ROWS))
                 self._set_state("接続済み", "success")
+                self.set_status("● 接続済み (Ready)", "info")
+                self._update_status_info()
+                log_info("SSH接続確立 (connected)")
                 self.focus_terminal()
             elif event == "closed":
                 if self.is_connected:
                     self._update_screen()
                 self.session = None
                 self.is_connected = False
+                self._is_waiting_query = False
                 self._set_state("接続エラー" if error else "切断済み", "error" if error else "muted")
+                self.set_status("● 接続エラー" if error else "● 切断済み", "error" if error else "info")
+                self._update_status_info()
+                log_info(f"SSH切断 (closed, error={error})")
                 if error:
                     messagebox.showerror("SSH接続エラー", error, parent=self)
         if self.is_connected:
@@ -1710,6 +1959,7 @@ class TerminalApp(ctk.CTk):
         changed, cursor, active_cols = snapshot
         if getattr(self, "active_cols", 80) != active_cols:
             self.active_cols = active_cols
+            self._update_status_info()
             if self.auto_fit:
                 self._apply_auto_fit()
 
@@ -1739,9 +1989,24 @@ class TerminalApp(ctk.CTk):
             # レポート自動検知（local 出力時、自動で全ページ取得してExcelを開く）
             if self.config.get("auto_excel_export", True) and not self._is_capturing_report:
                 now = time.time()
-                if now - self._last_report_capture_time > 3.0:
+                is_waiting = getattr(self, "_is_waiting_query", False)
+                cooldown = 0.5 if is_waiting else 3.0
+                if now - self._last_report_capture_time > cooldown:
                     if self._check_is_report_output():
                         self._start_auto_report_capture()
+
+            # クエリ待機タイムアウトまたはメニュー復帰の管理
+            if getattr(self, "_is_waiting_query", False):
+                now = time.time()
+                if self.is_main_menu() or self.is_menu_screen():
+                    log_info("メニュー画面に戻ったためクエリ待機状態を解除します")
+                    self._is_waiting_query = False
+                    self.set_status("● 接続済み (Ready)", "info")
+                elif now - getattr(self, "_query_wait_start_time", now) > 180.0:
+                    log_warning("クエリ待機が180秒を超過したため待機状態を解除します")
+                    self._is_waiting_query = False
+                    self.set_status("● 接続済み (Ready)", "info")
+
 
         self.textbox.tag_remove("remote_cursor", "1.0", "end")
         if cursor is not None:
@@ -2018,8 +2283,35 @@ class TerminalApp(ctk.CTk):
 
         # 3. 通常キー送信（英数字・記号・Enter・Space・Tab・Backspace・矢印キー・F1・F4等）
         if self.is_connected:
+            if event.keysym == "F1":
+                self._handle_f1_action()
+            elif event.keysym == "F4":
+                if getattr(self, "_is_waiting_query", False):
+                    log_info("F4押下によりクエリ待機を解除しました")
+                    self._is_waiting_query = False
+                    self.set_status("● 接続済み (Ready)", "info")
             self._send(key_sequence(event.keysym, event.char, event.state))
         return "break"
+
+    def _handle_f1_action(self):
+        """F1キー押下時に画面状態をチェックし、レポート実行クエリ待機ステータスを設定"""
+        if not self.is_connected:
+            return
+        if self.is_main_menu() or self.is_menu_screen():
+            return
+        cur_text = self._get_current_screen_text()
+        lower = cur_text.lower() if cur_text else ""
+        # 画面内に Output / 出力 / 99. / From / To 等のレポート条件画面パターンがあるか判定
+        is_report_input = (
+            "output" in lower or "出力" in cur_text
+            or "99." in cur_text or "local" in lower
+            or "from:" in lower or "to:" in lower
+        )
+        if is_report_input:
+            log_info("レポート条件入力画面で F1 キーが押下されました。クエリ待機ステータスを開始します。")
+            self._is_waiting_query = True
+            self._query_wait_start_time = time.time()
+            self.set_status("⏳ サーバーの応答を待機中... (クエリ処理中)", "waiting")
 
     def _send(self, data):
         if not data or not self.is_connected or self.session is None:
@@ -2028,23 +2320,84 @@ class TerminalApp(ctk.CTk):
             self.session.send(data)
         except UnicodeEncodeError:
             self.bell()
-            self._show_input_error("送信できません：CP932で表現できない文字です。")
+            self.set_status("❌ 送信できません：CP932で表現できない文字です。", "error", clear_delay=4)
         except queue.Full:
             self.bell()
-            self._show_input_error("送信待ちが多いため、キー入力を一度止めてください。")
+            self.set_status("❌ 送信待ちが多いため、キー入力を一度止めてください。", "error", clear_delay=4)
         else:
-            self._show_input_error("")
+            # 待機中・処理中の重要なステータス表示中は、キー送信で消さないよう保護
+            if getattr(self, "_current_status_type", "info") not in ("waiting", "working"):
+                self._show_input_error("")
+
+    def set_status(self, text, status_type="info", clear_delay=None):
+        """画面下のステータスバーに現在の処理状況をリアルタイム表示
+
+        status_type:
+            'info': 通常状態（淡色）
+            'waiting': クエリ応答待機中（アンバー #F59E0B）
+            'working': 取得・解析・展開処理中（ブルー #3B82F6）
+            'success': 処理完了（グリーン #10B981）
+            'error': エラー（レッド #EF4444）
+        """
+        self._current_status_type = status_type
+        color_map = {
+            "info": self.ui_colors.get("muted", "#64748B"),
+            "waiting": "#F59E0B",
+            "working": "#3B82F6",
+            "success": "#10B981",
+            "error": self.ui_colors.get("error", "#EF4444"),
+        }
+        text_color = color_map.get(status_type, color_map["info"])
+
+        # タイマーがあればキャンセル
+        if getattr(self, "_status_clear_timer", None) is not None:
+            try:
+                self.after_cancel(self._status_clear_timer)
+            except Exception:
+                pass
+            self._status_clear_timer = None
+
+        if hasattr(self, "bottom_status_label"):
+            self.bottom_status_label.configure(text=text, text_color=text_color)
+
+        if hasattr(self, "footer"):
+            self.footer.configure(text=text, text_color=text_color)
+            if status_type == "error":
+                self.footer.grid()
+            else:
+                self.footer.grid_remove()
+
+        if clear_delay and clear_delay > 0:
+            def _reset():
+                if self.is_connected:
+                    self.set_status("● 接続済み (Ready)", "info")
+                else:
+                    self.set_status("● 未接続", "info")
+                self._status_clear_timer = None
+
+            self._status_clear_timer = self.after(int(clear_delay * 1000), _reset)
 
     def _show_input_error(self, message):
-        self.footer.configure(text=message)
         if message:
-            self.footer.grid()
+            self.set_status(f"❌ {message}", status_type="error", clear_delay=4)
         else:
-            self.footer.grid_remove()
+            if getattr(self, "_current_status_type", "info") not in ("waiting", "working"):
+                if self.is_connected:
+                    self.set_status("● 接続済み (Ready)", "info")
+                else:
+                    self.set_status("● 未接続", "info")
 
     def send_key(self, key):
+        if key == "F1":
+            self._handle_f1_action()
+        elif key == "F4":
+            if getattr(self, "_is_waiting_query", False):
+                log_info("ツールバー/メニューからの F4 送信によりクエリ待機を解除しました")
+                self._is_waiting_query = False
+                self.set_status("● 接続済み (Ready)", "info")
         self._send(KEY_SEQUENCES[key])
         self.focus_terminal()
+
 
     def focus_terminal(self):
         self.textbox.focus_set()
