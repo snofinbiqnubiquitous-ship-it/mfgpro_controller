@@ -963,37 +963,85 @@ class TerminalApp(ctk.CTk):
         needed = ref_width - line_width
         if needed <= 0:
             return line, []
-        pad_char = "─" if line and line[0] in {"┌", "└"} else " "
+
+        is_box_line = line and line[0] in {"┌", "└"}
         cw = f.measure("M")
         if cw <= 0:
             return line, []
-        pad_count = max(1, round(needed / cw))
 
-        base_w = needed // pad_count
-        rem = needed % pad_count
-        widths = [base_w + 1 if i < rem else base_w for i in range(pad_count)]
-
-        pad_tags = []
         cur_font_size = self.font_size
-        for idx, tw in enumerate(widths):
-            best_sz = cur_font_size
-            best_diff = 999
-            for sz in range(max(6, cur_font_size - 10), cur_font_size + 10):
-                w = tkfont.Font(family=self.terminal_font_family, size=sz).measure(pad_char)
-                if abs(w - tw) < best_diff:
-                    best_diff = abs(w - tw)
-                    best_sz = sz
-            tag_name = f"pad_tag_{cur_font_size}_{idx}_{best_sz}"
-            try:
-                self.textbox._textbox.tag_config(tag_name, font=(self.terminal_font_family, best_sz))
-            except Exception:
-                pass
-            pad_tags.append(tag_name)
 
-        start_char_idx = len(line) - 1
-        new_line = line[:-1] + (pad_char * pad_count) + line[-1]
-        tag_spans = [(start_char_idx + i, start_char_idx + i + 1, pad_tags[i]) for i in range(pad_count)]
-        return new_line, tag_spans
+        if is_box_line:
+            # 上部・下部枠線行:
+            # ─ のフォントサイズを変えるとアセントの違いで横線が凹んでしまうため、
+            # ─ は必ず通常フォントサイズ(cur_font_size)で均一に描画する。
+            pad_char = "─"
+            spaces = [i for i, c in enumerate(line) if c == " "]
+            if spaces:
+                import math
+                pad_count = max(1, math.ceil(needed / cw))
+                overhang = (pad_count * cw) - needed  # 縮めるべきピクセル数
+                new_line = line[:-1] + (pad_char * pad_count) + line[-1]
+
+                tag_spans = []
+                if overhang > 0:
+                    # 行内の空白文字(スペース)を縮めてオーバー分を吸収する
+                    # 空白は透明なため、アセントによる凹み等の視覚的副作用は一切発生しない
+                    use_spaces = spaces[:min(len(spaces), 4)]
+                    shrink_per_space = overhang / len(use_spaces)
+                    target_w = max(1, cw - shrink_per_space)
+
+                    best_sz = cur_font_size
+                    best_diff = 999
+                    for sz in range(max(4, cur_font_size - 14), cur_font_size):
+                        w = tkfont.Font(family=self.terminal_font_family, size=sz).measure(" ")
+                        if abs(w - target_w) < best_diff:
+                            best_diff = abs(w - target_w)
+                            best_sz = sz
+
+                    tag_name = f"space_shrink_{cur_font_size}_{best_sz}"
+                    try:
+                        self.textbox._textbox.tag_config(tag_name, font=(self.terminal_font_family, best_sz))
+                    except Exception:
+                        pass
+                    for sp_idx in use_spaces:
+                        tag_spans.append((sp_idx, sp_idx + 1, tag_name))
+                return new_line, tag_spans
+            else:
+                # 空白がない場合は通常サイズの ─ を挿入（横線を絶対に凹ませず平坦に保つ）
+                pad_count = max(1, round(needed / cw))
+                new_line = line[:-1] + (pad_char * pad_count) + line[-1]
+                return new_line, []
+        else:
+            # 中間データ行 (│ ... │):
+            # パディング文字は空白 (" ") なので、フォントサイズ微調整を行っても
+            # 透明のため横線の凹み等の視覚的副作用は一切生じない。
+            pad_char = " "
+            pad_count = max(1, round(needed / cw))
+            base_w = needed // pad_count
+            rem = needed % pad_count
+            widths = [base_w + 1 if i < rem else base_w for i in range(pad_count)]
+
+            pad_tags = []
+            for idx, tw in enumerate(widths):
+                best_sz = cur_font_size
+                best_diff = 999
+                for sz in range(max(6, cur_font_size - 10), cur_font_size + 10):
+                    w = tkfont.Font(family=self.terminal_font_family, size=sz).measure(pad_char)
+                    if abs(w - tw) < best_diff:
+                        best_diff = abs(w - tw)
+                        best_sz = sz
+                tag_name = f"pad_tag_sp_{cur_font_size}_{idx}_{best_sz}"
+                try:
+                    self.textbox._textbox.tag_config(tag_name, font=(self.terminal_font_family, best_sz))
+                except Exception:
+                    pass
+                pad_tags.append(tag_name)
+
+            start_char_idx = len(line) - 1
+            new_line = line[:-1] + (pad_char * pad_count) + line[-1]
+            tag_spans = [(start_char_idx + i, start_char_idx + i + 1, pad_tags[i]) for i in range(pad_count)]
+            return new_line, tag_spans
 
     def _auto_align_header_border(self):
         """Textウィジェットの実測描画座標(bbox)に基づき、ヘッダー行(Row 0)の右端角(┐)を純罫線行と1px単位で完全一致させる"""
@@ -1018,25 +1066,45 @@ class TerminalApp(ctk.CTk):
             if diff_x == 0:
                 return  # 完全に一致している
 
-            # 1〜3px の微差がある場合、直前のパディング文字のタグフォントサイズを微調整して一致させる
+            # 1〜3px の微差がある場合、行内の空白文字のタグフォントサイズを微調整して一致させる
+            # （※ ─ 文字のフォントサイズを絶対に変更してはいけない！横線が凹む原因になるため）
             line0 = tb.get("1.0", "1.end")
             if len(line0) < 3 or line0[-1] != "┐":
                 return
 
+            # 行内の空白文字を探す
+            spaces = [i for i, c in enumerate(line0) if c == " "]
+            if not spaces:
+                return
+
             import tkinter.font as tkfont
-            pad_idx = len(line0) - 2
-            char_idx_str = f"1.{pad_idx}"
+            sp_idx = spaces[0]
+            char_idx_str = f"1.{sp_idx}"
             cur_tags = tb.tag_names(char_idx_str)
-            pad_tag = next((t for t in cur_tags if t.startswith("pad_tag_")), None)
-            if pad_tag:
-                parts = pad_tag.split("_")
-                if len(parts) >= 5:
-                    cur_sz = int(parts[4])
-                    new_sz = cur_sz + (1 if diff_x > 0 else -1)
-                    new_tag = f"pad_tag_adj_{new_sz}"
-                    tb.tag_config(new_tag, font=(self.terminal_font_family, new_sz))
-                    tb.tag_remove(pad_tag, char_idx_str, f"1.{pad_idx + 1}")
-                    tb.tag_add(new_tag, char_idx_str, f"1.{pad_idx + 1}")
+            existing_tag = next((t for t in cur_tags if t.startswith("space_shrink_") or t.startswith("space_auto_adj_")), None)
+            cur_sz = self.font_size
+            if existing_tag:
+                parts = existing_tag.split("_")
+                if len(parts) >= 4:
+                    try:
+                        cur_sz = int(parts[-1])
+                    except Exception:
+                        pass
+                tb.tag_remove(existing_tag, char_idx_str, f"1.{sp_idx + 1}")
+
+            cur_w = tkfont.Font(family=self.terminal_font_family, size=cur_sz).measure(" ")
+            target_space_w = cur_w + diff_x
+            best_sz = cur_sz
+            best_d = 999
+            for sz in range(max(4, self.font_size - 14), self.font_size + 10):
+                w = tkfont.Font(family=self.terminal_font_family, size=sz).measure(" ")
+                if abs(w - target_space_w) < best_d:
+                    best_d = abs(w - target_space_w)
+                    best_sz = sz
+
+            new_tag = f"space_auto_adj_{best_sz}"
+            tb.tag_config(new_tag, font=(self.terminal_font_family, best_sz))
+            tb.tag_add(new_tag, char_idx_str, f"1.{sp_idx + 1}")
         except Exception:
             pass
 
