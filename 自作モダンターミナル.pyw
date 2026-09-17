@@ -1,10 +1,15 @@
 import base64
+import csv
+import datetime
 import json
 import os
 from pathlib import Path
 import queue
 import re
 import sys
+import tempfile
+import threading
+import time
 
 # Explorerの関連付けは通常、ライブラリ未導入の標準Pythonを使用する。
 # このプロジェクトの仮想環境があれば、GUIのimportより先に切り替える（pythonwを優先）。
@@ -263,6 +268,90 @@ def find_first_available_font(candidates, fallback="sans-serif"):
     except Exception:
         pass
     return candidates[0] if candidates else fallback
+
+
+def convert_date_format(date_str):
+    """QADの MM/DD/YY 形式の日付を YYYY/MM/DD に変換"""
+    try:
+        dt = datetime.datetime.strptime(date_str, "%m/%d/%y")
+        return dt.strftime("%Y/%m/%d")
+    except ValueError:
+        return date_str
+
+
+def parse_report_text_to_table(text):
+    """QADのレポート画面テキスト（固定長ハイフン区切りまたは汎用空白区切り）を2次元配列にパース"""
+    lines = [l.rstrip() for l in text.splitlines() if l.strip()]
+    if not lines:
+        return []
+
+    # 1. '--- --- ---' 形式のヘッダー区切り線を検出
+    sep_idx = -1
+    for i, line in enumerate(lines):
+        clean = line.strip().replace("│", " ").strip()
+        if clean.startswith("---") and "---" in clean:
+            sep_idx = i
+            break
+
+    if sep_idx > 0:
+        header_line = lines[sep_idx - 1].replace("│", " ")
+        sep_line = lines[sep_idx].replace("│", " ")
+
+        # ハイフンのブロックからカラムの開始・終了バイト位置を算出（CP932バイト幅対応）
+        b_sep = sep_line.encode("cp932", errors="replace")
+        parts = [p for p in re.finditer(r"-+", sep_line)]
+        slices = []
+        for j, p in enumerate(parts):
+            start = p.start()
+            end = parts[j + 1].start() if j + 1 < len(parts) else len(b_sep)
+            slices.append((start, end))
+
+        b_header = header_line.encode("cp932", errors="replace")
+        headers = [b_header[s:e].decode("cp932", errors="ignore").strip() for s, e in slices]
+        rows = [headers]
+        seen_rows = set()
+
+        for line in lines[sep_idx + 1:]:
+            clean_l = line.strip().strip("│┌┐└┘├┤─").strip()
+            if not clean_l:
+                continue
+            if "End of Report" in line or "Report Criteria" in line:
+                break
+            if "Page:" in line or ".p" in line.lower() or "Date:" in line or clean_l.startswith("---") or "press space" in clean_l.lower():
+                continue
+
+            raw_col = line.replace("│", " ")
+            b_line = raw_col.encode("cp932", errors="replace")
+            row = []
+            for s, e in slices:
+                if s < len(b_line):
+                    val = b_line[s:e].decode("cp932", errors="ignore").strip()
+                else:
+                    val = ""
+                # 日付変換
+                if len(val) == 8 and val[2] == "/" and val[5] == "/":
+                    val = convert_date_format(val)
+                row.append(val)
+
+            t_row = tuple(row)
+            if t_row == tuple(headers):
+                continue
+            if any(row):
+                if t_row not in seen_rows:
+                    seen_rows.add(t_row)
+                    rows.append(row)
+        return rows
+
+    # 2. 汎用フォールバック（ヘッダー区切り線がない表や一覧画面）
+    rows = []
+    for line in lines:
+        clean = line.strip().strip("│┌┐└┘├┤─").strip()
+        if not clean or clean.startswith("---") or "End of Report" in clean or "press space" in clean.lower():
+            continue
+        cols = [c.strip() for c in re.split(r"\s{2,}|\t", clean) if c.strip()]
+        if cols:
+            rows.append(cols)
+    return rows
 
 
 class ActionButton(ctk.CTkFrame):
@@ -751,6 +840,9 @@ class TerminalApp(ctk.CTk):
             command=self.toggle_block_server_shortcuts,
         )
         self.edit_menu.add_separator()
+        self.edit_menu.add_command(label="📊 画面のデータをExcelで開く (CSV)", accelerator="Ctrl+E", command=self.export_to_excel)
+        self.edit_menu.add_command(label="🚀 レポート全ページ自動取得 ＆ Excelで開く", command=self._fetch_all_pages_and_open_excel)
+        self.edit_menu.add_separator()
         self.edit_menu.add_command(label="📋 画面全体をコピー", accelerator="Ctrl+Shift+C", command=self.copy_screen_text)
         menubar.add_cascade(label="編集", menu=self.edit_menu)
 
@@ -813,10 +905,14 @@ class TerminalApp(ctk.CTk):
         self.copy_btn = self._button(self.header, "📋 画面コピー", self.copy_screen_text)
         self.copy_btn.grid(row=0, column=1, padx=(0, 8), pady=(10, 0))
 
+        # Excelで開くボタン
+        self.excel_btn = self._button(self.header, "📊 Excelで開く", self.export_to_excel)
+        self.excel_btn.grid(row=0, column=2, padx=(0, 8), pady=(10, 0))
+
         self.connect_btn = self._button(self.header, "ログイン", self.connect_to_server, True)
-        self.connect_btn.grid(row=0, column=2, padx=(0, 8), pady=(10, 0))
+        self.connect_btn.grid(row=0, column=3, padx=(0, 8), pady=(10, 0))
         self.disconnect_btn = self._button(self.header, "切断", self.disconnect_server)
-        self.disconnect_btn.grid(row=0, column=3, padx=(0, 20), pady=(10, 0))
+        self.disconnect_btn.grid(row=0, column=4, padx=(0, 20), pady=(10, 0))
 
     def _build_terminal(self):
         # ターミナルパネル（外枠）: 右カラム廃止により画面横幅100%をフル活用
@@ -1095,8 +1191,8 @@ class TerminalApp(ctk.CTk):
         import threading
         threading.Thread(target=_do_jump, daemon=True, name="menu-jump").start()
 
-    def copy_screen_text(self, event=None):
-        """画面に表示されているテキスト全体をクリップボードにコピー"""
+    def _get_current_screen_text(self):
+        """画面に表示されているテキスト全体を取得"""
         lines = []
         if getattr(self, "raw_lines", None):
             for r in range(ROWS):
@@ -1106,13 +1202,16 @@ class TerminalApp(ctk.CTk):
                     lines.append("")
             while lines and not lines[-1]:
                 lines.pop()
-            text = "\n".join(lines)
+            return "\n".join(lines)
         else:
             try:
-                text = self.textbox.get("1.0", "end-1c").rstrip()
+                return self.textbox.get("1.0", "end-1c").rstrip()
             except Exception:
-                text = ""
+                return ""
 
+    def copy_screen_text(self, event=None):
+        """画面に表示されているテキスト全体をクリップボードにコピー"""
+        text = self._get_current_screen_text()
         if text:
             try:
                 self.clipboard_clear()
@@ -1124,6 +1223,95 @@ class TerminalApp(ctk.CTk):
         else:
             self._show_input_error("コピーする画面テキストがありません")
         return "break"
+
+    def export_to_excel(self, event=None):
+        """画面上の表データ（または複数ページレポート）をCSV化してExcelで直接起動"""
+        text = self._get_current_screen_text()
+        if not text.strip():
+            self._show_input_error("出力対象の画面データがありません")
+            return "break"
+
+        # 複数ページレポートの途中（'space bar to continue' 等）か判定
+        lower_text = text.lower()
+        has_more_pages = any(p in lower_text for p in [
+            "press space bar to continue",
+            "space to continue",
+            "press space to continue",
+        ])
+
+        if has_more_pages and self.is_connected and self.session is not None:
+            self._fetch_all_pages_and_open_excel()
+        else:
+            self._parse_and_open_excel(text, title="qad_screen")
+        return "break"
+
+    def _fetch_all_pages_and_open_excel(self):
+        """複数ページのレポートを自動スクロールしながら全ページ取得し、1つのCSVとしてExcelで開く"""
+        if not self.is_connected or self.session is None:
+            text = self._get_current_screen_text()
+            if text.strip():
+                self._parse_and_open_excel(text, title="qad_screen")
+            else:
+                self._show_input_error("未接続です")
+            return
+
+        def _worker():
+            self._show_input_error("⏳ レポートを全ページ自動取得中... (Space送信)")
+            all_screens = []
+            max_pages = 200
+            page_count = 0
+            last_text = ""
+
+            while page_count < max_pages:
+                cur_text = self._get_current_screen_text()
+                if cur_text and cur_text != last_text:
+                    all_screens.append(cur_text)
+                    last_text = cur_text
+                    page_count += 1
+
+                lower = cur_text.lower() if cur_text else ""
+                if "end of report" in lower or "selection:" in lower:
+                    break
+
+                if any(p in lower for p in ["press space bar to continue", "space to continue", "press space to continue"]):
+                    try:
+                        self.session.send(" ")
+                    except Exception:
+                        break
+                    time.sleep(0.3)
+                else:
+                    break
+
+            if not all_screens:
+                self._show_input_error("レポートデータが取得できませんでした")
+                return
+
+            full_text = "\n".join(all_screens)
+            self._parse_and_open_excel(full_text, title=f"qad_report_{page_count}pages")
+
+        threading.Thread(target=_worker, daemon=True, name="excel-fetch").start()
+
+    def _parse_and_open_excel(self, text, title="qad_export"):
+        """テキストを表データにパースし、BOM付きUTF-8のCSVで保存してExcelで起動"""
+        rows = parse_report_text_to_table(text)
+        if not rows or (len(rows) == 1 and not any(rows[0])):
+            self._show_input_error("解析可能な表データが見つかりませんでした")
+            return
+
+        now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        export_dir = Path(tempfile.gettempdir()) / "qad_exports"
+        try:
+            export_dir.mkdir(parents=True, exist_ok=True)
+            csv_path = export_dir / f"{title}_{now_str}.csv"
+            with open(csv_path, "w", encoding="utf-8-sig", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerows(rows)
+
+            os.startfile(str(csv_path))
+            data_rows = max(0, len(rows) - 1)
+            self._show_input_error(f"Excelで開きました 📊 ({data_rows}件のデータ)")
+        except Exception as e:
+            self._show_input_error(f"Excel起動エラー: {e}")
 
     def copy_selection_or_screen(self, event=None):
         """テキスト選択範囲があれば選択部分を、なければ画面全体をコピー"""
@@ -1632,6 +1820,10 @@ class TerminalApp(ctk.CTk):
             # Ctrl+A: 画面全体のテキストを選択
             if is_ctrl and not is_shift and keysym_lower == "a":
                 return self.select_all_text(event)
+
+            # Ctrl+E: 画面のデータをCSV化してExcelで開く
+            if is_ctrl and not is_shift and keysym_lower == "e":
+                return self.export_to_excel(event)
 
         # 2. サーバー側ショートカットの制御（F1/F4以外のCtrl系および不要ファンクションキーを無効化）
         if self.config.get("block_server_shortcuts", True):
