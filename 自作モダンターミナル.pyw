@@ -127,6 +127,19 @@ def save_config(cfg):
         print(f"設定保存エラー: {exc}", file=sys.stderr)
 
 
+class InputField:
+    """画面上の入力欄（下線部）の位置情報を表す軽量クラス"""
+    __slots__ = ("row", "start_col", "end_col")
+
+    def __init__(self, row: int, start_col: int, end_col: int):
+        self.row = row
+        self.start_col = start_col
+        self.end_col = end_col
+
+    def __repr__(self):
+        return f"InputField(row={self.row}, cols={self.start_col}..{self.end_col})"
+
+
 # --- カラーテーマ定義 ---
 COLOR_THEMES = {
     "light": {
@@ -156,6 +169,7 @@ COLOR_THEMES = {
         "reverse_fg": "#F8FAFC",
         "menu_highlight_bg": "#0F172A",
         "menu_highlight_fg": "#F8FAFC",
+        "underline_fg": "#2563EB",
     },
     "dark": {
         "name": "ダークスレート",
@@ -184,6 +198,7 @@ COLOR_THEMES = {
         "reverse_fg": "#0F172A",
         "menu_highlight_bg": "#38BDF8",
         "menu_highlight_fg": "#0F172A",
+        "underline_fg": "#38BDF8",
     },
     "classic_green": {
         "name": "クラシックグリーン (VT100)",
@@ -212,6 +227,7 @@ COLOR_THEMES = {
         "reverse_fg": "#050806",
         "menu_highlight_bg": "#00FF66",
         "menu_highlight_fg": "#050806",
+        "underline_fg": "#00E5FF",
     },
     "amber": {
         "name": "アンバー（琥珀色）",
@@ -240,6 +256,7 @@ COLOR_THEMES = {
         "reverse_fg": "#0D0A05",
         "menu_highlight_bg": "#FFB000",
         "menu_highlight_fg": "#0D0A05",
+        "underline_fg": "#38BDF8",
     },
 }
 
@@ -1007,6 +1024,12 @@ class TerminalApp(ctk.CTk):
         self._current_status_type = "info"
         self._status_clear_timer = None
 
+        # 入力受付カーソルの白点滅・フィールドナビゲーション管理
+        self._current_cursor = None
+        self._cursor_blink_visible = True
+        self._cursor_blink_job = None
+        self._is_navigating_field = False
+
         self._build_menu()
         self._build_header()
         self._build_terminal()
@@ -1014,6 +1037,7 @@ class TerminalApp(ctk.CTk):
         self._build_statusbar()
         self._set_state("未接続")
         self._show_message("")
+        self._start_cursor_blink()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.update_job = self.after(33, self._poll)
         self.after(100, self._apply_auto_fit)
@@ -1174,14 +1198,32 @@ class TerminalApp(ctk.CTk):
         self.textbox.bind("<<Paste>>", self._on_paste_event)
         self.textbox.bind("<<Cut>>", lambda event: "break")
 
+        # 画面クリックによる入力欄直接フォーカス＆ホバー時のカーソル形状変更
+        self.textbox._textbox.bind("<Button-1>", self._on_terminal_click, add="+")
+        self.textbox._textbox.tag_bind("underline", "<Enter>", lambda e: self.textbox._textbox.configure(cursor="xterm"))
+        self.textbox._textbox.tag_bind("underline", "<Leave>", lambda e: self.textbox._textbox.configure(cursor="arrow"))
+
         self.terminal_panel.bind("<Configure>", self._on_panel_resize)
 
     def _apply_text_tags(self):
         """テキストボックスのタグ設定（反転・下線・太字等）を現在のターミナルカラーで更新"""
-        self.textbox.tag_config("remote_cursor", background=self.terminal_colors["cursor"])
+        self._update_cursor_tag_style()
         self.textbox.tag_config("reverse", background=self.terminal_colors["reverse_bg"], foreground=self.terminal_colors["reverse_fg"])
         self.textbox.tag_config("menu_highlight", background=self.terminal_colors["menu_highlight_bg"], foreground=self.terminal_colors["menu_highlight_fg"])
-        self.textbox.tag_config("underline", underline=True)
+
+        # 入力可能箇所（underline）: 文字とアンダーラインを別の色で美しく差別化
+        field_fg = self.terminal_colors.get("text", "#0F172A")
+        underline_color = self.terminal_colors.get("underline_fg", "#2563EB")
+        try:
+            self.textbox._textbox.tag_config(
+                "underline",
+                underline=True,
+                underlinefg=underline_color,
+                foreground=field_fg,
+            )
+        except Exception:
+            self.textbox.tag_config("underline", underline=True, foreground=underline_color)
+
         try:
             self.textbox._textbox.tag_config("bold", font=(self.terminal_font_family, self.font_size, "bold"))
         except Exception:
@@ -2273,8 +2315,11 @@ class TerminalApp(ctk.CTk):
 
         self.textbox.tag_remove("remote_cursor", "1.0", "end")
         if cursor is not None:
+            self._current_cursor = cursor
             row, column = cursor
             self.textbox.tag_add("remote_cursor", f"{row + 1}.{column}", f"{row + 1}.{column + 1}")
+        else:
+            self._current_cursor = None
         try:
             self.textbox._textbox.yview_moveto(0.0)
             self.textbox._textbox.xview_moveto(0.0)
@@ -2501,6 +2546,7 @@ class TerminalApp(ctk.CTk):
                 self.textbox.tag_add("menu_highlight", f"{row + 1}.{m.start()}", f"{row + 1}.{m.end()}")
 
     def on_key_press(self, event):
+        self._reset_cursor_blink()
         if event.state & 0x5 == 0x5 and event.keysym in ("Tab", "ISO_Left_Tab"):
             self.connect_btn.focus_set() if self.session is None else self.disconnect_btn.focus_set()
             return "break"
@@ -2670,6 +2716,206 @@ class TerminalApp(ctk.CTk):
     def focus_terminal(self):
         self.textbox.focus_set()
 
+    # --- CLI風白点滅カーソル制御 ---
+    def _start_cursor_blink(self):
+        """CLI風の白点滅カーソルタイマーを開始"""
+        self._cursor_blink_visible = True
+        self._schedule_cursor_blink()
+
+    def _schedule_cursor_blink(self):
+        if getattr(self, "_cursor_blink_job", None) is not None:
+            try:
+                self.after_cancel(self._cursor_blink_job)
+            except Exception:
+                pass
+            self._cursor_blink_job = None
+        if not self.closing:
+            self._cursor_blink_job = self.after(500, self._on_cursor_blink_tick)
+
+    def _on_cursor_blink_tick(self):
+        if self.closing:
+            return
+        self._cursor_blink_visible = not getattr(self, "_cursor_blink_visible", True)
+        self._update_cursor_tag_style()
+        self._schedule_cursor_blink()
+
+    def _update_cursor_tag_style(self):
+        """カーソルタグ（remote_cursor）のスタイルを白点滅状態に合わせて更新"""
+        try:
+            if getattr(self, "_cursor_blink_visible", True):
+                # CLI風の白ブロックカーソル（白背景＋黒文字で視認性を最大化）
+                self.textbox._textbox.tag_config(
+                    "remote_cursor",
+                    background="#FFFFFF",
+                    foreground="#000000",
+                )
+            else:
+                # 消灯時: ターミナル背景と同化し、通常文字色に復元
+                bg = self.terminal_colors.get("terminal", "#E2E8F0")
+                fg = self.terminal_colors.get("text", "#0F172A")
+                self.textbox._textbox.tag_config(
+                    "remote_cursor",
+                    background=bg,
+                    foreground=fg,
+                )
+        except Exception:
+            pass
+
+    def _reset_cursor_blink(self):
+        """キー入力やクリック時にカーソルを即座に白点灯状態にリセット"""
+        self._cursor_blink_visible = True
+        self._update_cursor_tag_style()
+        self._schedule_cursor_blink()
+
+    # --- 画面上クリックによる入力欄直接ナビゲーション ---
+    def _get_all_input_fields(self):
+        """画面上の下線（underline）属性を持つすべての入力可能欄を走査してリスト化"""
+        try:
+            ranges = self.textbox._textbox.tag_ranges("underline")
+        except Exception:
+            return []
+
+        fields = []
+        for i in range(0, len(ranges), 2):
+            start_idx = str(ranges[i])
+            end_idx = str(ranges[i + 1])
+            s_parts = start_idx.split(".")
+            e_parts = end_idx.split(".")
+            s_row = int(s_parts[0]) - 1
+            s_col = int(s_parts[1])
+            e_row = int(e_parts[0]) - 1
+            e_col = int(e_parts[1])
+
+            if s_row == e_row:
+                fields.append(InputField(s_row, s_col, e_col))
+            else:
+                for r in range(s_row, e_row + 1):
+                    sc = s_col if r == s_row else 0
+                    ec = e_col if r == e_row else self.active_cols
+                    fields.append(InputField(r, sc, ec))
+
+        fields.sort(key=lambda f: (f.row, f.start_col))
+        return fields
+
+    def _find_field_at(self, fields, row, col):
+        """指定した行・列に対応する入力フィールドを特定（近接±2文字を含む）"""
+        for f in fields:
+            if f.row == row and f.start_col <= col <= f.end_col:
+                return f
+        for f in fields:
+            if f.row == row and (f.start_col - 2 <= col <= f.end_col + 2):
+                return f
+        return None
+
+    def _find_current_field(self, fields, cur_row, cur_col):
+        """現在のカーソル位置が属する入力フィールドを特定"""
+        for f in fields:
+            if f.row == cur_row and f.start_col <= cur_col <= f.end_col:
+                return f
+        for f in fields:
+            if f.row == cur_row:
+                return f
+        if fields:
+            return min(fields, key=lambda f: abs(f.row - cur_row))
+        return None
+
+    def _on_terminal_click(self, event):
+        """画面上の入力可能箇所（下線部）をクリックした際に、その欄へ自動でカーソルを移動させて入力可能にする"""
+        self.focus_terminal()
+        self._reset_cursor_blink()
+
+        if not self.is_connected or self.session is None:
+            return
+        if getattr(self, "_is_waiting_query", False) or getattr(self, "_is_capturing_winprint", False):
+            return
+        if getattr(self, "_is_navigating_field", False):
+            return
+
+        try:
+            click_index = self.textbox._textbox.index(f"@{event.x},{event.y}")
+            parts = click_index.split(".")
+            click_row = int(parts[0]) - 1
+            click_col = int(parts[1])
+        except Exception:
+            return
+
+        fields = self._get_all_input_fields()
+        if not fields:
+            return
+
+        target_field = self._find_field_at(fields, click_row, click_col)
+        if target_field is None:
+            # 入力可能欄以外をクリックした場合は通常フォーカスのみで移動しない
+            return
+
+        # テキスト選択状態の解除
+        try:
+            self.textbox._textbox.tag_remove("sel", "1.0", "end")
+        except Exception:
+            pass
+
+        # 現在のカーソル位置を取得
+        cur_pos = getattr(self, "_current_cursor", None)
+        if cur_pos is None:
+            cur_row, cur_col = target_field.row, target_field.start_col
+        else:
+            cur_row, cur_col = cur_pos
+
+        cur_field = self._find_current_field(fields, cur_row, cur_col)
+        if cur_field is None:
+            cur_field = fields[0]
+
+        target_idx = fields.index(target_field)
+        cur_idx = fields.index(cur_field)
+
+        log_info(f"入力欄クリック検知: 現在={cur_field}(idx={cur_idx}) -> 宛先={target_field}(idx={target_idx}), クリック列={click_col}")
+
+        def _do_navigate():
+            self._is_navigating_field = True
+            try:
+                # 1. 異なるフィールド間の移動（順序差分に応じた Down / Up 送信）
+                if target_idx != cur_idx:
+                    step_diff = target_idx - cur_idx
+                    if step_diff > 0:
+                        for _ in range(step_diff):
+                            self.session.send(KEY_SEQUENCES["Down"])
+                            time.sleep(0.03)
+                    else:
+                        for _ in range(abs(step_diff)):
+                            self.session.send(KEY_SEQUENCES["Up"])
+                            time.sleep(0.03)
+
+                    time.sleep(0.05)
+
+                    # 2. フィールド内での列位置調整
+                    col_offset = max(0, min(click_col - target_field.start_col, target_field.end_col - target_field.start_col))
+                    if col_offset > 0:
+                        for _ in range(col_offset):
+                            self.session.send(KEY_SEQUENCES["Right"])
+                            time.sleep(0.02)
+                else:
+                    # 同じフィールド内の列移動
+                    col_diff = click_col - cur_col
+                    if col_diff > 0:
+                        for _ in range(col_diff):
+                            self.session.send(KEY_SEQUENCES["Right"])
+                            time.sleep(0.02)
+                    elif col_diff < 0:
+                        for _ in range(abs(col_diff)):
+                            self.session.send(KEY_SEQUENCES["Left"])
+                            time.sleep(0.02)
+            except Exception as e:
+                log_error(f"入力欄ナビゲーションエラー: {e}")
+            finally:
+                self._is_navigating_field = False
+                try:
+                    self.after(50, self._reset_cursor_blink)
+                except Exception:
+                    pass
+
+        threading.Thread(target=_do_navigate, daemon=True, name="field-nav").start()
+        return "break"
+
     def _on_panel_resize(self, event):
         if not self.auto_fit or self.closing:
             return
@@ -2778,6 +3024,12 @@ class TerminalApp(ctk.CTk):
 
     def on_close(self):
         self.closing = True
+        if getattr(self, "_cursor_blink_job", None) is not None:
+            try:
+                self.after_cancel(self._cursor_blink_job)
+            except Exception:
+                pass
+            self._cursor_blink_job = None
         if self._resize_job is not None:
             self.after_cancel(self._resize_job)
             self._resize_job = None
