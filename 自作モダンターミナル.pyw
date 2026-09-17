@@ -1919,8 +1919,11 @@ class TerminalApp(ctk.CTk):
                 time.sleep(1.0)
                 # 4. Ctrl+F (\x06) を送信して抽出確定
                 self._send("\x06")
-                log_info("input_winprint: キーシーケンス送信完了 (winPrint\\r -> F1 -> F1 -> Ctrl+F)")
-                # 5. サーバー監視ワーカーを起動
+                time.sleep(1.0)
+                # 5. Program Information 画面（Press space bar to continue）を閉じるため Space を自動送信
+                self._send(" ")
+                log_info("input_winprint: キーシーケンス送信完了 (winPrint\\r -> F1 -> F1 -> Ctrl+F -> Space)")
+                # 6. サーバー監視ワーカーを起動
                 self._start_winprint_capture()
             except Exception as e:
                 log_error(f"input_winprint エラー: {e}", exc_info=True)
@@ -2036,6 +2039,17 @@ class TerminalApp(ctk.CTk):
                     self.set_status(f"✅ winPrint出力を検知し、Excelに全 {row_count} 件を展開しました（文字列書式）", "success", clear_delay=8)
                 else:
                     self.set_status(f"❌ {msg}", "error", clear_delay=6)
+
+                # 処理完了後、画面に「Press space bar」または「Program Information」があれば自動でSpaceを送信して復帰
+                try:
+                    time.sleep(1.0)
+                    cur_screen = self._get_current_screen_text()
+                    cur_screen_lower = cur_screen.lower() if cur_screen else ""
+                    if "press space" in cur_screen_lower or "program information" in cur_screen_lower:
+                        log_info("winPrint完了後: Program Information画面を検知したため、自動でSpaceを送信して復帰します")
+                        self._send(" ")
+                except Exception as sp_e:
+                    log_warning(f"Space自動送信エラー: {sp_e}")
 
             except Exception as e:
                 log_error(f"winPrint 自動連携エラー: {e}", exc_info=True)
