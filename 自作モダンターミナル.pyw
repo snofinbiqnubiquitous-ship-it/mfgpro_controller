@@ -708,17 +708,16 @@ class TerminalApp(ctk.CTk):
         self.active_cols = 80
         self.terminal_font = ctk.CTkFont(family=self.terminal_font_family, size=self.font_size)
 
-        # ターミナル本体：パネルいっぱいに最大表示（余白をゼロにし、表示面積を最大化）
+        # ターミナル本体：パネルいっぱいに最大表示（スクロールバーを完全排除）
         self.textbox = ctk.CTkTextbox(
             self.terminal_panel, font=self.terminal_font, fg_color=self.colors["terminal"],
             text_color=self.colors["text"], wrap="none", corner_radius=10,
             border_width=1, border_color=self.colors["border"],
-            scrollbar_button_color=self.colors["scrollbar"],
-            scrollbar_button_hover_color=self.colors["scrollbar_hover"],
+            activate_scrollbars=False,
         )
         self.textbox.grid(row=0, column=0, sticky="nsew")
-        # 罫線の縦線が上下で隙間なく完全に繋がるよう行間パディングを0に設定
-        self.textbox._textbox.configure(spacing1=0, spacing2=0, spacing3=0)
+        # 罫線の縦線が上下で隙間なく完全に繋がり、かつ下端が切れないようパディングを初期化
+        self.textbox._textbox.configure(spacing1=0, spacing2=0, spacing3=0, padx=0, pady=0)
         self._apply_text_tags()
 
         self.textbox.bind("<Key>", self.on_key_press)
@@ -847,6 +846,11 @@ class TerminalApp(ctk.CTk):
         self.textbox.configure(state="disabled")
         self.rendered_lines = [None] * ROWS
         self.raw_lines = {}
+        try:
+            self.textbox._textbox.yview_moveto(0.0)
+            self.textbox._textbox.xview_moveto(0.0)
+        except Exception:
+            pass
 
     def connect_to_server(self):
         if self.session is not None or self.closing:
@@ -930,6 +934,11 @@ class TerminalApp(ctk.CTk):
         if cursor is not None:
             row, column = cursor
             self.textbox.tag_add("remote_cursor", f"{row + 1}.{column}", f"{row + 1}.{column + 1}")
+        try:
+            self.textbox._textbox.yview_moveto(0.0)
+            self.textbox._textbox.xview_moveto(0.0)
+        except Exception:
+            pass
 
     def _align_border_line(self, line):
         """半角カナ・漢字を含む罫線行のピクセル幅を純ASCII罫線行と揃える"""
@@ -973,6 +982,11 @@ class TerminalApp(ctk.CTk):
             self.rendered_lines[row] = (line, spans)
         self._apply_menu_highlight()
         self.textbox.configure(state="disabled")
+        try:
+            self.textbox._textbox.yview_moveto(0.0)
+            self.textbox._textbox.xview_moveto(0.0)
+        except Exception:
+            pass
 
     def _apply_menu_highlight(self):
         """メニュー選択プロンプトの入力番号に対応するメニュー項目を検知して暗転（ハイライト）する"""
@@ -1048,40 +1062,43 @@ class TerminalApp(ctk.CTk):
         if not self.auto_fit or self.closing:
             return
 
-        # パネル（親枠）の利用可能領域
-        pw = self.terminal_panel.winfo_width()
-        ph = self.terminal_panel.winfo_height()
-        if pw <= 100 or ph <= 100:
-            return
+        # 実際の描画テキストウィジェット (_textbox) の実寸を取得
+        inner_w = self.textbox._textbox.winfo_width()
+        inner_h = self.textbox._textbox.winfo_height()
+        if inner_w <= 100 or inner_h <= 100:
+            pw = self.terminal_panel.winfo_width()
+            ph = self.terminal_panel.winfo_height()
+            if pw <= 100 or ph <= 100:
+                return
+            inner_w = pw - 12
+            inner_h = ph - 12
 
         import tkinter.font as tkfont
         target_cols = getattr(self, "active_cols", 80)
         target_rows = ROWS
 
-        # スクロールバーや枠線の安全マージン（絶対に文字が切れない寸法）
-        safe_w = pw - 24
-        safe_h = ph - 16
-
         best_size = 12
         best_cw = 9
-        best_ch = 20
+        best_ch = 18
 
-        # パネル内に収まる最大フォントサイズを探索（最大36ptまで拡大して余白を最小化）
+        # 24行が絶対に1ピクセルも切れることなくスクロールバー不要で収まる最大フォントを探索
         for size in range(36, 11, -1):
             f = tkfont.Font(family=self.terminal_font_family, size=-size)
             cw = f.measure("M")
             ch = f.metrics("linespace")
-            if cw * target_cols <= safe_w and ch * target_rows <= safe_h:
+            if cw * target_cols <= inner_w - 6 and ch * target_rows <= inner_h - 4:
                 best_size = size
                 best_cw = cw
                 best_ch = ch
                 break
 
-        # 残りの余白を均等に上下左右に配分（完全センタリング & はみ出し防止）
-        pad_x = max(6, (pw - best_cw * target_cols - 20) // 2)
-        pad_y = max(4, (ph - best_ch * target_rows - 10) // 2)
+        # 左右を自動中央揃え（余白を左右均等に配分）
+        pad_x = max(2, (inner_w - best_cw * target_cols) // 2)
+        # padyは必ず0に設定（padyを設定するとTkinter仕様により最下行がはみ出して切れるため）
         try:
-            self.textbox._textbox.configure(padx=pad_x, pady=pad_y)
+            self.textbox._textbox.configure(padx=pad_x, pady=0)
+            self.textbox._textbox.yview_moveto(0.0)
+            self.textbox._textbox.xview_moveto(0.0)
         except Exception:
             pass
 
