@@ -166,6 +166,7 @@ class TerminalApp(ctk.CTk):
         self.is_connected = False
         self.closing = False
         self.rendered_lines = [None] * ROWS
+        self.raw_lines = {}
         self.font_size = 14
         self.auto_fit = True
         self._resize_job = None
@@ -227,7 +228,7 @@ class TerminalApp(ctk.CTk):
 
     def _build_terminal(self):
         panel = ctk.CTkFrame(self, fg_color=COLORS["background"], corner_radius=0)
-        panel.grid(row=1, column=0, padx=(16, 8), pady=(8, 12), sticky="nsew")
+        panel.grid(row=1, column=0, padx=(8, 4), pady=(4, 4), sticky="nsew")
         panel.grid_columnconfigure(0, weight=1)
         panel.grid_rowconfigure(0, weight=1)
         self.font_size = 17
@@ -270,7 +271,7 @@ class TerminalApp(ctk.CTk):
     def _build_toolbar(self):
         toolbar = ctk.CTkFrame(self, width=210, fg_color=COLORS["panel"], corner_radius=14,
                               border_width=1, border_color=COLORS["border"])
-        toolbar.grid(row=1, column=1, padx=(0, 16), pady=(8, 12), sticky="new")
+        toolbar.grid(row=1, column=1, padx=(0, 8), pady=(4, 4), sticky="new")
         toolbar.grid_columnconfigure((0, 1), weight=1, uniform="keys")
         row = 0
         for _, buttons in TOOLBAR_GROUPS:
@@ -306,6 +307,7 @@ class TerminalApp(ctk.CTk):
             self.textbox.tag_remove(tag, "1.0", "end")
         self.textbox.configure(state="disabled")
         self.rendered_lines = [None] * ROWS
+        self.raw_lines = {}
 
     def connect_to_server(self):
         if self.session is not None or self.closing:
@@ -353,10 +355,12 @@ class TerminalApp(ctk.CTk):
             if self.auto_fit:
                 self._apply_auto_fit()
         # テキストまたはスタイル属性に変更がある行を抽出
-        changed = {row: data for row, data in changed.items() if self.rendered_lines[row] != data}
+        changed = {row: data for row, data in changed.items() if self.raw_lines.get(row) != data}
         if changed:
             self.textbox.configure(state="normal")
-            for row, (line, spans) in changed.items():
+            for row, (raw_line, spans) in changed.items():
+                # 罫線を含む行のピクセル幅アライメント
+                line = self._align_border_line(raw_line)
                 start_idx = f"{row + 1}.0"
                 end_idx = f"{row + 1}.end"
                 self.textbox.delete(start_idx, end_idx)
@@ -369,6 +373,7 @@ class TerminalApp(ctk.CTk):
                     for tag in tags:
                         self.textbox.tag_add(tag, f"{row + 1}.{s_idx}", f"{row + 1}.{e_idx}")
                 self.rendered_lines[row] = (line, spans)
+                self.raw_lines[row] = (raw_line, spans)
 
             # メニュー入力連動ハイライト（入力欄の番号に対応するメニュー項目を自動暗転）
             self._apply_menu_highlight()
@@ -378,6 +383,59 @@ class TerminalApp(ctk.CTk):
         if cursor is not None:
             row, column = cursor
             self.textbox.tag_add("remote_cursor", f"{row + 1}.{column}", f"{row + 1}.{column + 1}")
+
+    def _align_border_line(self, line):
+        """半角カナ・漢字を含む罫線行のピクセル幅を、純ASCII罫線行と揃える。
+
+        QADはVT100の80桁画面で罫線を描画するが、Cascadia Mono等のフォントでは
+        半角カナ(ｱ=13px)や漢字(株=21px)がASCII(A=12px)と1:1/1:2にならないため、
+        同じ「表示幅80列」の行でもピクセル幅にズレが生じる。
+        右端の罫線文字(┐/┘/│)の直前にパディング文字を動的に挿入して幅を一致させる。
+        """
+        # 罫線の右端文字を含む行のみ対象
+        border_right = {"┐", "┘", "│"}
+        if not line or line[-1] not in border_right:
+            return line
+        # 基準幅: 全てASCII + 罫線文字のみの80列行（例: ┌─...─┐）
+        import tkinter.font as tkfont
+        try:
+            f = tkfont.Font(font=self.textbox._textbox.cget("font"))
+        except Exception:
+            return line
+        ref_width = f.measure("M") * self.active_cols
+        line_width = f.measure(line)
+        if line_width >= ref_width:
+            return line
+        # 水平枠線（┌/└で始まる行）は「─」、縦枠線（│で始まる行）は空白で補間
+        pad_char = "─" if line and line[0] in {"┌", "└"} else " "
+        pad_w = f.measure(pad_char)
+        if pad_w <= 0:
+            return line
+        pad_count = round((ref_width - line_width) / pad_w)
+        if pad_count <= 0:
+            return line
+        # 右端の罫線文字の直前に挿入
+        return line[:-1] + (pad_char * pad_count) + line[-1]
+
+    def _rerender_all(self):
+        """フォントサイズ変更時等に全行を新しいフォントメトリクスで再アライメント・再描画する"""
+        if not getattr(self, "raw_lines", None):
+            return
+        self.textbox.configure(state="normal")
+        for row, (raw_line, spans) in self.raw_lines.items():
+            line = self._align_border_line(raw_line)
+            start_idx = f"{row + 1}.0"
+            end_idx = f"{row + 1}.end"
+            self.textbox.delete(start_idx, end_idx)
+            self.textbox.insert(start_idx, line)
+            for tag in ("reverse", "underline", "bold"):
+                self.textbox.tag_remove(tag, start_idx, end_idx)
+            for s_idx, e_idx, tags in spans:
+                for tag in tags:
+                    self.textbox.tag_add(tag, f"{row + 1}.{s_idx}", f"{row + 1}.{e_idx}")
+            self.rendered_lines[row] = (line, spans)
+        self._apply_menu_highlight()
+        self.textbox.configure(state="disabled")
 
     def _apply_menu_highlight(self):
         """メニュー選択プロンプトの入力番号に対応するメニュー項目を検知して暗転（ハイライト）する"""
@@ -454,23 +512,27 @@ class TerminalApp(ctk.CTk):
         self._resize_job = None
         if not self.auto_fit or self.closing:
             return
-        w = self.textbox.winfo_width()
-        h = self.textbox.winfo_height()
+        w = self.textbox._textbox.winfo_width()
+        h = self.textbox._textbox.winfo_height()
         if w <= 100 or h <= 100:
-            return
+            w = self.textbox.winfo_width()
+            h = self.textbox.winfo_height()
+            if w <= 100 or h <= 100:
+                return
 
         import tkinter.font as tkfont
         target_cols = getattr(self, "active_cols", 80)
         target_rows = ROWS
 
         best_size = 12
-        # 横幅と高さを最大限に活かして大きな文字で表示する（12pt〜28pt）
-        for size in range(28, 11, -1):
-            f = tkfont.Font(family=self.terminal_font_family, size=size)
+        # CTkFont は内部で size=-N（ピクセル指定）に変換するため、
+        # 測定もピクセル指定（負の数）で行い、実際の描画サイズと一致させる
+        for size in range(36, 11, -1):
+            f = tkfont.Font(family=self.terminal_font_family, size=-size)
             char_w = f.measure("M")
             char_h = f.metrics("linespace")
-            needed_w = char_w * target_cols + 16
-            needed_h = char_h * target_rows + 16
+            needed_w = char_w * target_cols + 4
+            needed_h = char_h * target_rows + 4
             if needed_w <= w and needed_h <= h:
                 best_size = size
                 break
@@ -482,6 +544,7 @@ class TerminalApp(ctk.CTk):
                 self.textbox._textbox.tag_config("bold", font=(self.terminal_font_family, self.font_size, "bold"))
             except Exception:
                 pass
+            self._rerender_all()
 
     def toggle_auto_fit(self):
         self.auto_fit = self.auto_fit_var.get()
@@ -492,12 +555,13 @@ class TerminalApp(ctk.CTk):
         if self.auto_fit:
             self.auto_fit = False
             self.auto_fit_var.set(False)
-        self.font_size = 14 if reset else max(10, min(32, self.font_size + delta))
+        self.font_size = 14 if reset else max(10, min(36, self.font_size + delta))
         self.terminal_font.configure(size=self.font_size)
         try:
             self.textbox._textbox.tag_config("bold", font=(self.terminal_font_family, self.font_size, "bold"))
         except Exception:
             pass
+        self._rerender_all()
 
     def disconnect_server(self):
         if self.session is None:
