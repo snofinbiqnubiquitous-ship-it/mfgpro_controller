@@ -6,6 +6,7 @@
   "theme": "classic_green",
   "custom_terminal_bg": null,
   "custom_terminal_fg": null,
+  "enable_windows_shortcuts": true,
   "shortcuts": [
     {
       "name": "在庫スナップショット",

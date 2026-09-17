@@ -50,6 +50,7 @@ DEFAULT_CONFIG = {
     "theme": "light",
     "custom_terminal_bg": None,
     "custom_terminal_fg": None,
+    "enable_windows_shortcuts": True,
     "shortcuts": [
         {"name": "在庫スナップショット", "code": "99.3.6.1"},
         {"name": "在庫移動明細", "code": "99.3.21.4"},
@@ -69,6 +70,8 @@ def load_config():
             pass
     if "shortcuts" not in cfg or not isinstance(cfg["shortcuts"], list):
         cfg["shortcuts"] = list(DEFAULT_CONFIG["shortcuts"])
+    if "enable_windows_shortcuts" not in cfg:
+        cfg["enable_windows_shortcuts"] = True
     return cfg
 
 
@@ -726,7 +729,23 @@ class TerminalApp(ctk.CTk):
         self.connection_menu.add_command(label="終了", command=self.on_close)
         menubar.add_cascade(label="接続", menu=self.connection_menu)
 
-        # 2. キー送信メニュー
+        # 2. 編集メニュー
+        self.edit_menu = tk.Menu(menubar, tearoff=False)
+        self.edit_menu.add_command(label="コピー (選択範囲または画面)", accelerator="Ctrl+C", command=self.copy_selection_or_screen)
+        self.edit_menu.add_command(label="貼り付け", accelerator="Ctrl+V", command=self.paste_from_clipboard)
+        self.edit_menu.add_command(label="すべて選択", accelerator="Ctrl+A", command=self.select_all_text)
+        self.edit_menu.add_separator()
+        self.windows_shortcuts_var = tk.BooleanVar(value=bool(self.config.get("enable_windows_shortcuts", True)))
+        self.edit_menu.add_checkbutton(
+            label="Windows標準ショートカットを有効化 (Ctrl+C / Ctrl+V / Ctrl+A)",
+            variable=self.windows_shortcuts_var,
+            command=self.toggle_windows_shortcuts,
+        )
+        self.edit_menu.add_separator()
+        self.edit_menu.add_command(label="📋 画面全体をコピー", accelerator="Ctrl+Shift+C", command=self.copy_screen_text)
+        menubar.add_cascade(label="編集", menu=self.edit_menu)
+
+        # 3. キー送信メニュー
         self.key_menu = tk.Menu(menubar, tearoff=False)
         for index, (_, buttons) in enumerate(TOOLBAR_GROUPS):
             if index:
@@ -735,7 +754,7 @@ class TerminalApp(ctk.CTk):
                 self.key_menu.add_command(label=label, command=lambda k=key: self.send_key(k))
         menubar.add_cascade(label="キー送信", menu=self.key_menu)
 
-        # 3. 表示メニュー
+        # 4. 表示メニュー
         view = tk.Menu(menubar, tearoff=False)
         view.add_command(label="文字を大きく", command=lambda: self.change_font_size(1))
         view.add_command(label="文字を小さく", command=lambda: self.change_font_size(-1))
@@ -749,7 +768,7 @@ class TerminalApp(ctk.CTk):
         view.add_command(label="ターミナルにフォーカス", command=self.focus_terminal)
         menubar.add_cascade(label="表示", menu=view)
 
-        # 4. カラーパレットメニュー（独立メニュー）
+        # 5. カラーパレットメニュー（独立メニュー）
         self.palette_menu = tk.Menu(menubar, tearoff=False)
         self.palette_menu.add_command(label="🎨 カラーパレットを開く...", command=self.open_color_palette)
         self.palette_menu.add_separator()
@@ -761,12 +780,12 @@ class TerminalApp(ctk.CTk):
         self.palette_menu.add_command(label="配色を標準に戻す", command=self.reset_custom_colors)
         menubar.add_cascade(label="カラーパレット", menu=self.palette_menu)
 
-        # 5. ログイン情報メニュー
+        # 6. ログイン情報メニュー
         login_menu = tk.Menu(menubar, tearoff=False)
         login_menu.add_command(label="ログイン情報の編集...", command=self.open_login_dialog)
         menubar.add_cascade(label="ログイン情報", menu=login_menu)
 
-        # 6. ヘルプメニュー
+        # 7. ヘルプメニュー
         help_menu = tk.Menu(menubar, tearoff=False)
         help_menu.add_command(label="操作ガイド", command=self.show_help)
         menubar.add_cascade(label="ヘルプ", menu=help_menu)
@@ -818,7 +837,7 @@ class TerminalApp(ctk.CTk):
         self.textbox.bind("<FocusOut>", lambda event: self.textbox.configure(border_color=self.terminal_colors["border"]))
         self.textbox.bind("<Control-Shift-C>", self.copy_screen_text)
         self.textbox.bind("<Control-Shift-c>", self.copy_screen_text)
-        self.textbox.bind("<<Paste>>", lambda event: "break")
+        self.textbox.bind("<<Paste>>", self._on_paste_event)
         self.textbox.bind("<<Cut>>", lambda event: "break")
 
         self.footer = ctk.CTkLabel(self.terminal_panel, text="", text_color=self.ui_colors["error"],
@@ -1096,6 +1115,81 @@ class TerminalApp(ctk.CTk):
         else:
             self._show_input_error("コピーする画面テキストがありません")
         return "break"
+
+    def copy_selection_or_screen(self, event=None):
+        """テキスト選択範囲があれば選択部分を、なければ画面全体をコピー"""
+        selected_text = ""
+        try:
+            if self.textbox.tag_ranges("sel"):
+                selected_text = self.textbox.get("sel.first", "sel.last")
+        except Exception:
+            selected_text = ""
+
+        if selected_text:
+            try:
+                self.clipboard_clear()
+                self.clipboard_append(selected_text)
+                self.update()
+                self._show_input_error(f"選択範囲をコピーしました 📋 ({len(selected_text)}文字)")
+            except Exception as e:
+                self._show_input_error(f"コピー失敗: {e}")
+            return "break"
+        else:
+            return self.copy_screen_text(event)
+
+    def paste_from_clipboard(self, event=None):
+        """クリップボードから文字列を取得し、サーバーへキー入力として安全に送信"""
+        if not self.is_connected or self.session is None:
+            self._show_input_error("未接続のため貼り付けできません")
+            return "break"
+        try:
+            text = self.clipboard_get()
+        except Exception:
+            self._show_input_error("クリップボードが空か、取得できませんでした")
+            return "break"
+        if not text:
+            return "break"
+
+        # 改行コードの正規化: Windows (\r\n) や Unix (\n) を VT100 / QAD 形式 (\r) に変換
+        text = text.replace("\r\n", "\r").replace("\n", "\r")
+
+        # CP932 エンコード事前チェック
+        try:
+            text.encode("cp932")
+        except UnicodeEncodeError:
+            self.bell()
+            self._show_input_error("貼り付けできません：CP932（日本語）で表現できない文字が含まれています。")
+            return "break"
+
+        self._send(text)
+        self._show_input_error(f"クリップボードの内容を貼り付けました 📋 ({len(text)}文字)")
+        return "break"
+
+    def select_all_text(self, event=None):
+        """ターミナル画面のテキスト全体を選択状態にする"""
+        try:
+            self.textbox.tag_add("sel", "1.0", "end-1c")
+            self.textbox.focus_set()
+            self._show_input_error("画面全体のテキストを選択しました")
+        except Exception:
+            pass
+        return "break"
+
+    def _on_paste_event(self, event=None):
+        """Tkinterネイティブのペーストイベントハンドラ（画面崩れを防ぎサーバーへ送信）"""
+        if self.config.get("enable_windows_shortcuts", True):
+            self.paste_from_clipboard()
+        return "break"
+
+    def toggle_windows_shortcuts(self):
+        """Windows標準ショートカット（Ctrl+C / Ctrl+V / Ctrl+A）の有効/無効切り替え"""
+        val = bool(self.windows_shortcuts_var.get())
+        self.config["enable_windows_shortcuts"] = val
+        save_config(self.config)
+        if val:
+            self._show_input_error("Windows標準ショートカット（Ctrl+C/V/A）を有効化しました")
+        else:
+            self._show_input_error("Windows標準ショートカットを無効化しました（端末標準キー送信）")
 
     # --- カラーパレット・テーマ切替処理 ---
     def open_color_palette(self):
@@ -1497,6 +1591,29 @@ class TerminalApp(ctk.CTk):
         if event.state & 0x5 == 0x5 and event.keysym in ("Tab", "ISO_Left_Tab"):
             self.connect_btn.focus_set() if self.session is None else self.disconnect_btn.focus_set()
             return "break"
+
+        # Windows標準ショートカット（Ctrl+C / Ctrl+V / Ctrl+A）のクライアント側処理
+        if self.config.get("enable_windows_shortcuts", True):
+            is_ctrl = bool(event.state & 0x4)
+            is_shift = bool(event.state & 0x1)
+            keysym_lower = event.keysym.lower()
+
+            # Ctrl+Shift+C: 画面全体の文字をコピー
+            if is_ctrl and is_shift and keysym_lower == "c":
+                return self.copy_screen_text(event)
+
+            # Ctrl+C: 選択範囲（なければ画面全体）をコピー
+            if is_ctrl and not is_shift and keysym_lower == "c":
+                return self.copy_selection_or_screen(event)
+
+            # Ctrl+V または Shift+Insert: クリップボードから貼り付け（サーバーへ送信）
+            if (is_ctrl and not is_shift and keysym_lower == "v") or (is_shift and event.keysym in ("Insert", "KP_Insert")):
+                return self.paste_from_clipboard(event)
+
+            # Ctrl+A: 画面全体のテキストを選択
+            if is_ctrl and not is_shift and keysym_lower == "a":
+                return self.select_all_text(event)
+
         if self.is_connected:
             self._send(key_sequence(event.keysym, event.char, event.state))
         return "break"
