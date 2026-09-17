@@ -1835,13 +1835,22 @@ class TerminalApp(ctk.CTk):
         threading.Thread(target=_worker, daemon=True, name="auto-excel-capture").start()
 
     def input_winprint(self):
-        """Output欄に 'winPrint' を自動入力して決定（Enter）を送信"""
+        """Output欄に 'winPrint' を入力し、自動的に確定(Enter)＋実行(F1)を送信してExcel自動展開を開始"""
         if not self.is_connected:
             self.set_status("❌ 未接続です", "error", clear_delay=3)
             return
-        log_info("input_winprint: Output欄に winPrint を入力します")
+        log_info("input_winprint: Output欄に winPrint を入力して自動実行を開始します")
         self._send("winPrint\r")
-        self.set_status("Output欄に 'winPrint' を入力しました (F1で実行)", "info", clear_delay=4)
+        self.set_status("Output に 'winPrint' を指定してレポート実行を開始...", "waiting")
+
+        # 0.3秒後にF1(Go)を自動送信してレポートクエリを実行開始し、監視ワーカーを起動
+        def _send_f1_and_capture():
+            time.sleep(0.3)
+            log_info("input_winprint: レポート実行のため F1 を自動送信します")
+            self._send(KEY_SEQUENCES["F1"])
+            self._start_winprint_capture()
+
+        threading.Thread(target=_send_f1_and_capture, daemon=True, name="winprint-auto-run").start()
 
     def _start_winprint_capture(self):
         """サーバー上の winPrint ファイルを監視し、生成完了後に読み込んでExcel展開＆サーバーファイル削除"""
@@ -1880,8 +1889,8 @@ class TerminalApp(ctk.CTk):
                     try:
                         stat = sftp.stat(remote_file)
                         cur_size = stat.st_size
+                        file_found = True
                         if cur_size > 0:
-                            file_found = True
                             if cur_size == last_size:
                                 stable_count += 1
                                 if stable_count >= 3:  # 1.5秒間サイズ変化なしで書き込み完了と判定
@@ -1890,16 +1899,22 @@ class TerminalApp(ctk.CTk):
                             else:
                                 stable_count = 0
                                 last_size = cur_size
-                                self.set_status(f"⏳ サーバー内でレポート生成中: {cur_size / 1024:.1f} KB...", "waiting")
+                                self.set_status(f"⏳ サーバーからデータ受信中: {cur_size / 1024:.1f} KB...", "waiting")
+                        else:
+                            # 0バイトの仮ファイルが存在している状態（Progressがクエリ実行中）
+                            self.set_status(f"⏳ サーバー内でクエリ処理中 (Progress集計中: {int(wait_time)}秒)...", "waiting")
                     except IOError:
-                        # ファイルがまだ生成されていない間は待機
-                        pass
+                        # ファイルがまだ生成されていない間
+                        if wait_time > 8.0:
+                            self.set_status(f"⏳ サーバー応答待機中... ({int(wait_time)}秒 / F1で実行)", "waiting")
+                        else:
+                            self.set_status(f"⏳ サーバー内でレポート生成準備中... ({int(wait_time)}秒)", "waiting")
                     time.sleep(0.5)
                     wait_time += 0.5
 
                 if not file_found or last_size <= 0:
                     log_warning(f"winPrint ファイル生成タイムアウト ({wait_time}秒)")
-                    self.set_status("❌ サーバー側でのファイル生成がタイムアウトしました", "error", clear_delay=5)
+                    self.set_status("❌ サーバー側でのファイル生成がタイムアウトしました (F1が未送信の可能性があります)", "error", clear_delay=6)
                     return
 
                 # 2. ファイルを読み込み
