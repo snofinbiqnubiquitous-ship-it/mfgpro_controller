@@ -1629,7 +1629,7 @@ class TerminalApp(ctk.CTk):
             self.set_status("レポート自動Excel展開を無効化しました", "info", clear_delay=4)
 
     def _check_is_report_output(self):
-        """現在の画面が QAD レポート出力（local 出力）であるかを高精度に判定"""
+        """現在の画面が QAD レポート出力（local 出力結果）であるかを高精度に判定"""
         # メインメニューや通常メニュー画面は除外
         if self.is_main_menu() or self.is_menu_screen():
             return False
@@ -1646,15 +1646,26 @@ class TerminalApp(ctk.CTk):
         if len(lines) < 3:
             return False
 
+        full_text = "\n".join(lines)
+        full_lower = full_text.lower()
+
+        # 【超重要】条件入力画面（パラメータ入力・Output指定・Batch ID入力）は絶対に除外！
+        # F1 を1回押して Output 欄や Batch ID 欄にカーソルが移動した入力画面を誤検知させない
+        is_input_prompt_screen = (
+            "output:" in full_lower or "output :" in full_lower
+            or "batch id:" in full_lower or "batch id :" in full_lower
+            or "enter data or press f4" in full_lower
+            or ("from:" in full_lower and "to:" in full_lower)
+        )
+        if is_input_prompt_screen:
+            return False
+
         # 1. 画面全体（全行）からカラム区切り線を検出
-        # 99.3.6.1 では条件指定ヘッダーが多数あり、区切り線が11〜15行目に現れる
         sep_row_idx = -1
         sep_pattern = re.compile(r'[-─]{2,}\s+[-─]{2,}')
         for idx, line in enumerate(lines):
             clean = line.replace("│", " ").strip()
-            # 複数列のハイフン区切り線パターン、または連続ハイフンが複数ある行、または行頭から15文字以上のハイフン
             if sep_pattern.search(clean) or clean.count("---") >= 2 or (clean.startswith("---") and len(clean) >= 15):
-                # 枠線記号（┌, ┐, └, ┘, ├, ┤）を含まない
                 if not any(c in line for c in ("┌", "┐", "└", "┘", "├", "┤")):
                     sep_row_idx = idx
                     break
@@ -1663,18 +1674,14 @@ class TerminalApp(ctk.CTk):
             return False
 
         # 2. プロンプトまたは待機フラグの判定
-        full_text = "\n".join(lines)
-        full_lower = full_text.lower()
-
-        # 継続プロンプト / 終了プロンプト（日英両対応）
         has_prompt = (
             any(p in full_lower for p in ["press space", "space to continue", "space bar", "more...", "-- more --", "end of report", "return to exit"])
             or any(p in full_text for p in ["スペース", "ｽﾍﾟｰｽ", "継続", "続行", "終了するには", "レポート終了"])
         )
 
-        # クエリ実行待機中フラグ（F1押下後）が立っていれば、区切り線が出現した時点で直ちにTrue
+        # クエリ実行待機中フラグ（F1押下後）が立っていれば、入力画面が消えて区切り線が出現した時点でTrue
         if getattr(self, "_is_waiting_query", False):
-            log_info(f"_check_is_report_output: 一致！ (クエリ待機中 + 区切り線行 {sep_row_idx} 検出: {lines[sep_row_idx][:50]})")
+            log_info(f"_check_is_report_output: 一致！ (クエリ待機中 + レポート区切り線行 {sep_row_idx} 検出: {lines[sep_row_idx][:50]})")
             return True
 
         # プロンプトが検出された場合もTrue
@@ -1682,7 +1689,7 @@ class TerminalApp(ctk.CTk):
             log_info(f"_check_is_report_output: 一致！ (区切り線行 {sep_row_idx} + プロンプト検出)")
             return True
 
-        # プロンプトがまだ画面最下行に届いていない場合でも、区切り線があり、かつ上部にカラムヘッダー、下部にデータ行があればTrue
+        # 区切り線があり、かつ上部にカラムヘッダー、下部にデータ行があればTrue
         if sep_row_idx >= 1 and sep_row_idx < len(lines) - 1:
             data_lines = [l for l in lines[sep_row_idx + 1:] if l.strip()]
             if len(data_lines) >= 1:
@@ -1690,6 +1697,7 @@ class TerminalApp(ctk.CTk):
                 return True
 
         return False
+
 
     def _start_auto_report_capture(self):
         """サーバーからの local レポート出力を自動で全ページ受信し、Excelを開いて文字列として貼り付ける"""
