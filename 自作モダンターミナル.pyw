@@ -445,12 +445,14 @@ class ColorPaletteDialog(ctk.CTkToplevel):
         self.app.set_terminal_custom_color(fg=color)
 
     def _pick_custom_bg(self):
-        color = colorchooser.askcolor(initialcolor=self.app.colors["terminal"], title="ターミナル背景色を選択", parent=self)
+        cur_bg = self.app.terminal_colors.get("terminal", "#E2E8F0")
+        color = colorchooser.askcolor(initialcolor=cur_bg, title="ターミナル背景色を選択", parent=self)
         if color and color[1]:
             self.app.set_terminal_custom_color(bg=color[1])
 
     def _pick_custom_fg(self):
-        color = colorchooser.askcolor(initialcolor=self.app.colors["text"], title="ターミナル文字色を選択", parent=self)
+        cur_fg = self.app.terminal_colors.get("text", "#0F172A")
+        color = colorchooser.askcolor(initialcolor=cur_fg, title="ターミナル文字色を選択", parent=self)
         if color and color[1]:
             self.app.set_terminal_custom_color(fg=color[1])
 
@@ -580,9 +582,13 @@ class TerminalApp(ctk.CTk):
     def __init__(self):
         self.config = load_config()
         self.theme_name = self.config.get("theme", "light")
-        self.colors = self._get_active_colors()
+        # 外枠UI（右カラム・メニューバー・ヘッダー・ボタン）は初期ライト配色で常に固定
+        self.ui_colors = dict(COLOR_THEMES["light"])
+        # ターミナル表示部分（画面内）のみ、選択テーマ・カスタム色を適用
+        self.terminal_colors = self._get_terminal_colors()
+        self.colors = self.terminal_colors
 
-        ctk.set_appearance_mode(self.colors.get("appearance_mode", "light"))
+        ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
         super().__init__()
         self.ui_font_family = find_first_available_font(PREFERRED_UI_FONTS, fallback="Yu Gothic UI")
@@ -591,7 +597,7 @@ class TerminalApp(ctk.CTk):
         self.title("QAD / MFG:PRO")
         self.geometry("1460x780")
         self.minsize(1020, 660)
-        self.configure(fg_color=self.colors["background"])
+        self.configure(fg_color=self.ui_colors["background"])
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
@@ -617,8 +623,8 @@ class TerminalApp(ctk.CTk):
         self.update_job = self.after(33, self._poll)
         self.after(100, self._apply_auto_fit)
 
-    def _get_active_colors(self):
-        """現在のテーマおよびカスタム色を適用したカラー辞書を取得"""
+    def _get_terminal_colors(self):
+        """現在のテーマおよびカスタム色を適用したターミナル表示用カラー辞書を取得"""
         theme_key = self.config.get("theme", "light")
         colors = dict(COLOR_THEMES.get(theme_key, COLOR_THEMES["light"]))
         if self.config.get("custom_terminal_bg"):
@@ -627,8 +633,11 @@ class TerminalApp(ctk.CTk):
             colors["text"] = self.config["custom_terminal_fg"]
         return colors
 
+    def _get_active_colors(self):
+        return self._get_terminal_colors()
+
     def _button(self, parent, text, command, primary=False):
-        return ActionButton(parent, text, command, primary, font_family=self.ui_font_family, colors=self.colors)
+        return ActionButton(parent, text, command, primary, font_family=self.ui_font_family, colors=self.ui_colors)
 
     def _build_menu(self):
         menubar = tk.Menu(self)
@@ -687,10 +696,11 @@ class TerminalApp(ctk.CTk):
         self.configure(menu=menubar)
 
     def _build_header(self):
-        self.header = ctk.CTkFrame(self, fg_color=self.colors["background"], corner_radius=0)
+        self.header = ctk.CTkFrame(self, fg_color=self.ui_colors["background"], corner_radius=0)
         self.header.grid(row=0, column=0, columnspan=2, sticky="ew")
         self.header.grid_columnconfigure(0, weight=1)
-        self.status_label = ctk.CTkLabel(self.header, text="未接続", font=ctk.CTkFont(family=self.ui_font_family, size=14))
+        self.status_label = ctk.CTkLabel(self.header, text="未接続", text_color=self.ui_colors["muted"],
+                                         font=ctk.CTkFont(family=self.ui_font_family, size=14))
         self.status_label.grid(row=0, column=0, sticky="w", padx=24, pady=(10, 0))
         self.connect_btn = self._button(self.header, "ログイン", self.connect_to_server, True)
         self.connect_btn.grid(row=0, column=1, padx=(0, 8), pady=(10, 0))
@@ -699,7 +709,7 @@ class TerminalApp(ctk.CTk):
 
     def _build_terminal(self):
         # ターミナルパネル（外枠）: パネル全体を利用可能な最大面積で確保
-        self.terminal_panel = ctk.CTkFrame(self, fg_color=self.colors["background"], corner_radius=0)
+        self.terminal_panel = ctk.CTkFrame(self, fg_color=self.ui_colors["background"], corner_radius=0)
         self.terminal_panel.grid(row=1, column=0, padx=(6, 2), pady=(4, 4), sticky="nsew")
         self.terminal_panel.grid_columnconfigure(0, weight=1)
         self.terminal_panel.grid_rowconfigure(0, weight=1)
@@ -710,9 +720,9 @@ class TerminalApp(ctk.CTk):
 
         # ターミナル本体：パネルいっぱいに最大表示（スクロールバーを完全排除）
         self.textbox = ctk.CTkTextbox(
-            self.terminal_panel, font=self.terminal_font, fg_color=self.colors["terminal"],
-            text_color=self.colors["text"], wrap="none", corner_radius=10,
-            border_width=1, border_color=self.colors["border"],
+            self.terminal_panel, font=self.terminal_font, fg_color=self.terminal_colors["terminal"],
+            text_color=self.terminal_colors["text"], wrap="none", corner_radius=10,
+            border_width=1, border_color=self.terminal_colors["border"],
             activate_scrollbars=False,
         )
         self.textbox.grid(row=0, column=0, sticky="nsew")
@@ -721,12 +731,12 @@ class TerminalApp(ctk.CTk):
         self._apply_text_tags()
 
         self.textbox.bind("<Key>", self.on_key_press)
-        self.textbox.bind("<FocusIn>", lambda event: self.textbox.configure(border_color=self.colors["focus"]))
-        self.textbox.bind("<FocusOut>", lambda event: self.textbox.configure(border_color=self.colors["border"]))
+        self.textbox.bind("<FocusIn>", lambda event: self.textbox.configure(border_color=self.terminal_colors["focus"]))
+        self.textbox.bind("<FocusOut>", lambda event: self.textbox.configure(border_color=self.terminal_colors["border"]))
         self.textbox.bind("<<Paste>>", lambda event: "break")
         self.textbox.bind("<<Cut>>", lambda event: "break")
 
-        self.footer = ctk.CTkLabel(self.terminal_panel, text="", text_color=self.colors["error"],
+        self.footer = ctk.CTkLabel(self.terminal_panel, text="", text_color=self.ui_colors["error"],
                                    font=ctk.CTkFont(family=self.ui_font_family, size=12))
         self.footer.grid(row=1, column=0, padx=8, pady=(2, 0), sticky="s")
         self.footer.grid_remove()
@@ -734,19 +744,19 @@ class TerminalApp(ctk.CTk):
         self.terminal_panel.bind("<Configure>", self._on_panel_resize)
 
     def _apply_text_tags(self):
-        """テキストボックスのタグ設定（反転・下線・太字等）を現在のカラーパレットで更新"""
-        self.textbox.tag_config("remote_cursor", background=self.colors["cursor"])
-        self.textbox.tag_config("reverse", background=self.colors["reverse_bg"], foreground=self.colors["reverse_fg"])
-        self.textbox.tag_config("menu_highlight", background=self.colors["menu_highlight_bg"], foreground=self.colors["menu_highlight_fg"])
+        """テキストボックスのタグ設定（反転・下線・太字等）を現在のターミナルカラーで更新"""
+        self.textbox.tag_config("remote_cursor", background=self.terminal_colors["cursor"])
+        self.textbox.tag_config("reverse", background=self.terminal_colors["reverse_bg"], foreground=self.terminal_colors["reverse_fg"])
+        self.textbox.tag_config("menu_highlight", background=self.terminal_colors["menu_highlight_bg"], foreground=self.terminal_colors["menu_highlight_fg"])
         self.textbox.tag_config("underline", underline=True)
         try:
             self.textbox._textbox.tag_config("bold", font=(self.terminal_font_family, self.font_size, "bold"))
         except Exception:
-            self.textbox.tag_config("bold", foreground=self.colors["accent"])
+            self.textbox.tag_config("bold", foreground=self.terminal_colors["accent"])
 
     def _build_toolbar(self):
-        self.toolbar = ctk.CTkFrame(self, width=200, fg_color=self.colors["panel"], corner_radius=12,
-                                    border_width=1, border_color=self.colors["border"])
+        self.toolbar = ctk.CTkFrame(self, width=200, fg_color=self.ui_colors["panel"], corner_radius=12,
+                                    border_width=1, border_color=self.ui_colors["border"])
         self.toolbar.grid(row=1, column=1, padx=(0, 6), pady=(4, 4), sticky="new")
         self.toolbar.grid_columnconfigure((0, 1), weight=1, uniform="keys")
         row = 0
@@ -766,53 +776,45 @@ class TerminalApp(ctk.CTk):
         ColorPaletteDialog(self, self)
 
     def switch_theme(self, theme_key):
-        """プリセットテーマへの切り替え"""
+        """プリセットテーマへの切り替え（ターミナル表示部のみ変更）"""
         if theme_key not in COLOR_THEMES:
             return
         self.config["theme"] = theme_key
         self.config["custom_terminal_bg"] = None
         self.config["custom_terminal_fg"] = None
         save_config(self.config)
-        self.colors = self._get_active_colors()
+        self.terminal_colors = self._get_terminal_colors()
+        self.colors = self.terminal_colors
         self._refresh_theme_ui()
 
     def set_terminal_custom_color(self, bg=None, fg=None):
-        """ターミナルの背景色・文字色をカスタム指定"""
+        """ターミナルの背景色・文字色をカスタム指定（ターミナル表示部のみ変更）"""
         if bg:
             self.config["custom_terminal_bg"] = bg
         if fg:
             self.config["custom_terminal_fg"] = fg
         save_config(self.config)
-        self.colors = self._get_active_colors()
+        self.terminal_colors = self._get_terminal_colors()
+        self.colors = self.terminal_colors
         self._refresh_theme_ui()
 
     def reset_custom_colors(self):
-        """カスタム色をリセットしテーマ標準に戻す"""
+        """カスタム色をリセットしテーマ標準に戻す（ターミナル表示部のみ変更）"""
         self.config["custom_terminal_bg"] = None
         self.config["custom_terminal_fg"] = None
         save_config(self.config)
-        self.colors = self._get_active_colors()
+        self.terminal_colors = self._get_terminal_colors()
+        self.colors = self.terminal_colors
         self._refresh_theme_ui()
 
     def _refresh_theme_ui(self):
-        """UIコンポーネント全体の配色を再描画"""
-        ctk.set_appearance_mode(self.colors.get("appearance_mode", "light"))
-        self.configure(fg_color=self.colors["background"])
-        self.header.configure(fg_color=self.colors["background"])
-        self.terminal_panel.configure(fg_color=self.colors["background"])
-        self.toolbar.configure(fg_color=self.colors["panel"], border_color=self.colors["border"])
+        """ターミナル表示部分（画面内）の配色を再描画（右カラム・メニューバー・ヘッダーは初期色固定）"""
         self.textbox.configure(
-            fg_color=self.colors["terminal"],
-            text_color=self.colors["text"],
-            border_color=self.colors["border"],
-            scrollbar_button_color=self.colors["scrollbar"],
-            scrollbar_button_hover_color=self.colors["scrollbar_hover"],
+            fg_color=self.terminal_colors["terminal"],
+            text_color=self.terminal_colors["text"],
+            border_color=self.terminal_colors["border"],
         )
         self._apply_text_tags()
-        self.connect_btn.update_colors(self.colors)
-        self.disconnect_btn.update_colors(self.colors)
-        for btn in self.key_buttons:
-            btn.update_colors(self.colors)
         self._rerender_all()
 
     # --- ログイン情報ダイアログ ---
@@ -824,7 +826,7 @@ class TerminalApp(ctk.CTk):
 
     # --- 状態更新・描画ロジック ---
     def _set_state(self, text, color="muted"):
-        self.status_label.configure(text=text, text_color=self.colors[color])
+        self.status_label.configure(text=text, text_color=self.ui_colors.get(color, self.ui_colors["muted"]))
         idle = self.session is None
         self.connect_btn.configure(state="normal" if idle else "disabled")
         self.disconnect_btn.configure(state="disabled" if idle else "normal")

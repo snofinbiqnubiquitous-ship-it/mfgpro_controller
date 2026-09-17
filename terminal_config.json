@@ -3,7 +3,7 @@
   "port": 22,
   "user": "takehik",
   "pass_b64": "bmh5N21qdTg=",
-  "theme": "dark",
+  "theme": "light",
   "custom_terminal_bg": null,
   "custom_terminal_fg": null
 }
