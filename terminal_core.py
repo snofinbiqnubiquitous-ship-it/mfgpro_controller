@@ -103,12 +103,31 @@ class TerminalSession:
         self.stop_event = threading.Event()
         self.outgoing = queue.Queue(maxsize=256)
         self.last_cursor = None
+        self.ssh = None
 
     def start(self):
         threading.Thread(target=self._run, daemon=True, name="qad-ssh").start()
 
     def stop(self):
         self.stop_event.set()
+
+    def open_sftp(self):
+        """アクティブなSSH接続からSFTPクライアントを開く"""
+        if self.ssh is not None:
+            try:
+                return self.ssh.open_sftp()
+            except Exception:
+                return None
+        return None
+
+    def exec_command(self, command):
+        """アクティブなSSH接続上でシェルコマンドを実行"""
+        if self.ssh is not None:
+            try:
+                return self.ssh.exec_command(command)
+            except Exception:
+                return None, None, None
+        return None, None, None
 
     def send(self, text):
         # Strict encoding prevents silently submitting a different value to QAD.
@@ -163,6 +182,7 @@ class TerminalSession:
             ssh.connect(self.host, port=self.port, username=self.username,
                         password=self.password, timeout=10,
                         banner_timeout=10, auth_timeout=10)
+            self.ssh = ssh
             if self.stop_event.is_set():
                 return
             shell = ssh.invoke_shell(term="vt100", width=COLS, height=ROWS)
@@ -170,6 +190,7 @@ class TerminalSession:
             if self.stop_event.is_set():
                 return
             self.events.put((self, "connected", None))
+
             while not self.stop_event.is_set():
                 # Bound each batch so key repeat cannot starve reception.
                 for _ in range(16):
@@ -201,4 +222,6 @@ class TerminalSession:
                 try:
                     ssh.close()
                 finally:
+                    self.ssh = None
                     self.events.put((self, "closed", error))
+

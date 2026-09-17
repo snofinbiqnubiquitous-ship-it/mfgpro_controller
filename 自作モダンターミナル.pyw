@@ -313,7 +313,7 @@ def convert_date_format(date_str):
         return date_str
 
 
-def parse_report_text_to_table(text):
+def parse_report_text_to_table(text, deduplicate=False):
     """QADのレポート画面テキスト（固定長ハイフン区切りまたは汎用空白区切り）を2次元配列にパース"""
     lines = [l.rstrip() for l in text.splitlines() if l.strip()]
     if not lines:
@@ -403,8 +403,9 @@ def parse_report_text_to_table(text):
             if t_row == tuple(headers):
                 continue
             if any(row):
-                if t_row not in seen_rows:
-                    seen_rows.add(t_row)
+                if not deduplicate or t_row not in seen_rows:
+                    if deduplicate:
+                        seen_rows.add(t_row)
                     rows.append(row)
         log_info(f"parse_report_text_to_table: 固定長パース成功 (列数={len(headers)}, データ行数={len(rows)-1})")
         return rows
@@ -934,8 +935,10 @@ class TerminalApp(ctk.CTk):
         self._resize_job = None
         self.shortcut_buttons = []
         self._is_capturing_report = False
+        self._is_capturing_winprint = False
         self._last_report_capture_time = 0.0
         self._is_waiting_query = False
+
         self._query_wait_start_time = 0.0
         self._current_status_type = "info"
         self._status_clear_timer = None
@@ -1016,7 +1019,10 @@ class TerminalApp(ctk.CTk):
                 self.key_menu.add_separator()
             for label, key in buttons:
                 self.key_menu.add_command(label=label, command=lambda k=key: self.send_key(k))
+        self.key_menu.add_separator()
+        self.key_menu.add_command(label="📄 Output に 'winPrint' を入力 (高速ファイル出力)", command=self.input_winprint)
         menubar.add_cascade(label="キー送信", menu=self.key_menu)
+
 
         # 4. 表示メニュー
         view = tk.Menu(menubar, tearoff=False)
@@ -1146,6 +1152,15 @@ class TerminalApp(ctk.CTk):
         )
         self.shortcut_scroll_frame.grid(row=0, column=1, sticky="ew", padx=4, pady=2)
 
+        # 右側「📄 winPrint」ボタン（ワンクリックでOutput欄にwinPrintを入力）
+        self.winprint_btn = ctk.CTkButton(
+            self.shortcut_bar, text="📄 winPrint", width=86, height=28,
+            fg_color="#1E7E34", hover_color="#155724", text_color="#FFFFFF",
+            font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
+            corner_radius=6, command=self.input_winprint
+        )
+        self.winprint_btn.grid(row=0, column=2, padx=(4, 4), pady=4)
+
         # 右端「＋ 追加」ボタン
         self.add_shortcut_btn = ctk.CTkButton(
             self.shortcut_bar, text="＋ 追加", width=72, height=28,
@@ -1153,9 +1168,10 @@ class TerminalApp(ctk.CTk):
             font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
             corner_radius=6, command=self.open_add_shortcut_dialog
         )
-        self.add_shortcut_btn.grid(row=0, column=2, padx=(4, 10), pady=4)
+        self.add_shortcut_btn.grid(row=0, column=3, padx=(4, 10), pady=4)
 
         self._refresh_shortcut_buttons()
+
 
     def _build_statusbar(self):
         """最下段の常時表示ステータスバーを構築（処理中の進捗・クエリ待機・Excel展開を可視化）"""
@@ -1791,7 +1807,7 @@ class TerminalApp(ctk.CTk):
                 self.set_status("📋 レポートデータを解析中...", "working")
 
                 full_text = "\n".join(all_screens)
-                rows = parse_report_text_to_table(full_text)
+                rows = parse_report_text_to_table(full_text, deduplicate=True)
 
                 if not rows or (len(rows) == 1 and not any(rows[0])):
                     log_warning(f"パース失敗: 行数={len(rows) if rows else 0}")
@@ -1817,6 +1833,132 @@ class TerminalApp(ctk.CTk):
                 self._last_report_capture_time = time.time()
 
         threading.Thread(target=_worker, daemon=True, name="auto-excel-capture").start()
+
+    def input_winprint(self):
+        """Output欄に 'winPrint' を自動入力して決定（Enter）を送信"""
+        if not self.is_connected:
+            self.set_status("❌ 未接続です", "error", clear_delay=3)
+            return
+        log_info("input_winprint: Output欄に winPrint を入力します")
+        self._send("winPrint\r")
+        self.set_status("Output欄に 'winPrint' を入力しました (F1で実行)", "info", clear_delay=4)
+
+    def _start_winprint_capture(self):
+        """サーバー上の winPrint ファイルを監視し、生成完了後に読み込んでExcel展開＆サーバーファイル削除"""
+        if getattr(self, "_is_capturing_winprint", False):
+            return
+        self._is_capturing_winprint = True
+        self._is_waiting_query = False
+
+        def _worker():
+            log_info("=== winPrint サーバー監視ワーカー起動 ===")
+            self.set_status("⏳ サーバー内でレポート生成中 (winPrint)...", "waiting")
+
+            username = getattr(self.session, "username", None) or self.config.get("user", "takehik")
+            remote_file = f"/home/{username}/winPrint"
+
+            sftp = None
+            try:
+                # 実行前に前回の古いファイルがあれば確実に削除しておく
+                if self.session:
+                    self.session.exec_command(f"rm -f {remote_file}")
+                    time.sleep(0.3)
+                    sftp = self.session.open_sftp()
+
+                if not sftp:
+                    log_warning("SFTPセッションが開けませんでした")
+                    self.set_status("❌ SFTP接続に失敗しました", "error", clear_delay=5)
+                    return
+
+                MAX_WAIT = 300  # 最大5分待機（重いクエリ対応）
+                wait_time = 0.0
+                last_size = -1
+                stable_count = 0
+                file_found = False
+
+                while wait_time < MAX_WAIT and not self.closing:
+                    try:
+                        stat = sftp.stat(remote_file)
+                        cur_size = stat.st_size
+                        if cur_size > 0:
+                            file_found = True
+                            if cur_size == last_size:
+                                stable_count += 1
+                                if stable_count >= 3:  # 1.5秒間サイズ変化なしで書き込み完了と判定
+                                    log_info(f"winPrint 生成完了を検知 (サイズ: {cur_size} バイト)")
+                                    break
+                            else:
+                                stable_count = 0
+                                last_size = cur_size
+                                self.set_status(f"⏳ サーバー内でレポート生成中: {cur_size / 1024:.1f} KB...", "waiting")
+                    except IOError:
+                        # ファイルがまだ生成されていない間は待機
+                        pass
+                    time.sleep(0.5)
+                    wait_time += 0.5
+
+                if not file_found or last_size <= 0:
+                    log_warning(f"winPrint ファイル生成タイムアウト ({wait_time}秒)")
+                    self.set_status("❌ サーバー側でのファイル生成がタイムアウトしました", "error", clear_delay=5)
+                    return
+
+                # 2. ファイルを読み込み
+                self.set_status("📋 サーバーからデータを読み込み中...", "working")
+                with sftp.open(remote_file, "rb") as rf:
+                    content_bytes = rf.read()
+
+                # 3. 【最重要】サーバー上の仮ファイルを直ちに安全削除！
+                try:
+                    sftp.remove(remote_file)
+                    log_info(f"サーバー上の仮ファイル {remote_file} を安全に削除しました")
+                except Exception as rm_e:
+                    log_warning(f"仮ファイル削除エラー (無視可能): {rm_e}")
+
+                # 4. パース処理（winPrintは折り返しなしの完全な1行ワイドデータ）
+                text_data = content_bytes.decode("cp932", errors="replace")
+                log_info(f"winPrint データ読み込み成功 (バイト数: {len(content_bytes)}, 文字数: {len(text_data)})")
+                self.set_status("📋 レポートデータを解析中...", "working")
+
+                # winPrintは完全データのため重複除外を行わず全件取得
+                rows = parse_report_text_to_table(text_data, deduplicate=False)
+                if not rows or (len(rows) == 1 and not any(rows[0])):
+                    log_warning("winPrint のパース失敗")
+                    self.set_status("❌ レポートデータの解析に失敗しました", "error", clear_delay=5)
+                    return
+
+                log_info(f"winPrint パース成功 (列数={len(rows[0])}, データ行数={len(rows)-1})")
+                self.set_status(f"🚀 Excelを新規作成し、全 {len(rows)-1} 件を文字列形式で展開中...", "working")
+
+                # レポートタイトル決定（画面からプログラム番号等を抽出）
+                screen_txt = self._get_current_screen_text()
+                match = re.search(r'\b(\d+\.\d+(?:\.\d+)*)\b', screen_txt)
+                title = f"QAD_{match.group(1)}" if match else "QAD_Report"
+
+                # 5. 新規Excelに全セル文字列書式(@)で一括展開
+                success, msg = paste_to_new_excel(rows, title=title)
+                if success:
+                    self.set_status(f"✅ winPrint出力を検知し、Excelに全 {len(rows)-1} 件を展開しました（文字列書式）", "success", clear_delay=8)
+                else:
+                    self.set_status(f"❌ {msg}", "error", clear_delay=6)
+
+            except Exception as e:
+                log_error(f"winPrint 自動連携エラー: {e}", exc_info=True)
+                self.set_status(f"❌ winPrint処理エラー: {e}", "error", clear_delay=6)
+            finally:
+                # 万一仮ファイルが残っていた場合の安全消去
+                if sftp:
+                    try:
+                        sftp.remove(remote_file)
+                    except Exception:
+                        pass
+                    try:
+                        sftp.close()
+                    except Exception:
+                        pass
+                self._is_capturing_winprint = False
+
+        threading.Thread(target=_worker, daemon=True, name="winprint-worker").start()
+
 
 
     # --- カラーパレット・テーマ切替処理 ---
@@ -1881,8 +2023,11 @@ class TerminalApp(ctk.CTk):
         self.connection_menu.entryconfigure(0, state="normal" if idle else "disabled")
         self.connection_menu.entryconfigure(1, state="disabled" if idle else "normal")
         state = "normal" if self.is_connected else "disabled"
+        if hasattr(self, "winprint_btn"):
+            self.winprint_btn.configure(state=state)
         for button in getattr(self, "shortcut_buttons", []):
             button.configure(state=state)
+
         for index in range(self.key_menu.index("end") + 1):
             if self.key_menu.type(index) == "command":
                 self.key_menu.entryconfigure(index, state=state)
@@ -1995,7 +2140,7 @@ class TerminalApp(ctk.CTk):
             self.textbox.configure(state="disabled")
 
             # レポート自動検知（local 出力時、自動で全ページ取得してExcelを開く）
-            if self.config.get("auto_excel_export", True) and not self._is_capturing_report:
+            if self.config.get("auto_excel_export", True) and not self._is_capturing_report and not getattr(self, "_is_capturing_winprint", False):
                 now = time.time()
                 is_waiting = getattr(self, "_is_waiting_query", False)
                 cooldown = 0.5 if is_waiting else 3.0
@@ -2302,13 +2447,20 @@ class TerminalApp(ctk.CTk):
         return "break"
 
     def _handle_f1_action(self):
-        """F1キー押下時に画面状態をチェックし、レポート実行クエリ待機ステータスを設定"""
+        """F1キー押下時に画面状態をチェックし、レポート実行クエリ待機ステータスを設定またはwinPrint監視を開始"""
         if not self.is_connected:
             return
         if self.is_main_menu() or self.is_menu_screen():
             return
         cur_text = self._get_current_screen_text()
         lower = cur_text.lower() if cur_text else ""
+
+        # winPrint 出力の指定がある場合は、サーバー仮ファイル監視＆自動Excel展開ワーカーを起動
+        if "winprint" in lower:
+            log_info("Output: winPrint を検知しました。サーバー監視＆自動Excel展開ワーカーを開始します。")
+            self._start_winprint_capture()
+            return
+
         # 画面内に Output / 出力 / 99. / From / To 等のレポート条件画面パターンがあるか判定
         is_report_input = (
             "output" in lower or "出力" in cur_text
