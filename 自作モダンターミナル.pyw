@@ -228,9 +228,9 @@ PREFERRED_UI_FONTS = (
 )
 
 PREFERRED_TERMINAL_FONTS = (
-    "Cascadia Mono",  # Windows 11/10標準 等幅（罫線とASCIIの幅が完全一致）
+    "Consolas",       # Windows標準 等幅（罫線の上下隙間ゼロ・完全シームレス結合）
+    "Cascadia Mono",  # Windows 11/10標準 等幅
     "Cascadia Code",
-    "Consolas",       # Windows標準 等幅（罫線の上下連結性が高い）
     "Courier New",
     "Source Code Pro",
     "BIZ UDゴシック",
@@ -586,7 +586,7 @@ class TerminalApp(ctk.CTk):
         ctk.set_default_color_theme("blue")
         super().__init__()
         self.ui_font_family = find_first_available_font(PREFERRED_UI_FONTS, fallback="Yu Gothic UI")
-        self.terminal_font_family = find_first_available_font(PREFERRED_TERMINAL_FONTS, fallback="Cascadia Mono")
+        self.terminal_font_family = find_first_available_font(PREFERRED_TERMINAL_FONTS, fallback="Consolas")
 
         self.title("QAD / MFG:PRO")
         self.geometry("1460x780")
@@ -840,7 +840,10 @@ class TerminalApp(ctk.CTk):
     def _show_message(self, message):
         self.textbox.configure(state="normal")
         self.textbox.delete("1.0", "end")
-        self.textbox.insert("1.0", message)
+        if message:
+            self.textbox.insert("1.0", message)
+        else:
+            self.textbox.insert("1.0", "\n" * (ROWS - 1))
         for tag in ("reverse", "menu_highlight", "underline", "bold", "remote_cursor"):
             self.textbox.tag_remove(tag, "1.0", "end")
         self.textbox.configure(state="disabled")
@@ -928,6 +931,7 @@ class TerminalApp(ctk.CTk):
                 self.raw_lines[row] = (raw_line, spans)
 
             self._apply_menu_highlight()
+            self._auto_align_header_border()
             self.textbox.configure(state="disabled")
 
         self.textbox.tag_remove("remote_cursor", "1.0", "end")
@@ -963,6 +967,57 @@ class TerminalApp(ctk.CTk):
             return line
         return line[:-1] + (pad_char * pad_count) + line[-1]
 
+    def _auto_align_header_border(self):
+        """Textウィジェットの実測描画座標(bbox)に基づき、ヘッダー行(Row 0)の右端角(┐)を純罫線行と1px単位で完全一致させる"""
+        try:
+            tb = self.textbox._textbox
+            b1 = tb.bbox("2.end-1c")
+            b2 = tb.bbox("3.end-1c")
+            target_rx = None
+            if b1 and b2:
+                target_rx = max(b1[0] + b1[2], b2[0] + b2[2])
+            elif b1:
+                target_rx = b1[0] + b1[2]
+            elif b2:
+                target_rx = b2[0] + b2[2]
+            if not target_rx:
+                return
+
+            b0 = tb.bbox("1.end-1c")
+            if not b0:
+                return
+            rx0 = b0[0] + b0[2]
+            diff = target_rx - rx0
+            if abs(diff) <= 1:
+                return  # 誤差1px以内は完全一致
+
+            import tkinter.font as tkfont
+            f = tkfont.Font(font=tb.cget("font"))
+            pad_w = f.measure("─")
+            if pad_w <= 0:
+                return
+
+            pad_delta = round(diff / pad_w)
+            if pad_delta == 0:
+                pad_delta = 1 if diff > 0 else -1
+
+            line0 = tb.get("1.0", "1.end")
+            if len(line0) < 2 or line0[-1] != "┐":
+                return
+
+            if pad_delta > 0:
+                new_line0 = line0[:-1] + ("─" * pad_delta) + line0[-1]
+            else:
+                remove_cnt = min(-pad_delta, len(line0) - 2)
+                new_line0 = line0[:-1 - remove_cnt] + line0[-1]
+
+            tb.delete("1.0", "1.end")
+            tb.insert("1.0", new_line0)
+            if self.rendered_lines[0]:
+                self.rendered_lines[0] = (new_line0, self.rendered_lines[0][1])
+        except Exception:
+            pass
+
     def _rerender_all(self):
         """フォントサイズ変更時・テーマ変更時に全行を新しいフォントメトリクスで再描画"""
         if not getattr(self, "raw_lines", None):
@@ -981,6 +1036,7 @@ class TerminalApp(ctk.CTk):
                     self.textbox.tag_add(tag, f"{row + 1}.{s_idx}", f"{row + 1}.{e_idx}")
             self.rendered_lines[row] = (line, spans)
         self._apply_menu_highlight()
+        self._auto_align_header_border()
         self.textbox.configure(state="disabled")
         try:
             self.textbox._textbox.yview_moveto(0.0)
