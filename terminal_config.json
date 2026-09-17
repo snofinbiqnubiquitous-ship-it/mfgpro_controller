@@ -8,6 +8,7 @@
   "custom_terminal_fg": null,
   "enable_windows_shortcuts": true,
   "block_server_shortcuts": true,
+  "auto_excel_export": true,
   "shortcuts": [
     {
       "name": "在庫スナップショット",

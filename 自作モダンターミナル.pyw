@@ -57,6 +57,7 @@ DEFAULT_CONFIG = {
     "custom_terminal_fg": None,
     "enable_windows_shortcuts": True,
     "block_server_shortcuts": True,
+    "auto_excel_export": True,
     "shortcuts": [
         {"name": "在庫スナップショット", "code": "99.3.6.1"},
         {"name": "在庫移動明細", "code": "99.3.21.4"},
@@ -80,6 +81,8 @@ def load_config():
         cfg["enable_windows_shortcuts"] = True
     if "block_server_shortcuts" not in cfg:
         cfg["block_server_shortcuts"] = True
+    if "auto_excel_export" not in cfg:
+        cfg["auto_excel_export"] = True
     return cfg
 
 
@@ -352,6 +355,71 @@ def parse_report_text_to_table(text):
         if cols:
             rows.append(cols)
     return rows
+
+
+def paste_to_new_excel(rows, title="QAD_Report"):
+    """新規Excelブックを開き、全セルを文字列書式(@)に設定してデータを一括展開する（前ゼロ落ち・指数変換を完全防止）"""
+    if not rows:
+        return False, "展開するデータがありません"
+
+    num_rows = len(rows)
+    num_cols = max(len(r) for r in rows) if rows else 0
+    if num_rows == 0 or num_cols == 0:
+        return False, "有効なデータ行がありません"
+
+    # 1. win32com による Excel COM 直接操作（前ゼロ落ち・指数変換なしの完全文字列貼り付け）
+    try:
+        import pythoncom
+        import win32com.client
+
+        pythoncom.CoInitialize()
+        try:
+            excel = win32com.client.Dispatch("Excel.Application")
+            excel.Visible = True
+            wb = excel.Workbooks.Add()
+            ws = wb.Worksheets(1)
+            try:
+                ws.Name = title[:31]
+            except Exception:
+                pass
+
+            grid = []
+            for r in rows:
+                padded = [str(c) if c is not None else "" for c in r] + [""] * (num_cols - len(r))
+                grid.append(tuple(padded))
+
+            target_range = ws.Range(ws.Cells(1, 1), ws.Cells(num_rows, num_cols))
+            target_range.NumberFormat = "@"  # 全セル文字列書式
+            target_range.Value = tuple(grid)
+            try:
+                target_range.Columns.AutoFit()
+            except Exception:
+                pass
+
+            try:
+                excel.WindowState = -4143  # xlNormal
+            except Exception:
+                pass
+            excel.Visible = True
+            return True, f"Excelに {num_rows - 1} 件のデータを展開しました（文字列書式）"
+        finally:
+            pythoncom.CoUninitialize()
+    except Exception as exc:
+        print(f"Excel COM連携エラー (フォールバックへ): {exc}", file=sys.stderr)
+
+    # 2. フォールバック: BOM付きUTF-8 CSV で直接起動
+    try:
+        now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        export_dir = Path(tempfile.gettempdir()) / "qad_exports"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = export_dir / f"{title}_{now_str}.csv"
+        with open(csv_path, "w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerows(rows)
+        os.startfile(str(csv_path))
+        return True, f"CSVを生成しExcelで起動しました ({num_rows - 1} 件)"
+    except Exception as e:
+        return False, f"Excel起動失敗: {e}"
 
 
 class ActionButton(ctk.CTkFrame):
@@ -783,6 +851,8 @@ class TerminalApp(ctk.CTk):
         self.auto_fit = True
         self._resize_job = None
         self.shortcut_buttons = []
+        self._is_capturing_report = False
+        self._last_report_capture_time = 0.0
 
         self._build_menu()
         self._build_header()
@@ -839,8 +909,14 @@ class TerminalApp(ctk.CTk):
             variable=self.block_server_shortcuts_var,
             command=self.toggle_block_server_shortcuts,
         )
+        self.auto_excel_var = tk.BooleanVar(value=bool(self.config.get("auto_excel_export", True)))
+        self.edit_menu.add_checkbutton(
+            label="レポート出力を自動でExcelに展開 (文字列書式)",
+            variable=self.auto_excel_var,
+            command=self.toggle_auto_excel_export,
+        )
         self.edit_menu.add_separator()
-        self.edit_menu.add_command(label="📊 画面のデータをExcelで開く (CSV)", accelerator="Ctrl+E", command=self.export_to_excel)
+        self.edit_menu.add_command(label="📊 画面のデータをExcelで開く (文字列書式)", accelerator="Ctrl+E", command=self.export_to_excel)
         self.edit_menu.add_command(label="🚀 レポート全ページ自動取得 ＆ Excelで開く", command=self._fetch_all_pages_and_open_excel)
         self.edit_menu.add_separator()
         self.edit_menu.add_command(label="📋 画面全体をコピー", accelerator="Ctrl+Shift+C", command=self.copy_screen_text)
@@ -905,14 +981,10 @@ class TerminalApp(ctk.CTk):
         self.copy_btn = self._button(self.header, "📋 画面コピー", self.copy_screen_text)
         self.copy_btn.grid(row=0, column=1, padx=(0, 8), pady=(10, 0))
 
-        # Excelで開くボタン
-        self.excel_btn = self._button(self.header, "📊 Excelで開く", self.export_to_excel)
-        self.excel_btn.grid(row=0, column=2, padx=(0, 8), pady=(10, 0))
-
         self.connect_btn = self._button(self.header, "ログイン", self.connect_to_server, True)
-        self.connect_btn.grid(row=0, column=3, padx=(0, 8), pady=(10, 0))
+        self.connect_btn.grid(row=0, column=2, padx=(0, 8), pady=(10, 0))
         self.disconnect_btn = self._button(self.header, "切断", self.disconnect_server)
-        self.disconnect_btn.grid(row=0, column=4, padx=(0, 20), pady=(10, 0))
+        self.disconnect_btn.grid(row=0, column=3, padx=(0, 20), pady=(10, 0))
 
     def _build_terminal(self):
         # ターミナルパネル（外枠）: 右カラム廃止により画面横幅100%をフル活用
@@ -1291,27 +1363,15 @@ class TerminalApp(ctk.CTk):
 
         threading.Thread(target=_worker, daemon=True, name="excel-fetch").start()
 
-    def _parse_and_open_excel(self, text, title="qad_export"):
-        """テキストを表データにパースし、BOM付きUTF-8のCSVで保存してExcelで起動"""
+    def _parse_and_open_excel(self, text, title="QAD_Report"):
+        """テキストを表データにパースし、新規Excelを開いて全セルを文字列として貼り付ける"""
         rows = parse_report_text_to_table(text)
         if not rows or (len(rows) == 1 and not any(rows[0])):
             self._show_input_error("解析可能な表データが見つかりませんでした")
             return
 
-        now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        export_dir = Path(tempfile.gettempdir()) / "qad_exports"
-        try:
-            export_dir.mkdir(parents=True, exist_ok=True)
-            csv_path = export_dir / f"{title}_{now_str}.csv"
-            with open(csv_path, "w", encoding="utf-8-sig", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerows(rows)
-
-            os.startfile(str(csv_path))
-            data_rows = max(0, len(rows) - 1)
-            self._show_input_error(f"Excelで開きました 📊 ({data_rows}件のデータ)")
-        except Exception as e:
-            self._show_input_error(f"Excel起動エラー: {e}")
+        success, msg = paste_to_new_excel(rows, title=title)
+        self._show_input_error(msg)
 
     def copy_selection_or_screen(self, event=None):
         """テキスト選択範囲があれば選択部分を、なければ画面全体をコピー"""
@@ -1397,6 +1457,117 @@ class TerminalApp(ctk.CTk):
             self._show_input_error("F1/F4以外のサーバー側ショートカットを無効化しました（安全保護有効）")
         else:
             self._show_input_error("サーバー側ショートカットの保護を解除しました（全キー送信）")
+
+    def toggle_auto_excel_export(self):
+        """local出力レポートの自動Excel展開機能の有効/無効切替"""
+        val = bool(self.auto_excel_var.get())
+        self.config["auto_excel_export"] = val
+        save_config(self.config)
+        if val:
+            self._show_input_error("レポート出力を自動でExcelに展開（文字列書式）を有効化しました")
+        else:
+            self._show_input_error("レポート自動Excel展開を無効化しました")
+
+    def _check_is_report_output(self):
+        """現在の画面が QAD レポート出力（local 出力）であるかを高精度に判定"""
+        if self.is_main_menu() or self.is_menu_screen():
+            return False
+
+        lines = []
+        if getattr(self, "raw_lines", None):
+            lines = [self.raw_lines[r][0] for r in sorted(self.raw_lines.keys()) if self.raw_lines.get(r)]
+        if not lines:
+            try:
+                lines = self.textbox.get("1.0", "end").splitlines()
+            except Exception:
+                lines = []
+
+        if len(lines) < 3:
+            return False
+
+        # 1. ハイフン区切り線（--- --- ---）が存在するか
+        has_hyphen_sep = False
+        for line in lines[:10]:
+            clean = line.strip().replace("│", " ").strip()
+            if clean.startswith("---") and "---" in clean:
+                has_hyphen_sep = True
+                break
+
+        if not has_hyphen_sep:
+            return False
+
+        # 2. 改ページまたは終了プロンプト（Press space bar to continue / End of Report 等）が存在するか
+        full_lower = "\n".join(lines).lower()
+        has_prompt = any(p in full_lower for p in [
+            "press space bar to continue",
+            "space to continue",
+            "press space to continue",
+            "end of report",
+        ])
+
+        return has_prompt
+
+    def _start_auto_report_capture(self):
+        """サーバーからの local レポート出力を自動で全ページ受信し、Excelを開いて文字列として貼り付ける"""
+        if self._is_capturing_report:
+            return
+        self._is_capturing_report = True
+
+        def _worker():
+            self._show_input_error("📊 QADレポート出力を検出しました。全データを自動取得中... (Space送信)")
+            all_screens = []
+            max_pages = 200
+            page_count = 0
+            last_text = ""
+
+            try:
+                while page_count < max_pages and not self.closing:
+                    cur_text = self._get_current_screen_text()
+                    if cur_text and cur_text != last_text:
+                        all_screens.append(cur_text)
+                        last_text = cur_text
+                        page_count += 1
+                        self._show_input_error(f"📊 レポート取得中: {page_count} ページ目...")
+
+                    lower = cur_text.lower() if cur_text else ""
+                    if "end of report" in lower or "selection:" in lower:
+                        break
+
+                    # 継続プロンプトがあれば Space キーを送信して次ページへ
+                    if any(p in lower for p in ["press space bar to continue", "space to continue", "press space to continue"]):
+                        try:
+                            if self.is_connected and self.session is not None:
+                                self.session.send(" ")
+                        except Exception:
+                            break
+                        time.sleep(0.3)
+                    else:
+                        time.sleep(0.2)
+                        check_text = self._get_current_screen_text()
+                        check_lower = check_text.lower() if check_text else ""
+                        if not any(p in check_lower for p in ["press space bar to continue", "space to continue", "press space to continue"]):
+                            break
+
+                if not all_screens:
+                    self._show_input_error("レポートデータが取得できませんでした")
+                    return
+
+                full_text = "\n".join(all_screens)
+                rows = parse_report_text_to_table(full_text)
+                if not rows or (len(rows) == 1 and not any(rows[0])):
+                    self._show_input_error("レポートの表データをパースできませんでした")
+                    return
+
+                self._show_input_error(f"📊 Excelを起動して全 {len(rows) - 1} 件を文字列として展開中...")
+                success, msg = paste_to_new_excel(rows, title="QAD_Report")
+                self._show_input_error(msg)
+            except Exception as e:
+                self._show_input_error(f"自動Excel出力エラー: {e}")
+            finally:
+                self._is_capturing_report = False
+                self._last_report_capture_time = time.time()
+
+        threading.Thread(target=_worker, daemon=True, name="auto-excel-capture").start()
 
     # --- カラーパレット・テーマ切替処理 ---
     def open_color_palette(self):
@@ -1564,6 +1735,13 @@ class TerminalApp(ctk.CTk):
             self._apply_menu_highlight()
             self._auto_align_header_border()
             self.textbox.configure(state="disabled")
+
+            # レポート自動検知（local 出力時、自動で全ページ取得してExcelを開く）
+            if self.config.get("auto_excel_export", True) and not self._is_capturing_report:
+                now = time.time()
+                if now - self._last_report_capture_time > 3.0:
+                    if self._check_is_report_output():
+                        self._start_auto_report_capture()
 
         self.textbox.tag_remove("remote_cursor", "1.0", "end")
         if cursor is not None:
