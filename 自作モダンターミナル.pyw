@@ -161,7 +161,58 @@ COLOR_THEMES = {
         "menu_highlight_bg": "#00FF66",
         "menu_highlight_fg": "#050806",
     },
+    "amber": {
+        "name": "アンバー（琥珀色）",
+        "appearance_mode": "dark",
+        "background": "#0D0A05",
+        "panel": "#1A140A",
+        "terminal": "#120E07",
+        "button": "#2E200F",
+        "hover": "#422E16",
+        "accent": "#FFB000",
+        "accent_hover": "#E69E00",
+        "focus": "#FFB000",
+        "text": "#FFB000",
+        "muted": "#8C6A38",
+        "success": "#FFB000",
+        "warning": "#FFD700",
+        "error": "#FF4444",
+        "border": "#2E200F",
+        "cursor": "#FFB000",
+        "on_accent": "#0D0A05",
+        "disabled": "#422E16",
+        "disabled_bg": "#1A140A",
+        "scrollbar": "#2E200F",
+        "scrollbar_hover": "#422E16",
+        "reverse_bg": "#FFB000",
+        "reverse_fg": "#0D0A05",
+        "menu_highlight_bg": "#FFB000",
+        "menu_highlight_fg": "#0D0A05",
+    },
 }
+
+# パレット用の代表的なプリセットカラー（タイル選択用）
+PALETTE_BG_PRESETS = [
+    ("#E2E8F0", "薄グレー"),
+    ("#F8FAFC", "オフホワイト"),
+    ("#FFFFFF", "ピュアホワイト"),
+    ("#1E293B", "スレートダーク"),
+    ("#0F172A", "ミッドナイト"),
+    ("#0A0F0D", "漆黒 (グリーン用)"),
+    ("#120E07", "ダークアンバー"),
+    ("#18181B", "チャコール"),
+]
+
+PALETTE_FG_PRESETS = [
+    ("#0F172A", "ダークネイビー"),
+    ("#1E293B", "スレート"),
+    ("#000000", "ブラック"),
+    ("#F8FAFC", "オフホワイト"),
+    ("#00FF66", "蛍光グリーン"),
+    ("#38BDF8", "シアン"),
+    ("#FFB000", "アンバー"),
+    ("#FBBF24", "ゴールド"),
+]
 
 
 # --- フォント設定 ---
@@ -267,6 +318,146 @@ class ActionButton(ctk.CTkFrame):
         return self._control.invoke()
 
 
+class ColorPaletteDialog(ctk.CTkToplevel):
+    """グラフィカルなカラーパレット設定ウィンドウ"""
+
+    def __init__(self, parent, terminal_app):
+        super().__init__(parent)
+        self.app = terminal_app
+
+        self.title("カラーパレット設定")
+        self.geometry("540x520")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+
+        self.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() - 540) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - 520) // 2
+        self.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+        self._build_ui()
+
+    def _build_ui(self):
+        main_frame = ctk.CTkFrame(self, corner_radius=12)
+        main_frame.pack(fill="both", expand=True, padx=16, pady=16)
+
+        ctk.CTkLabel(main_frame, text="🎨 カラーパレット & テーマ設定", font=ctk.CTkFont(size=17, weight="bold")).pack(pady=(10, 12))
+
+        # 1. プリセットテーマ
+        theme_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        theme_frame.pack(fill="x", padx=16, pady=4)
+        ctk.CTkLabel(theme_frame, text="標準テーマテンプレート:", font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w", pady=(0, 6))
+
+        t_grid = ctk.CTkFrame(theme_frame, fg_color="transparent")
+        t_grid.pack(fill="x")
+        t_grid.grid_columnconfigure((0, 1, 2, 3), weight=1)
+
+        themes = [
+            ("ライト (標準)", "light", "#E2E8F0", "#0F172A"),
+            ("ダークスレート", "dark", "#1E293B", "#F8FAFC"),
+            ("グリーン (VT100)", "classic_green", "#0A0F0D", "#00FF66"),
+            ("アンバー (琥珀)", "amber", "#120E07", "#FFB000"),
+        ]
+        for idx, (label, key, bg, fg) in enumerate(themes):
+            btn = ctk.CTkButton(
+                t_grid, text=label, fg_color=bg, text_color=fg,
+                border_width=1, border_color="#64748B", hover_color=bg,
+                command=lambda k=key: self._select_theme(k), height=32, font=ctk.CTkFont(size=11, weight="bold")
+            )
+            btn.grid(row=0, column=idx, padx=4, sticky="ew")
+
+        # 2. ターミナル背景色パレット
+        bg_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        bg_frame.pack(fill="x", padx=16, pady=(12, 4))
+        ctk.CTkLabel(bg_frame, text="ターミナル背景色:", font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w", pady=(0, 4))
+
+        bg_grid = ctk.CTkFrame(bg_frame, fg_color="transparent")
+        bg_grid.pack(fill="x")
+        bg_grid.grid_columnconfigure(list(range(len(PALETTE_BG_PRESETS))), weight=1)
+
+        for idx, (color, name) in enumerate(PALETTE_BG_PRESETS):
+            btn = ctk.CTkButton(
+                bg_grid, text="", fg_color=color, hover_color=color,
+                border_width=1, border_color="#64748B", width=34, height=28,
+                command=lambda c=color: self._set_bg(c)
+            )
+            btn.grid(row=0, column=idx, padx=2, sticky="ew")
+
+        # 3. ターミナル文字色パレット
+        fg_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        fg_frame.pack(fill="x", padx=16, pady=(10, 4))
+        ctk.CTkLabel(fg_frame, text="ターミナル文字色:", font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w", pady=(0, 4))
+
+        fg_grid = ctk.CTkFrame(fg_frame, fg_color="transparent")
+        fg_grid.pack(fill="x")
+        fg_grid.grid_columnconfigure(list(range(len(PALETTE_FG_PRESETS))), weight=1)
+
+        for idx, (color, name) in enumerate(PALETTE_FG_PRESETS):
+            btn = ctk.CTkButton(
+                fg_grid, text="Aa", fg_color="#1E293B", text_color=color, hover_color="#334155",
+                border_width=1, border_color="#64748B", width=34, height=28,
+                command=lambda c=color: self._set_fg(c), font=ctk.CTkFont(size=11, weight="bold")
+            )
+            btn.grid(row=0, column=idx, padx=2, sticky="ew")
+
+        # 4. 自由なカラーピッカー
+        custom_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        custom_frame.pack(fill="x", padx=16, pady=(14, 4))
+        custom_frame.grid_columnconfigure((0, 1), weight=1)
+
+        custom_bg_btn = ctk.CTkButton(
+            custom_frame, text="🎨 背景色を自由に選ぶ...", fg_color="#356BC4", hover_color="#285BAF",
+            command=self._pick_custom_bg, height=34
+        )
+        custom_bg_btn.grid(row=0, column=0, padx=6, sticky="ew")
+
+        custom_fg_btn = ctk.CTkButton(
+            custom_frame, text="✏️ 文字色を自由に選ぶ...", fg_color="#356BC4", hover_color="#285BAF",
+            command=self._pick_custom_fg, height=34
+        )
+        custom_fg_btn.grid(row=0, column=1, padx=6, sticky="ew")
+
+        # 5. 下部操作ボタン
+        bottom_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        bottom_frame.pack(fill="x", padx=16, pady=(20, 8))
+        bottom_frame.grid_columnconfigure((0, 1), weight=1)
+
+        reset_btn = ctk.CTkButton(
+            bottom_frame, text="標準の配色に戻す", fg_color="#64748B", hover_color="#475569",
+            command=self._reset_colors, height=32
+        )
+        reset_btn.grid(row=0, column=0, padx=6, sticky="ew")
+
+        close_btn = ctk.CTkButton(
+            bottom_frame, text="閉じる", fg_color="#16A34A", hover_color="#15803D",
+            command=self.destroy, height=32
+        )
+        close_btn.grid(row=0, column=1, padx=6, sticky="ew")
+
+    def _select_theme(self, theme_key):
+        self.app.switch_theme(theme_key)
+
+    def _set_bg(self, color):
+        self.app.set_terminal_custom_color(bg=color)
+
+    def _set_fg(self, color):
+        self.app.set_terminal_custom_color(fg=color)
+
+    def _pick_custom_bg(self):
+        color = colorchooser.askcolor(initialcolor=self.app.colors["terminal"], title="ターミナル背景色を選択", parent=self)
+        if color and color[1]:
+            self.app.set_terminal_custom_color(bg=color[1])
+
+    def _pick_custom_fg(self):
+        color = colorchooser.askcolor(initialcolor=self.app.colors["text"], title="ターミナル文字色を選択", parent=self)
+        if color and color[1]:
+            self.app.set_terminal_custom_color(fg=color[1])
+
+    def _reset_colors(self):
+        self.app.reset_custom_colors()
+
+
 class LoginConfigDialog(ctk.CTkToplevel):
     """ログイン情報（ホスト・ポート・ユーザー・パスワード）の編集・保存ダイアログ"""
 
@@ -282,7 +473,6 @@ class LoginConfigDialog(ctk.CTkToplevel):
         self.transient(parent)
         self.grab_set()
 
-        # ウィンドウを親の中央に配置
         self.update_idletasks()
         x = parent.winfo_x() + (parent.winfo_width() - 440) // 2
         y = parent.winfo_y() + (parent.winfo_height() - 380) // 2
@@ -469,28 +659,27 @@ class TerminalApp(ctk.CTk):
         self.auto_fit_var = tk.BooleanVar(value=True)
         view.add_checkbutton(label="画面サイズに自動調整 (Auto Fit)", variable=self.auto_fit_var, command=self.toggle_auto_fit)
         view.add_separator()
-
-        # カラーテーマ・パレットサブメニュー
-        color_menu = tk.Menu(view, tearoff=False)
-        color_menu.add_command(label="ライト（標準グレー）", command=lambda: self.switch_theme("light"))
-        color_menu.add_command(label="ダークスレート", command=lambda: self.switch_theme("dark"))
-        color_menu.add_command(label="クラシックグリーン (VT100)", command=lambda: self.switch_theme("classic_green"))
-        color_menu.add_separator()
-        color_menu.add_command(label="ターミナル背景色を選択...", command=self.choose_terminal_bg)
-        color_menu.add_command(label="ターミナル文字色を選択...", command=self.choose_terminal_fg)
-        color_menu.add_command(label="配色をテーマの標準に戻す", command=self.reset_custom_colors)
-        view.add_cascade(label="カラーパレット・テーマ", menu=color_menu)
-
-        view.add_separator()
         view.add_command(label="ターミナルにフォーカス", command=self.focus_terminal)
         menubar.add_cascade(label="表示", menu=view)
 
-        # 4. ログイン情報メニュー
+        # 4. カラーパレットメニュー（独立メニュー）
+        self.palette_menu = tk.Menu(menubar, tearoff=False)
+        self.palette_menu.add_command(label="🎨 カラーパレットを開く...", command=self.open_color_palette)
+        self.palette_menu.add_separator()
+        self.palette_menu.add_command(label="ライト（標準グレー）", command=lambda: self.switch_theme("light"))
+        self.palette_menu.add_command(label="ダークスレート", command=lambda: self.switch_theme("dark"))
+        self.palette_menu.add_command(label="クラシックグリーン (VT100)", command=lambda: self.switch_theme("classic_green"))
+        self.palette_menu.add_command(label="アンバー（琥珀色）", command=lambda: self.switch_theme("amber"))
+        self.palette_menu.add_separator()
+        self.palette_menu.add_command(label="配色を標準に戻す", command=self.reset_custom_colors)
+        menubar.add_cascade(label="カラーパレット", menu=self.palette_menu)
+
+        # 5. ログイン情報メニュー
         login_menu = tk.Menu(menubar, tearoff=False)
         login_menu.add_command(label="ログイン情報の編集...", command=self.open_login_dialog)
         menubar.add_cascade(label="ログイン情報", menu=login_menu)
 
-        # 5. ヘルプメニュー
+        # 6. ヘルプメニュー
         help_menu = tk.Menu(menubar, tearoff=False)
         help_menu.add_command(label="操作ガイド", command=self.show_help)
         menubar.add_cascade(label="ヘルプ", menu=help_menu)
@@ -509,9 +698,9 @@ class TerminalApp(ctk.CTk):
         self.disconnect_btn.grid(row=0, column=2, padx=(0, 20), pady=(10, 0))
 
     def _build_terminal(self):
-        # ターミナルパネル（外枠）
+        # ターミナルパネル（外枠）: パネル全体を利用可能な最大面積で確保
         self.terminal_panel = ctk.CTkFrame(self, fg_color=self.colors["background"], corner_radius=0)
-        self.terminal_panel.grid(row=1, column=0, padx=(8, 4), pady=(4, 4), sticky="nsew")
+        self.terminal_panel.grid(row=1, column=0, padx=(6, 2), pady=(4, 4), sticky="nsew")
         self.terminal_panel.grid_columnconfigure(0, weight=1)
         self.terminal_panel.grid_rowconfigure(0, weight=1)
 
@@ -519,15 +708,15 @@ class TerminalApp(ctk.CTk):
         self.active_cols = 80
         self.terminal_font = ctk.CTkFont(family=self.terminal_font_family, size=self.font_size)
 
-        # ターミナル本体：パネルの中央に配置（上下左右中央揃え）
+        # ターミナル本体：パネルいっぱいに最大表示（余白をゼロにし、表示面積を最大化）
         self.textbox = ctk.CTkTextbox(
             self.terminal_panel, font=self.terminal_font, fg_color=self.colors["terminal"],
-            text_color=self.colors["text"], wrap="none", corner_radius=12,
+            text_color=self.colors["text"], wrap="none", corner_radius=10,
             border_width=1, border_color=self.colors["border"],
             scrollbar_button_color=self.colors["scrollbar"],
             scrollbar_button_hover_color=self.colors["scrollbar_hover"],
         )
-        self.textbox.grid(row=0, column=0, sticky="")
+        self.textbox.grid(row=0, column=0, sticky="nsew")
         # 罫線の縦線が上下で隙間なく完全に繋がるよう行間パディングを0に設定
         self.textbox._textbox.configure(spacing1=0, spacing2=0, spacing3=0)
         self._apply_text_tags()
@@ -540,7 +729,7 @@ class TerminalApp(ctk.CTk):
 
         self.footer = ctk.CTkLabel(self.terminal_panel, text="", text_color=self.colors["error"],
                                    font=ctk.CTkFont(family=self.ui_font_family, size=12))
-        self.footer.grid(row=1, column=0, padx=8, pady=(4, 0), sticky="s")
+        self.footer.grid(row=1, column=0, padx=8, pady=(2, 0), sticky="s")
         self.footer.grid_remove()
 
         self.terminal_panel.bind("<Configure>", self._on_panel_resize)
@@ -557,23 +746,26 @@ class TerminalApp(ctk.CTk):
             self.textbox.tag_config("bold", foreground=self.colors["accent"])
 
     def _build_toolbar(self):
-        self.toolbar = ctk.CTkFrame(self, width=210, fg_color=self.colors["panel"], corner_radius=14,
+        self.toolbar = ctk.CTkFrame(self, width=200, fg_color=self.colors["panel"], corner_radius=12,
                                     border_width=1, border_color=self.colors["border"])
-        self.toolbar.grid(row=1, column=1, padx=(0, 8), pady=(4, 4), sticky="new")
+        self.toolbar.grid(row=1, column=1, padx=(0, 6), pady=(4, 4), sticky="new")
         self.toolbar.grid_columnconfigure((0, 1), weight=1, uniform="keys")
         row = 0
         for _, buttons in TOOLBAR_GROUPS:
-            self.toolbar.grid_rowconfigure(row, minsize=14)
+            self.toolbar.grid_rowconfigure(row, minsize=12)
             row += 1
             for index, (label, key) in enumerate(buttons):
                 button = self._button(self.toolbar, label, lambda k=key: self.send_key(k), key == "F1")
                 button.grid(row=row + index // 2, column=index % 2,
-                            padx=(10, 4) if index % 2 == 0 else (4, 10), pady=3, sticky="ew")
+                            padx=(8, 3) if index % 2 == 0 else (3, 8), pady=2, sticky="ew")
                 self.key_buttons.append(button)
             row += (len(buttons) + 1) // 2
-        self.toolbar.grid_rowconfigure(row, weight=1, minsize=8)
+        self.toolbar.grid_rowconfigure(row, weight=1, minsize=6)
 
-    # --- カラーテーマ・パレット切替処理 ---
+    # --- カラーパレット・テーマ切替処理 ---
+    def open_color_palette(self):
+        ColorPaletteDialog(self, self)
+
     def switch_theme(self, theme_key):
         """プリセットテーマへの切り替え"""
         if theme_key not in COLOR_THEMES:
@@ -585,23 +777,15 @@ class TerminalApp(ctk.CTk):
         self.colors = self._get_active_colors()
         self._refresh_theme_ui()
 
-    def choose_terminal_bg(self):
-        """カラーピッカーでターミナル背景色を選択"""
-        color = colorchooser.askcolor(initialcolor=self.colors["terminal"], title="ターミナル背景色を選択", parent=self)
-        if color and color[1]:
-            self.config["custom_terminal_bg"] = color[1]
-            save_config(self.config)
-            self.colors = self._get_active_colors()
-            self._refresh_theme_ui()
-
-    def choose_terminal_fg(self):
-        """カラーピッカーでターミナル文字色を選択"""
-        color = colorchooser.askcolor(initialcolor=self.colors["text"], title="ターミナル文字色を選択", parent=self)
-        if color and color[1]:
-            self.config["custom_terminal_fg"] = color[1]
-            save_config(self.config)
-            self.colors = self._get_active_colors()
-            self._refresh_theme_ui()
+    def set_terminal_custom_color(self, bg=None, fg=None):
+        """ターミナルの背景色・文字色をカスタム指定"""
+        if bg:
+            self.config["custom_terminal_bg"] = bg
+        if fg:
+            self.config["custom_terminal_fg"] = fg
+        save_config(self.config)
+        self.colors = self._get_active_colors()
+        self._refresh_theme_ui()
 
     def reset_custom_colors(self):
         """カスタム色をリセットしテーマ標準に戻す"""
@@ -874,27 +1058,32 @@ class TerminalApp(ctk.CTk):
         target_cols = getattr(self, "active_cols", 80)
         target_rows = ROWS
 
+        # スクロールバーや枠線の安全マージン（絶対に文字が切れない寸法）
+        safe_w = pw - 24
+        safe_h = ph - 16
+
         best_size = 12
         best_cw = 9
         best_ch = 20
 
-        # パネル内に収まる最大フォントサイズを探索（上下左右中央揃えのため、サイズに合わせてtextboxを整形）
+        # パネル内に収まる最大フォントサイズを探索（最大36ptまで拡大して余白を最小化）
         for size in range(36, 11, -1):
             f = tkfont.Font(family=self.terminal_font_family, size=-size)
             cw = f.measure("M")
             ch = f.metrics("linespace")
-            needed_w = cw * target_cols + 24
-            needed_h = ch * target_rows + 20
-            if needed_w <= pw - 8 and needed_h <= ph - 8:
+            if cw * target_cols <= safe_w and ch * target_rows <= safe_h:
                 best_size = size
                 best_cw = cw
                 best_ch = ch
                 break
 
-        # テキストボックス寸法を文字サイズにピッタリ合わせ、上下左右中央にセンタリング配置
-        exact_w = best_cw * target_cols + 24
-        exact_h = best_ch * target_rows + 16
-        self.textbox.configure(width=exact_w, height=exact_h)
+        # 残りの余白を均等に上下左右に配分（完全センタリング & はみ出し防止）
+        pad_x = max(6, (pw - best_cw * target_cols - 20) // 2)
+        pad_y = max(4, (ph - best_ch * target_rows - 10) // 2)
+        try:
+            self.textbox._textbox.configure(padx=pad_x, pady=pad_y)
+        except Exception:
+            pass
 
         if best_size != self.font_size:
             self.font_size = best_size
@@ -938,11 +1127,11 @@ class TerminalApp(ctk.CTk):
             "【ログイン・接続】\n"
             "・「ログイン」ボタンまたはメニュー「接続」→「ログイン / 接続」から開始します。\n"
             "・メニューバーの「ログイン情報」からホストやユーザー・パスワードを安全に登録・保存できます。\n\n"
-            "【カラーテーマ・パレット】\n"
-            "・メニュー「表示」→「カラーパレット・テーマ」から標準色（ライト / ダーク / グリーン）の切替や、\n"
-            "  背景色・文字色の自由なカラーピッカー設定が可能です。\n\n"
+            "【カラーパレット・テーマ】\n"
+            "・メニューバーの「カラーパレット」から、専用パレットウィンドウを開いてワンクリックで配色を変更できます。\n"
+            "・ライト、ダーク、クラシックグリーン、アンバーの標準テンプレートや、カラーピッカーでの自由な色指定が可能です。\n\n"
             "【画面サイズ・余白調整】\n"
-            "・ウィンドウサイズに合わせて文字が自動最大化され、上下左右中央に美しく配置されます。\n"
+            "・画面サイズに合わせて文字が自動的に最大化され、上下左右中央に綺麗にフィットします（文字切れ防止対応済み）。\n"
             "・「表示」メニューから手動での文字拡大・縮小も行えます。\n\n"
             "【キー操作】\n"
             "・右側ツールバーおよび「キー送信」メニューから各ファンクションキー（F1〜F4）やEnter等を送信できます。\n"
