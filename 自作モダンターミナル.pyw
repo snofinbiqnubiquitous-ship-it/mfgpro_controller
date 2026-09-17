@@ -917,7 +917,7 @@ class TerminalApp(ctk.CTk):
         if changed:
             self.textbox.configure(state="normal")
             for row, (raw_line, spans) in changed.items():
-                line = self._align_border_line(raw_line)
+                line, pad_spans = self._align_border_line(raw_line)
                 start_idx = f"{row + 1}.0"
                 end_idx = f"{row + 1}.end"
                 self.textbox.delete(start_idx, end_idx)
@@ -927,6 +927,8 @@ class TerminalApp(ctk.CTk):
                 for s_idx, e_idx, tags in spans:
                     for tag in tags:
                         self.textbox.tag_add(tag, f"{row + 1}.{s_idx}", f"{row + 1}.{e_idx}")
+                for s_idx, e_idx, p_tag in pad_spans:
+                    self.textbox.tag_add(p_tag, f"{row + 1}.{s_idx}", f"{row + 1}.{e_idx}")
                 self.rendered_lines[row] = (line, spans)
                 self.raw_lines[row] = (raw_line, spans)
 
@@ -948,24 +950,48 @@ class TerminalApp(ctk.CTk):
         """半角カナ・漢字を含む罫線行のピクセル幅を純ASCII罫線行と揃える"""
         border_right = {"┐", "┘", "│"}
         if not line or line[-1] not in border_right:
-            return line
+            return line, []
         import tkinter.font as tkfont
         try:
             f = tkfont.Font(font=self.textbox._textbox.cget("font"))
         except Exception:
-            return line
+            return line, []
         ref_width = f.measure("M") * self.active_cols
         line_width = f.measure(line)
-        if line_width >= ref_width:
-            return line
+        needed = ref_width - line_width
+        if needed <= 0:
+            return line, []
         pad_char = "─" if line and line[0] in {"┌", "└"} else " "
-        pad_w = f.measure(pad_char)
-        if pad_w <= 0:
-            return line
-        pad_count = round((ref_width - line_width) / pad_w)
-        if pad_count <= 0:
-            return line
-        return line[:-1] + (pad_char * pad_count) + line[-1]
+        cw = f.measure("M")
+        if cw <= 0:
+            return line, []
+        pad_count = max(1, round(needed / cw))
+
+        base_w = needed // pad_count
+        rem = needed % pad_count
+        widths = [base_w + 1 if i < rem else base_w for i in range(pad_count)]
+
+        pad_tags = []
+        cur_font_size = self.font_size
+        for idx, tw in enumerate(widths):
+            best_sz = cur_font_size
+            best_diff = 999
+            for sz in range(max(6, cur_font_size - 10), cur_font_size + 10):
+                w = tkfont.Font(family=self.terminal_font_family, size=sz).measure(pad_char)
+                if abs(w - tw) < best_diff:
+                    best_diff = abs(w - tw)
+                    best_sz = sz
+            tag_name = f"pad_tag_{cur_font_size}_{idx}_{best_sz}"
+            try:
+                self.textbox._textbox.tag_config(tag_name, font=(self.terminal_font_family, best_sz))
+            except Exception:
+                pass
+            pad_tags.append(tag_name)
+
+        start_char_idx = len(line) - 1
+        new_line = line[:-1] + (pad_char * pad_count) + line[-1]
+        tag_spans = [(start_char_idx + i, start_char_idx + i + 1, pad_tags[i]) for i in range(pad_count)]
+        return new_line, tag_spans
 
     def _auto_align_header_border(self):
         """Textウィジェットの実測描画座標(bbox)に基づき、ヘッダー行(Row 0)の右端角(┐)を純罫線行と1px単位で完全一致させる"""
@@ -973,48 +999,42 @@ class TerminalApp(ctk.CTk):
             tb = self.textbox._textbox
             b1 = tb.bbox("2.end-1c")
             b2 = tb.bbox("3.end-1c")
-            target_rx = None
+            target_x = None
             if b1 and b2:
-                target_rx = max(b1[0] + b1[2], b2[0] + b2[2])
+                target_x = max(b1[0], b2[0])
             elif b1:
-                target_rx = b1[0] + b1[2]
+                target_x = b1[0]
             elif b2:
-                target_rx = b2[0] + b2[2]
-            if not target_rx:
+                target_x = b2[0]
+            if not target_x:
                 return
 
             b0 = tb.bbox("1.end-1c")
             if not b0:
                 return
-            rx0 = b0[0] + b0[2]
-            diff = target_rx - rx0
-            if abs(diff) <= 1:
-                return  # 誤差1px以内は完全一致
+            diff_x = target_x - b0[0]
+            if diff_x == 0:
+                return  # 完全に一致している
+
+            # 1〜3px の微差がある場合、直前のパディング文字のタグフォントサイズを微調整して一致させる
+            line0 = tb.get("1.0", "1.end")
+            if len(line0) < 3 or line0[-1] != "┐":
+                return
 
             import tkinter.font as tkfont
-            f = tkfont.Font(font=tb.cget("font"))
-            pad_w = f.measure("─")
-            if pad_w <= 0:
-                return
-
-            pad_delta = round(diff / pad_w)
-            if pad_delta == 0:
-                pad_delta = 1 if diff > 0 else -1
-
-            line0 = tb.get("1.0", "1.end")
-            if len(line0) < 2 or line0[-1] != "┐":
-                return
-
-            if pad_delta > 0:
-                new_line0 = line0[:-1] + ("─" * pad_delta) + line0[-1]
-            else:
-                remove_cnt = min(-pad_delta, len(line0) - 2)
-                new_line0 = line0[:-1 - remove_cnt] + line0[-1]
-
-            tb.delete("1.0", "1.end")
-            tb.insert("1.0", new_line0)
-            if self.rendered_lines[0]:
-                self.rendered_lines[0] = (new_line0, self.rendered_lines[0][1])
+            pad_idx = len(line0) - 2
+            char_idx_str = f"1.{pad_idx}"
+            cur_tags = tb.tag_names(char_idx_str)
+            pad_tag = next((t for t in cur_tags if t.startswith("pad_tag_")), None)
+            if pad_tag:
+                parts = pad_tag.split("_")
+                if len(parts) >= 5:
+                    cur_sz = int(parts[4])
+                    new_sz = cur_sz + (1 if diff_x > 0 else -1)
+                    new_tag = f"pad_tag_adj_{new_sz}"
+                    tb.tag_config(new_tag, font=(self.terminal_font_family, new_sz))
+                    tb.tag_remove(pad_tag, char_idx_str, f"1.{pad_idx + 1}")
+                    tb.tag_add(new_tag, char_idx_str, f"1.{pad_idx + 1}")
         except Exception:
             pass
 
@@ -1024,7 +1044,7 @@ class TerminalApp(ctk.CTk):
             return
         self.textbox.configure(state="normal")
         for row, (raw_line, spans) in self.raw_lines.items():
-            line = self._align_border_line(raw_line)
+            line, pad_spans = self._align_border_line(raw_line)
             start_idx = f"{row + 1}.0"
             end_idx = f"{row + 1}.end"
             self.textbox.delete(start_idx, end_idx)
@@ -1034,10 +1054,17 @@ class TerminalApp(ctk.CTk):
             for s_idx, e_idx, tags in spans:
                 for tag in tags:
                     self.textbox.tag_add(tag, f"{row + 1}.{s_idx}", f"{row + 1}.{e_idx}")
+            for s_idx, e_idx, p_tag in pad_spans:
+                self.textbox.tag_add(p_tag, f"{row + 1}.{s_idx}", f"{row + 1}.{e_idx}")
             self.rendered_lines[row] = (line, spans)
         self._apply_menu_highlight()
         self._auto_align_header_border()
         self.textbox.configure(state="disabled")
+        try:
+            self.textbox._textbox.yview_moveto(0.0)
+            self.textbox._textbox.xview_moveto(0.0)
+        except Exception:
+            pass
         try:
             self.textbox._textbox.yview_moveto(0.0)
             self.textbox._textbox.xview_moveto(0.0)
@@ -1148,8 +1175,8 @@ class TerminalApp(ctk.CTk):
                 best_ch = ch
                 break
 
-        # 左右を自動中央揃え（余白を左右均等に配分）
-        pad_x = max(2, (inner_w - best_cw * target_cols) // 2)
+        # 左右を自動中央揃え（右端文字のクリッピングを防ぐため8pxの安全マージンを確保）
+        pad_x = max(2, (inner_w - best_cw * target_cols) // 2 - 8)
         # padyは必ず0に設定（padyを設定するとTkinter仕様により最下行がはみ出して切れるため）
         try:
             self.textbox._textbox.configure(padx=pad_x, pady=0)
