@@ -1174,11 +1174,6 @@ class TerminalApp(ctk.CTk):
         self.textbox.bind("<<Paste>>", self._on_paste_event)
         self.textbox.bind("<<Cut>>", lambda event: "break")
 
-        self.footer = ctk.CTkLabel(self.terminal_panel, text="", text_color=self.ui_colors["error"],
-                                   font=ctk.CTkFont(family=self.ui_font_family, size=12))
-        self.footer.grid(row=1, column=0, padx=8, pady=(2, 0), sticky="s")
-        self.footer.grid_remove()
-
         self.terminal_panel.bind("<Configure>", self._on_panel_resize)
 
     def _apply_text_tags(self):
@@ -2635,13 +2630,6 @@ class TerminalApp(ctk.CTk):
         if hasattr(self, "bottom_status_label"):
             self.bottom_status_label.configure(text=text, text_color=text_color)
 
-        if hasattr(self, "footer"):
-            self.footer.configure(text=text, text_color=text_color)
-            if status_type == "error":
-                self.footer.grid()
-            else:
-                self.footer.grid_remove()
-
         if clear_delay and clear_delay > 0:
             def _reset():
                 if self.is_connected:
@@ -2654,7 +2642,12 @@ class TerminalApp(ctk.CTk):
 
     def _show_input_error(self, message):
         if message:
-            self.set_status(f"❌ {message}", status_type="error", clear_delay=4)
+            # メッセージ種別に応じた適切なステータス表示（通常案内はinfo、エラー系のみerror）
+            if any(message.startswith(p) for p in ("❌", "エラー", "コピー失敗", "未接続", "貼り付けできません", "ショートカット 'Ctrl", "ファンクションキー")):
+                prefix = "" if message.startswith("❌") else "❌ "
+                self.set_status(f"{prefix}{message}", status_type="error", clear_delay=4)
+            else:
+                self.set_status(message, status_type="info", clear_delay=3)
         else:
             if getattr(self, "_current_status_type", "info") not in ("waiting", "working"):
                 if self.is_connected:
