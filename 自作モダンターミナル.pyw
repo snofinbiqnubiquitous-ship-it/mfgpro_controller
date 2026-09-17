@@ -921,24 +921,91 @@ class TerminalApp(ctk.CTk):
         self._refresh_shortcut_buttons()
         self._show_input_error(f"ショートカット「{name} ({code})」を追加しました")
 
+    def is_menu_screen(self):
+        """現在の画面がメインメニューまたはメニュー選択画面かどうかを精密判定"""
+        lines = []
+        if getattr(self, "raw_lines", None):
+            lines = [self.raw_lines[r][0] for r in sorted(self.raw_lines.keys()) if self.raw_lines.get(r)]
+        if not lines:
+            try:
+                content = self.textbox.get("1.0", "end")
+                lines = content.splitlines()
+            except Exception:
+                lines = []
+
+        full_text = "\n".join(lines)
+        if not full_text.strip():
+            return False
+
+        # 1. 上部タイトル判定 (メインメニュー / Main Menu)
+        header_text = "\n".join(lines[:4])
+        if any(k in header_text for k in ["メインメニュー", "Main Menu", "MFG/PRO"]):
+            return True
+
+        # 2. プロンプト判定 (メニュー選択プロンプト)
+        menu_prompts = [
+            "Please select a function",
+            "select a function",
+            "Selection:",
+            "選択:",
+            "選んでください",
+            "メニュー選択",
+            "Go to:",
+        ]
+        full_lower = full_text.lower()
+        for p in menu_prompts:
+            if p.lower() in full_lower:
+                return True
+
+        # 3. メニューリストパターン判定 (複数の "1. 項目保守" 形式が並んでいるか)
+        menu_item_matches = re.findall(r'(?<!\d)\b\d{1,2}\.\s+[^\s│]{2,}', full_text)
+        if len(menu_item_matches) >= 3:
+            return True
+
+        return False
+
     def jump_to_menu(self, code):
-        """指定されたメニュー番号へ直接ジャンプ（F4で業務画面脱出 → 番号入力 → Enter）"""
+        """指定されたメニュー番号へ直接ジャンプ（画面状態を判別し、必要な場合のみF4で脱出）"""
         if not self.is_connected or not self.session:
             self._show_input_error("サーバーに接続されていません")
             return
 
+        # 現在の画面状態を判定（メイン画面・メニュー画面ならF4不要、業務画面ならF4で戻る）
+        already_in_menu = self.is_menu_screen()
+
+        # メインスレッド側で即座に状況を表示
+        if already_in_menu:
+            self._show_input_error(f"直接ジャンプ: {code}")
+        else:
+            self._show_input_error(f"メニューに戻ってジャンプ: {code}")
+
         def _do_jump():
             try:
                 import time
-                # 1. 業務画面・入力フィールドを終了してメニュー階層に戻るため F4 を送信
-                self.session.send(KEY_SEQUENCES["F4"])
-                time.sleep(0.35)
-                # 2. メニュー番号 + Enter (\r) を送信して目的の画面を開く
-                self.session.send(f"{code}\r")
+                if already_in_menu:
+                    # すでにメイン画面・メニュー画面にいる場合: F4を押すとエラーになるため直接送信
+                    self.session.send(f"{code}\r")
+                else:
+                    # 業務画面・入力フィールドにいる場合: F4でメニューに戻ってから番号を送信
+                    self.session.send(KEY_SEQUENCES["F4"])
+
+                    # メニュー画面に切り替わるのをスマート待機（最大1.0秒）
+                    waited = 0.0
+                    while waited < 1.0:
+                        time.sleep(0.1)
+                        waited += 0.1
+                        if self.is_menu_screen():
+                            break
+
+                    time.sleep(0.15)
+                    self.session.send(f"{code}\r")
             except Exception as e:
                 print(f"メニュー直接ジャンプエラー: {e}", file=sys.stderr)
             finally:
-                self.after(100, self.focus_terminal)
+                try:
+                    self.after(100, self.focus_terminal)
+                except Exception:
+                    pass
 
         import threading
         threading.Thread(target=_do_jump, daemon=True, name="menu-jump").start()
