@@ -3,7 +3,17 @@
   "port": 22,
   "user": "takehik",
   "pass_b64": "bmh5N21qdTg=",
-  "theme": "dark",
+  "theme": "classic_green",
   "custom_terminal_bg": null,
-  "custom_terminal_fg": null
+  "custom_terminal_fg": null,
+  "shortcuts": [
+    {
+      "name": "在庫スナップショット",
+      "code": "99.3.6.1"
+    },
+    {
+      "name": "在庫移動明細",
+      "code": "99.3.21.4"
+    }
+  ]
 }

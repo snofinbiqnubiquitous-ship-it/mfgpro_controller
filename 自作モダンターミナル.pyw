@@ -50,6 +50,10 @@ DEFAULT_CONFIG = {
     "theme": "light",
     "custom_terminal_bg": None,
     "custom_terminal_fg": None,
+    "shortcuts": [
+        {"name": "在庫スナップショット", "code": "99.3.6.1"},
+        {"name": "在庫移動明細", "code": "99.3.21.4"},
+    ],
 }
 
 
@@ -63,6 +67,8 @@ def load_config():
                 cfg.update(saved)
         except Exception:
             pass
+    if "shortcuts" not in cfg or not isinstance(cfg["shortcuts"], list):
+        cfg["shortcuts"] = list(DEFAULT_CONFIG["shortcuts"])
     return cfg
 
 
@@ -578,6 +584,75 @@ class LoginConfigDialog(ctk.CTkToplevel):
         messagebox.showinfo("設定完了", "ログイン情報を保存しました。\n次回の接続から適用されます。", parent=self.parent)
 
 
+class AddShortcutDialog(ctk.CTkToplevel):
+    """メニュー番号へ直接移動するショートカットを追加するダイアログ"""
+
+    def __init__(self, parent, on_add_callback):
+        super().__init__(parent)
+        self.parent = parent
+        self.on_add_callback = on_add_callback
+        self.title("ショートカットの追加")
+        self.geometry("380x240")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+
+        parent.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() - 380) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - 240) // 2
+        self.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+        self._build_ui()
+
+    def _build_ui(self):
+        frame = ctk.CTkFrame(self, corner_radius=12)
+        frame.pack(fill="both", expand=True, padx=16, pady=16)
+
+        ctk.CTkLabel(frame, text="⚡ ショートカットの追加", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(6, 12))
+
+        # 表示名
+        row_name = ctk.CTkFrame(frame, fg_color="transparent")
+        row_name.pack(fill="x", padx=12, pady=5)
+        ctk.CTkLabel(row_name, text="表示名:", width=85, anchor="w").pack(side="left")
+        self.name_entry = ctk.CTkEntry(row_name, width=210, placeholder_text="例: 在庫スナップショット")
+        self.name_entry.pack(side="left", fill="x", expand=True)
+
+        # メニュー番号
+        row_code = ctk.CTkFrame(frame, fg_color="transparent")
+        row_code.pack(fill="x", padx=12, pady=5)
+        ctk.CTkLabel(row_code, text="メニュー番号:", width=85, anchor="w").pack(side="left")
+        self.code_entry = ctk.CTkEntry(row_code, width=210, placeholder_text="例: 99.3.6.1")
+        self.code_entry.pack(side="left", fill="x", expand=True)
+
+        # ボタン
+        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=12, pady=(16, 6))
+        btn_frame.grid_columnconfigure((0, 1), weight=1)
+
+        cancel_btn = ctk.CTkButton(btn_frame, text="キャンセル", fg_color="#94A3B8", hover_color="#64748B",
+                                   command=self.destroy)
+        cancel_btn.grid(row=0, column=0, padx=6, sticky="ew")
+
+        add_btn = ctk.CTkButton(btn_frame, text="追加する", fg_color="#356BC4", hover_color="#285BAF",
+                                command=self._on_add)
+        add_btn.grid(row=0, column=1, padx=6, sticky="ew")
+
+        self.name_entry.focus_set()
+
+    def _on_add(self):
+        name = self.name_entry.get().strip()
+        code = self.code_entry.get().strip()
+        if not name:
+            messagebox.showwarning("入力エラー", "表示名を入力してください。", parent=self)
+            return
+        if not code:
+            messagebox.showwarning("入力エラー", "メニュー番号を入力してください。", parent=self)
+            return
+        if self.on_add_callback:
+            self.on_add_callback(name, code)
+        self.destroy()
+
+
 class TerminalApp(ctk.CTk):
     def __init__(self):
         self.config = load_config()
@@ -600,6 +675,7 @@ class TerminalApp(ctk.CTk):
         self.configure(fg_color=self.ui_colors["background"])
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(2, weight=0)
 
         self.session = None
         self.events = queue.Queue()
@@ -611,12 +687,12 @@ class TerminalApp(ctk.CTk):
         self.active_cols = 80
         self.auto_fit = True
         self._resize_job = None
-        self.key_buttons = []
+        self.shortcut_buttons = []
 
         self._build_menu()
         self._build_header()
         self._build_terminal()
-        self._build_toolbar()
+        self._build_shortcut_bar()
         self._set_state("未接続")
         self._show_message("")
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -697,7 +773,7 @@ class TerminalApp(ctk.CTk):
 
     def _build_header(self):
         self.header = ctk.CTkFrame(self, fg_color=self.ui_colors["background"], corner_radius=0)
-        self.header.grid(row=0, column=0, columnspan=2, sticky="ew")
+        self.header.grid(row=0, column=0, sticky="ew")
         self.header.grid_columnconfigure(0, weight=1)
         self.status_label = ctk.CTkLabel(self.header, text="未接続", text_color=self.ui_colors["muted"],
                                          font=ctk.CTkFont(family=self.ui_font_family, size=14))
@@ -708,9 +784,9 @@ class TerminalApp(ctk.CTk):
         self.disconnect_btn.grid(row=0, column=2, padx=(0, 20), pady=(10, 0))
 
     def _build_terminal(self):
-        # ターミナルパネル（外枠）: パネル全体を利用可能な最大面積で確保
+        # ターミナルパネル（外枠）: 右カラム廃止により画面横幅100%をフル活用
         self.terminal_panel = ctk.CTkFrame(self, fg_color=self.ui_colors["background"], corner_radius=0)
-        self.terminal_panel.grid(row=1, column=0, padx=(6, 2), pady=(4, 4), sticky="nsew")
+        self.terminal_panel.grid(row=1, column=0, padx=8, pady=(4, 4), sticky="nsew")
         self.terminal_panel.grid_columnconfigure(0, weight=1)
         self.terminal_panel.grid_rowconfigure(0, weight=1)
 
@@ -754,22 +830,118 @@ class TerminalApp(ctk.CTk):
         except Exception:
             self.textbox.tag_config("bold", foreground=self.terminal_colors["accent"])
 
-    def _build_toolbar(self):
-        self.toolbar = ctk.CTkFrame(self, width=200, fg_color=self.ui_colors["panel"], corner_radius=12,
-                                    border_width=1, border_color=self.ui_colors["border"])
-        self.toolbar.grid(row=1, column=1, padx=(0, 6), pady=(4, 4), sticky="new")
-        self.toolbar.grid_columnconfigure((0, 1), weight=1, uniform="keys")
-        row = 0
-        for _, buttons in TOOLBAR_GROUPS:
-            self.toolbar.grid_rowconfigure(row, minsize=12)
-            row += 1
-            for index, (label, key) in enumerate(buttons):
-                button = self._button(self.toolbar, label, lambda k=key: self.send_key(k), key == "F1")
-                button.grid(row=row + index // 2, column=index % 2,
-                            padx=(8, 3) if index % 2 == 0 else (3, 8), pady=2, sticky="ew")
-                self.key_buttons.append(button)
-            row += (len(buttons) + 1) // 2
-        self.toolbar.grid_rowconfigure(row, weight=1, minsize=6)
+    def _build_shortcut_bar(self):
+        """最下段のショートカット（直接移動）バーを構築"""
+        self.shortcut_bar = ctk.CTkFrame(
+            self, height=44, fg_color=self.ui_colors["panel"],
+            corner_radius=10, border_width=1, border_color=self.ui_colors["border"]
+        )
+        self.shortcut_bar.grid(row=2, column=0, padx=8, pady=(0, 6), sticky="ew")
+        self.shortcut_bar.grid_columnconfigure(1, weight=1)
+
+        # 左端ラベル
+        lbl = ctk.CTkLabel(
+            self.shortcut_bar, text="📌 クイックメニュー:",
+            font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
+            text_color=self.ui_colors["muted"]
+        )
+        lbl.grid(row=0, column=0, padx=(12, 6), pady=4)
+
+        # スクロール対応ボタン配置領域（多数登録時も横スクロールで綺麗に収まる）
+        self.shortcut_scroll_frame = ctk.CTkScrollableFrame(
+            self.shortcut_bar, orientation="horizontal", height=32,
+            fg_color="transparent"
+        )
+        self.shortcut_scroll_frame.grid(row=0, column=1, sticky="ew", padx=4, pady=2)
+
+        # 右端「＋ 追加」ボタン
+        self.add_shortcut_btn = ctk.CTkButton(
+            self.shortcut_bar, text="＋ 追加", width=72, height=28,
+            fg_color="#356BC4", hover_color="#285BAF", text_color="#FFFFFF",
+            font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
+            corner_radius=6, command=self.open_add_shortcut_dialog
+        )
+        self.add_shortcut_btn.grid(row=0, column=2, padx=(4, 10), pady=4)
+
+        self._refresh_shortcut_buttons()
+
+    def _refresh_shortcut_buttons(self):
+        """登録されたショートカットボタン一覧を再描画"""
+        for w in self.shortcut_scroll_frame.winfo_children():
+            w.destroy()
+        self.shortcut_buttons = []
+
+        shortcuts = self.config.get("shortcuts", [])
+        state = "normal" if self.is_connected else "disabled"
+        for idx, sc in enumerate(shortcuts):
+            name = sc.get("name", "")
+            code = sc.get("code", "")
+            btn = ctk.CTkButton(
+                self.shortcut_scroll_frame, text=f"{name} ({code})", height=28,
+                fg_color=self.ui_colors["button"], hover_color=self.ui_colors["hover"],
+                text_color=self.ui_colors["text"],
+                font=ctk.CTkFont(family=self.ui_font_family, size=12),
+                corner_radius=6, state=state,
+                command=lambda c=code: self.jump_to_menu(c)
+            )
+            btn.pack(side="left", padx=4, pady=2)
+            # 右クリックで削除メニュー表示
+            btn.bind("<Button-3>", lambda event, i=idx, n=name: self._show_shortcut_context_menu(event, i, n))
+            self.shortcut_buttons.append(btn)
+
+    def _show_shortcut_context_menu(self, event, idx, name):
+        """ショートカットボタンの右クリックコンテキストメニュー"""
+        menu = tk.Menu(self, tearoff=False)
+        menu.add_command(label=f"「{name}」を削除", command=lambda: self._delete_shortcut(idx))
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def _delete_shortcut(self, idx):
+        """ショートカットを削除"""
+        shortcuts = self.config.get("shortcuts", [])
+        if 0 <= idx < len(shortcuts):
+            deleted = shortcuts.pop(idx)
+            self.config["shortcuts"] = shortcuts
+            save_config(self.config)
+            self._refresh_shortcut_buttons()
+            self._show_input_error(f"ショートカット「{deleted['name']}」を削除しました")
+
+    def open_add_shortcut_dialog(self):
+        """「＋」追加ダイアログを開く"""
+        AddShortcutDialog(self, self._on_shortcut_added)
+
+    def _on_shortcut_added(self, name, code):
+        """ショートカット追加コールバック"""
+        shortcuts = self.config.get("shortcuts", [])
+        shortcuts.append({"name": name, "code": code})
+        self.config["shortcuts"] = shortcuts
+        save_config(self.config)
+        self._refresh_shortcut_buttons()
+        self._show_input_error(f"ショートカット「{name} ({code})」を追加しました")
+
+    def jump_to_menu(self, code):
+        """指定されたメニュー番号へ直接ジャンプ（F4で業務画面脱出 → 番号入力 → Enter）"""
+        if not self.is_connected or not self.session:
+            self._show_input_error("サーバーに接続されていません")
+            return
+
+        def _do_jump():
+            try:
+                import time
+                # 1. 業務画面・入力フィールドを終了してメニュー階層に戻るため F4 を送信
+                self.session.send(KEY_SEQUENCES["F4"])
+                time.sleep(0.35)
+                # 2. メニュー番号 + Enter (\r) を送信して目的の画面を開く
+                self.session.send(f"{code}\r")
+            except Exception as e:
+                print(f"メニュー直接ジャンプエラー: {e}", file=sys.stderr)
+            finally:
+                self.after(100, self.focus_terminal)
+
+        import threading
+        threading.Thread(target=_do_jump, daemon=True, name="menu-jump").start()
 
     # --- カラーパレット・テーマ切替処理 ---
     def open_color_palette(self):
@@ -833,7 +1005,7 @@ class TerminalApp(ctk.CTk):
         self.connection_menu.entryconfigure(0, state="normal" if idle else "disabled")
         self.connection_menu.entryconfigure(1, state="disabled" if idle else "normal")
         state = "normal" if self.is_connected else "disabled"
-        for button in self.key_buttons:
+        for button in getattr(self, "shortcut_buttons", []):
             button.configure(state=state)
         for index in range(self.key_menu.index("end") + 1):
             if self.key_menu.type(index) == "command":
