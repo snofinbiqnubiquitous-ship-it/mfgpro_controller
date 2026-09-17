@@ -741,6 +741,8 @@ class TerminalApp(ctk.CTk):
         view.add_command(label="文字を小さく", command=lambda: self.change_font_size(-1))
         view.add_command(label="標準サイズ", command=lambda: self.change_font_size(reset=True))
         view.add_separator()
+        view.add_command(label="📋 画面の文字をコピー", accelerator="Ctrl+Shift+C", command=self.copy_screen_text)
+        view.add_separator()
         self.auto_fit_var = tk.BooleanVar(value=True)
         view.add_checkbutton(label="画面サイズに自動調整 (Auto Fit)", variable=self.auto_fit_var, command=self.toggle_auto_fit)
         view.add_separator()
@@ -778,10 +780,15 @@ class TerminalApp(ctk.CTk):
         self.status_label = ctk.CTkLabel(self.header, text="未接続", text_color=self.ui_colors["muted"],
                                          font=ctk.CTkFont(family=self.ui_font_family, size=14))
         self.status_label.grid(row=0, column=0, sticky="w", padx=24, pady=(10, 0))
+
+        # 画面コピーボタン
+        self.copy_btn = self._button(self.header, "📋 画面コピー", self.copy_screen_text)
+        self.copy_btn.grid(row=0, column=1, padx=(0, 8), pady=(10, 0))
+
         self.connect_btn = self._button(self.header, "ログイン", self.connect_to_server, True)
-        self.connect_btn.grid(row=0, column=1, padx=(0, 8), pady=(10, 0))
+        self.connect_btn.grid(row=0, column=2, padx=(0, 8), pady=(10, 0))
         self.disconnect_btn = self._button(self.header, "切断", self.disconnect_server)
-        self.disconnect_btn.grid(row=0, column=2, padx=(0, 20), pady=(10, 0))
+        self.disconnect_btn.grid(row=0, column=3, padx=(0, 20), pady=(10, 0))
 
     def _build_terminal(self):
         # ターミナルパネル（外枠）: 右カラム廃止により画面横幅100%をフル活用
@@ -809,6 +816,8 @@ class TerminalApp(ctk.CTk):
         self.textbox.bind("<Key>", self.on_key_press)
         self.textbox.bind("<FocusIn>", lambda event: self.textbox.configure(border_color=self.terminal_colors["focus"]))
         self.textbox.bind("<FocusOut>", lambda event: self.textbox.configure(border_color=self.terminal_colors["border"]))
+        self.textbox.bind("<Control-Shift-C>", self.copy_screen_text)
+        self.textbox.bind("<Control-Shift-c>", self.copy_screen_text)
         self.textbox.bind("<<Paste>>", lambda event: "break")
         self.textbox.bind("<<Cut>>", lambda event: "break")
 
@@ -1009,6 +1018,36 @@ class TerminalApp(ctk.CTk):
 
         import threading
         threading.Thread(target=_do_jump, daemon=True, name="menu-jump").start()
+
+    def copy_screen_text(self, event=None):
+        """画面に表示されているテキスト全体をクリップボードにコピー"""
+        lines = []
+        if getattr(self, "raw_lines", None):
+            for r in range(ROWS):
+                if r in self.raw_lines and self.raw_lines[r]:
+                    lines.append(self.raw_lines[r][0].rstrip())
+                else:
+                    lines.append("")
+            while lines and not lines[-1]:
+                lines.pop()
+            text = "\n".join(lines)
+        else:
+            try:
+                text = self.textbox.get("1.0", "end-1c").rstrip()
+            except Exception:
+                text = ""
+
+        if text:
+            try:
+                self.clipboard_clear()
+                self.clipboard_append(text)
+                self.update()
+                self._show_input_error("画面の文字をクリップボードにコピーしました 📋")
+            except Exception as e:
+                self._show_input_error(f"コピー失敗: {e}")
+        else:
+            self._show_input_error("コピーする画面テキストがありません")
+        return "break"
 
     # --- カラーパレット・テーマ切替処理 ---
     def open_color_palette(self):
