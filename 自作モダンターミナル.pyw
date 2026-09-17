@@ -313,6 +313,69 @@ def convert_date_format(date_str):
         return date_str
 
 
+def clean_printer_data(text):
+    """プリンタデータ内のANSIエスケープシーケンスやNULL文字を除去"""
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    cleaned = ansi_escape.sub('', text)
+    cleaned = cleaned.replace('\x00', '')
+    return cleaned
+
+
+def parse_report_to_rows(input_text):
+    """QAD winPrint 形式のワイドレポートテキストを高精度固定長パース"""
+    lines = input_text.splitlines()
+    slices = []
+    parsing_data = False
+    all_rows = []
+
+    for i, line in enumerate(lines):
+        if "End of Report" in line or "レポート終了" in line:
+            break
+
+        if ".p" in line.lower() or line.lstrip().startswith("Page:") or "Date:" in line or line.lstrip().startswith("Item Number"):
+            continue
+
+        if line.lstrip().startswith("---") and "--- " in line:
+            if not slices:
+                header_line = lines[i - 1]
+                parts = line.split()
+                current_idx = line.find(parts[0])
+                for j, p in enumerate(parts):
+                    start = line.find(p, current_idx)
+                    if j < len(parts) - 1:
+                        next_start = line.find(parts[j+1], start + len(p))
+                        end = next_start
+                    else:
+                        end = 9999
+                    slices.append((start, end))
+                    current_idx = start + len(p)
+
+                b_header = header_line.encode('cp932', errors='replace')
+                headers = [b_header[s:e].decode('cp932', errors='ignore').strip() for s, e in slices]
+                all_rows.append(headers)
+            parsing_data = True
+            continue
+
+        if parsing_data:
+            if not line.strip():
+                continue
+            row = []
+            b_line = line.encode('cp932', errors='replace')
+            for s, e in slices:
+                if s < len(b_line):
+                    val = b_line[s:e].decode('cp932', errors='ignore').strip()
+                else:
+                    val = ""
+
+                if len(val) == 8 and val[2] == '/' and val[5] == '/':
+                    val = convert_date_format(val)
+                row.append(val)
+            if any(row):
+                all_rows.append(row)
+
+    return all_rows
+
+
 def parse_report_text_to_table(text, deduplicate=False):
     """QADのレポート画面テキスト（固定長ハイフン区切りまたは汎用空白区切り）を2次元配列にパース"""
     lines = [l.rstrip() for l in text.splitlines() if l.strip()]
@@ -1835,124 +1898,141 @@ class TerminalApp(ctk.CTk):
         threading.Thread(target=_worker, daemon=True, name="auto-excel-capture").start()
 
     def input_winprint(self):
-        """Output欄に 'winPrint' を入力し、自動的に確定(Enter)＋実行(F1)を送信してExcel自動展開を開始"""
+        """Output欄に 'winPrint' を入力し、決定＋実行キーシーケンス（F1x2 + Ctrl+F）を送信して抽出を開始"""
         if not self.is_connected:
             self.set_status("❌ 未接続です", "error", clear_delay=3)
             return
-        log_info("input_winprint: Output欄に winPrint を入力して自動実行を開始します")
-        self._send("winPrint\r")
-        self.set_status("Output に 'winPrint' を指定してレポート実行を開始...", "waiting")
+        log_info("input_winprint: Output欄に winPrint を入力し、実績キーシーケンスで実行します")
+        self.set_status("⏳ Output: winPrint を指示し、レポート実行を開始中...", "waiting")
 
-        # 0.3秒後にF1(Go)を自動送信してレポートクエリを実行開始し、監視ワーカーを起動
-        def _send_f1_and_capture():
-            time.sleep(0.3)
-            log_info("input_winprint: レポート実行のため F1 を自動送信します")
-            self._send(KEY_SEQUENCES["F1"])
-            self._start_winprint_capture()
+        def _runner():
+            try:
+                # 1. winPrint と Enter を送信
+                self._send("winPrint\r")
+                time.sleep(1.0)
+                # 2. F1キー（1回目）を送信
+                self._send("\x1bOP")
+                time.sleep(1.0)
+                # 3. F1キー（2回目）を送信
+                self._send("\x1bOP")
+                time.sleep(1.0)
+                # 4. Ctrl+F (\x06) を送信して抽出確定
+                self._send("\x06")
+                log_info("input_winprint: キーシーケンス送信完了 (winPrint\\r -> F1 -> F1 -> Ctrl+F)")
+                # 5. サーバー監視ワーカーを起動
+                self._start_winprint_capture()
+            except Exception as e:
+                log_error(f"input_winprint エラー: {e}", exc_info=True)
 
-        threading.Thread(target=_send_f1_and_capture, daemon=True, name="winprint-auto-run").start()
+        threading.Thread(target=_runner, daemon=True, name="winprint-key-sequence").start()
 
     def _start_winprint_capture(self):
-        """サーバー上の winPrint ファイルを監視し、生成完了後に読み込んでExcel展開＆サーバーファイル削除"""
+        """サーバー上の winPrint ファイルを監視し、生成完了後にローカルへダウンロードしてExcel展開＆サーバーファイル削除"""
         if getattr(self, "_is_capturing_winprint", False):
             return
         self._is_capturing_winprint = True
         self._is_waiting_query = False
 
         def _worker():
-            log_info("=== winPrint サーバー監視ワーカー起動 ===")
-            self.set_status("⏳ サーバー内でレポート生成中 (winPrint)...", "waiting")
+            log_info("=== winPrint サーバー監視ワーカー起動 (実績ベース独立SFTP) ===")
+            self.set_status("⏳ サーバー内でレポート集計中 (winPrint)...", "waiting")
 
-            username = getattr(self.session, "username", None) or self.config.get("user", "takehik")
-            remote_file = f"/home/{username}/winPrint"
+            user = getattr(self.session, "username", None) or self.config.get("user", "takehik")
+            remote_path = f"/home/{user}/winPrint"
 
+            ssh = None
             sftp = None
             try:
-                # 実行前に前回の古いファイルがあれば確実に削除しておく
-                if self.session:
-                    self.session.exec_command(f"rm -f {remote_file}")
-                    time.sleep(0.3)
-                    sftp = self.session.open_sftp()
+                # メインの対話型セッションと干渉しないよう、独立した SSH/SFTP セッションを開く
+                ssh = paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                host = self.config.get("host", "mfg03")
+                port = int(self.config.get("port", 22))
+                b64 = self.config.get("pass_b64", "")
+                pwd = base64.b64decode(b64).decode("utf-8") if b64 else ""
 
-                if not sftp:
-                    log_warning("SFTPセッションが開けませんでした")
-                    self.set_status("❌ SFTP接続に失敗しました", "error", clear_delay=5)
-                    return
+                ssh.connect(host, port=port, username=user, password=pwd, timeout=10)
+                sftp = ssh.open_sftp()
 
-                MAX_WAIT = 300  # 最大5分待機（重いクエリ対応）
-                wait_time = 0.0
+                # 監視ループ (最大10分待機)
+                MAX_WAIT = 600
                 last_size = -1
                 stable_count = 0
-                file_found = False
+                wait_time = 0.0
 
                 while wait_time < MAX_WAIT and not self.closing:
                     try:
-                        stat = sftp.stat(remote_file)
-                        cur_size = stat.st_size
-                        file_found = True
-                        if cur_size > 0:
-                            if cur_size == last_size:
+                        stat = sftp.stat(remote_path)
+                        current_size = stat.st_size
+                        if current_size > 0:
+                            if current_size == last_size:
                                 stable_count += 1
-                                if stable_count >= 3:  # 1.5秒間サイズ変化なしで書き込み完了と判定
-                                    log_info(f"winPrint 生成完了を検知 (サイズ: {cur_size} バイト)")
+                                if stable_count >= 4:  # 2秒間サイズ変化なしで完了とみなす
+                                    log_info(f"winPrint 生成完了を検知 (サイズ: {current_size} バイト)")
                                     break
                             else:
                                 stable_count = 0
-                                last_size = cur_size
-                                self.set_status(f"⏳ サーバーからデータ受信中: {cur_size / 1024:.1f} KB...", "waiting")
+                                last_size = current_size
+                                self.set_status(f"⏳ サーバーからデータ書き込み中: {current_size / 1024:.1f} KB...", "waiting")
                         else:
-                            # 0バイトの仮ファイルが存在している状態（Progressがクエリ実行中）
-                            self.set_status(f"⏳ サーバー内でクエリ処理中 (Progress集計中: {int(wait_time)}秒)...", "waiting")
+                            # 0バイトの仮ファイルが存在（Progressが集計処理中）
+                            self.set_status(f"⏳ サーバー内でレポート集計中 (Progress処理中: {int(wait_time)}秒)...", "waiting")
                     except IOError:
-                        # ファイルがまだ生成されていない間
-                        if wait_time > 8.0:
-                            self.set_status(f"⏳ サーバー応答待機中... ({int(wait_time)}秒 / F1で実行)", "waiting")
-                        else:
-                            self.set_status(f"⏳ サーバー内でレポート生成準備中... ({int(wait_time)}秒)", "waiting")
+                        self.set_status(f"⏳ サーバーの応答を待機中... (クエリ処理中: {int(wait_time)}秒)", "waiting")
                     time.sleep(0.5)
                     wait_time += 0.5
 
-                if not file_found or last_size <= 0:
+                if wait_time >= MAX_WAIT or last_size <= 0:
                     log_warning(f"winPrint ファイル生成タイムアウト ({wait_time}秒)")
-                    self.set_status("❌ サーバー側でのファイル生成がタイムアウトしました (F1が未送信の可能性があります)", "error", clear_delay=6)
+                    self.set_status("❌ サーバー側でのレポート生成がタイムアウトしました", "error", clear_delay=6)
                     return
 
-                # 2. ファイルを読み込み
-                self.set_status("📋 サーバーからデータを読み込み中...", "working")
-                with sftp.open(remote_file, "rb") as rf:
-                    content_bytes = rf.read()
+                # 巨大ファイルをメモリ直読みでハングさせないよう、ローカルのtempフォルダに安全ダウンロード
+                self.set_status(f"📋 サーバー出力完了 ({last_size / 1024 / 1024:.2f} MB) → 高速ダウンロード中...", "working")
+                local_temp = os.path.join(tempfile.gettempdir(), "winPrint_download.txt")
+                sftp.get(remote_path, local_temp)
+                log_info(f"winPrint ローカル一時ファイルへのダウンロード完了: {local_temp}")
 
-                # 3. 【最重要】サーバー上の仮ファイルを直ちに安全削除！
+                # 【最重要】読み込み直後にサーバー上の仮ファイルを即座に安全削除！
                 try:
-                    sftp.remove(remote_file)
-                    log_info(f"サーバー上の仮ファイル {remote_file} を安全に削除しました")
+                    sftp.remove(remote_path)
+                    log_info(f"サーバー上の仮ファイル {remote_path} を安全に削除しました")
                 except Exception as rm_e:
                     log_warning(f"仮ファイル削除エラー (無視可能): {rm_e}")
 
-                # 4. パース処理（winPrintは折り返しなしの完全な1行ワイドデータ）
-                text_data = content_bytes.decode("cp932", errors="replace")
-                log_info(f"winPrint データ読み込み成功 (バイト数: {len(content_bytes)}, 文字数: {len(text_data)})")
+                # 一時ファイルから読み込み＆クレンジング
+                with open(local_temp, 'rb') as f:
+                    raw_bytes = f.read()
+
+                raw_text = raw_bytes.decode('cp932', errors='replace')
+                final_text = clean_printer_data(raw_text)
+                log_info(f"winPrint クレンジング完了 (文字数: {len(final_text)})")
                 self.set_status("📋 レポートデータを解析中...", "working")
 
-                # winPrintは完全データのため重複除外を行わず全件取得
-                rows = parse_report_text_to_table(text_data, deduplicate=False)
+                # 実績のある parse_report_to_rows でパース
+                rows = parse_report_to_rows(final_text)
+                if not rows or (len(rows) == 1 and not any(rows[0])):
+                    log_info("parse_report_to_rows でパースできなかったため parse_report_text_to_table で再試行")
+                    rows = parse_report_text_to_table(final_text, deduplicate=False)
+
                 if not rows or (len(rows) == 1 and not any(rows[0])):
                     log_warning("winPrint のパース失敗")
                     self.set_status("❌ レポートデータの解析に失敗しました", "error", clear_delay=5)
                     return
 
-                log_info(f"winPrint パース成功 (列数={len(rows[0])}, データ行数={len(rows)-1})")
-                self.set_status(f"🚀 Excelを新規作成し、全 {len(rows)-1} 件を文字列形式で展開中...", "working")
+                row_count = len(rows) - 1
+                log_info(f"winPrint パース成功 (列数={len(rows[0])}, データ行数={row_count})")
+                self.set_status(f"🚀 Excelを新規作成し、全 {row_count} 件を文字列形式で展開中...", "working")
 
-                # レポートタイトル決定（画面からプログラム番号等を抽出）
+                # タイトル決定
                 screen_txt = self._get_current_screen_text()
                 match = re.search(r'\b(\d+\.\d+(?:\.\d+)*)\b', screen_txt)
                 title = f"QAD_{match.group(1)}" if match else "QAD_Report"
 
-                # 5. 新規Excelに全セル文字列書式(@)で一括展開
+                # 新規Excelに全セル文字列書式(@)で一括展開
                 success, msg = paste_to_new_excel(rows, title=title)
                 if success:
-                    self.set_status(f"✅ winPrint出力を検知し、Excelに全 {len(rows)-1} 件を展開しました（文字列書式）", "success", clear_delay=8)
+                    self.set_status(f"✅ winPrint出力を検知し、Excelに全 {row_count} 件を展開しました（文字列書式）", "success", clear_delay=8)
                 else:
                     self.set_status(f"❌ {msg}", "error", clear_delay=6)
 
@@ -1960,14 +2040,19 @@ class TerminalApp(ctk.CTk):
                 log_error(f"winPrint 自動連携エラー: {e}", exc_info=True)
                 self.set_status(f"❌ winPrint処理エラー: {e}", "error", clear_delay=6)
             finally:
-                # 万一仮ファイルが残っていた場合の安全消去
+                # 万一仮ファイルが残っていた場合の安全消去 & セッションクローズ
                 if sftp:
                     try:
-                        sftp.remove(remote_file)
+                        sftp.remove(remote_path)
                     except Exception:
                         pass
                     try:
                         sftp.close()
+                    except Exception:
+                        pass
+                if ssh:
+                    try:
+                        ssh.close()
                     except Exception:
                         pass
                 self._is_capturing_winprint = False
