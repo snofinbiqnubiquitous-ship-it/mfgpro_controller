@@ -51,6 +51,7 @@ DEFAULT_CONFIG = {
     "custom_terminal_bg": None,
     "custom_terminal_fg": None,
     "enable_windows_shortcuts": True,
+    "block_server_shortcuts": True,
     "shortcuts": [
         {"name": "在庫スナップショット", "code": "99.3.6.1"},
         {"name": "在庫移動明細", "code": "99.3.21.4"},
@@ -72,6 +73,8 @@ def load_config():
         cfg["shortcuts"] = list(DEFAULT_CONFIG["shortcuts"])
     if "enable_windows_shortcuts" not in cfg:
         cfg["enable_windows_shortcuts"] = True
+    if "block_server_shortcuts" not in cfg:
+        cfg["block_server_shortcuts"] = True
     return cfg
 
 
@@ -741,6 +744,12 @@ class TerminalApp(ctk.CTk):
             variable=self.windows_shortcuts_var,
             command=self.toggle_windows_shortcuts,
         )
+        self.block_server_shortcuts_var = tk.BooleanVar(value=bool(self.config.get("block_server_shortcuts", True)))
+        self.edit_menu.add_checkbutton(
+            label="F1/F4以外のサーバー側ショートカットを無効化",
+            variable=self.block_server_shortcuts_var,
+            command=self.toggle_block_server_shortcuts,
+        )
         self.edit_menu.add_separator()
         self.edit_menu.add_command(label="📋 画面全体をコピー", accelerator="Ctrl+Shift+C", command=self.copy_screen_text)
         menubar.add_cascade(label="編集", menu=self.edit_menu)
@@ -1191,6 +1200,16 @@ class TerminalApp(ctk.CTk):
         else:
             self._show_input_error("Windows標準ショートカットを無効化しました（端末標準キー送信）")
 
+    def toggle_block_server_shortcuts(self):
+        """F1/F4以外のサーバー側ショートカット（Ctrl系制御コードや不要ファンクションキー）の無効化切替"""
+        val = bool(self.block_server_shortcuts_var.get())
+        self.config["block_server_shortcuts"] = val
+        save_config(self.config)
+        if val:
+            self._show_input_error("F1/F4以外のサーバー側ショートカットを無効化しました（安全保護有効）")
+        else:
+            self._show_input_error("サーバー側ショートカットの保護を解除しました（全キー送信）")
+
     # --- カラーパレット・テーマ切替処理 ---
     def open_color_palette(self):
         ColorPaletteDialog(self, self)
@@ -1592,12 +1611,12 @@ class TerminalApp(ctk.CTk):
             self.connect_btn.focus_set() if self.session is None else self.disconnect_btn.focus_set()
             return "break"
 
-        # Windows標準ショートカット（Ctrl+C / Ctrl+V / Ctrl+A）のクライアント側処理
-        if self.config.get("enable_windows_shortcuts", True):
-            is_ctrl = bool(event.state & 0x4)
-            is_shift = bool(event.state & 0x1)
-            keysym_lower = event.keysym.lower()
+        is_ctrl = bool(event.state & 0x4)
+        is_shift = bool(event.state & 0x1)
+        keysym_lower = event.keysym.lower()
 
+        # 1. Windows標準ショートカット（Ctrl+C / Ctrl+V / Ctrl+A / Shift+Insert）
+        if self.config.get("enable_windows_shortcuts", True):
             # Ctrl+Shift+C: 画面全体の文字をコピー
             if is_ctrl and is_shift and keysym_lower == "c":
                 return self.copy_screen_text(event)
@@ -1614,6 +1633,20 @@ class TerminalApp(ctk.CTk):
             if is_ctrl and not is_shift and keysym_lower == "a":
                 return self.select_all_text(event)
 
+        # 2. サーバー側ショートカットの制御（F1/F4以外のCtrl系および不要ファンクションキーを無効化）
+        if self.config.get("block_server_shortcuts", True):
+            # ① Controlキーが押されている場合（上記Windows標準以外はすべて遮断）
+            if is_ctrl:
+                self._show_input_error(f"ショートカット 'Ctrl+{event.keysym}' は無効化されています")
+                return "break"
+
+            # ② ファンクションキー: F1, F4 以外はすべて遮断
+            if event.keysym.startswith("F") and event.keysym[1:].isdigit():
+                if event.keysym not in ("F1", "F4"):
+                    self._show_input_error(f"ファンクションキー '{event.keysym}' は無効化されています（F1 / F4 のみ有効）")
+                    return "break"
+
+        # 3. 通常キー送信（英数字・記号・Enter・Space・Tab・Backspace・矢印キー・F1・F4等）
         if self.is_connected:
             self._send(key_sequence(event.keysym, event.char, event.state))
         return "break"
