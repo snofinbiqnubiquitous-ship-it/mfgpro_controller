@@ -1041,6 +1041,8 @@ class TerminalApp(ctk.CTk):
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.update_job = self.after(33, self._poll)
         self.after(100, self._apply_auto_fit)
+        # 起動時に自動接続を開始
+        self.after(200, self.connect_to_server)
 
     def _get_terminal_colors(self):
         """現在のテーマおよびカスタム色を適用したターミナル表示用カラー辞書を取得"""
@@ -2748,8 +2750,9 @@ class TerminalApp(ctk.CTk):
     def _on_cursor_blink_tick(self):
         if self.closing:
             return
-        self._cursor_blink_visible = not getattr(self, "_cursor_blink_visible", True)
-        self._update_cursor_tag_style()
+        if not getattr(self, "_is_navigating_field", False):
+            self._cursor_blink_visible = not getattr(self, "_cursor_blink_visible", True)
+            self._update_cursor_tag_style()
         self._schedule_cursor_blink()
 
     def _update_cursor_tag_style(self):
@@ -2890,13 +2893,12 @@ class TerminalApp(ctk.CTk):
         # 移動開始：即座に移動フラグをONにし、途中のカーソルを非表示にして画面上を走るのを防止（シームレス化）
         self._is_navigating_field = True
         self.textbox.tag_remove("remote_cursor", "1.0", "end")
-        # 万が一の通信遅延に備えた安全タイマー（0.6秒後に自動解除）
-        self.after(600, lambda: setattr(self, "_is_navigating_field", False))
+        # 万が一の通信遅延に備えた安全タイマー（0.8秒後に自動解除）
+        self.after(800, lambda: setattr(self, "_is_navigating_field", False))
 
         def _do_navigate():
             try:
-                step_delay = 0.015  # 高速キー送信ディレイ（一瞬で直接移動したように見せる）
-                # 1. フィールド間移動
+                # 1. フィールド間移動（キーを一括バッチ送信してサーバー側の処理を最速化）
                 if cur_field != target_field:
                     # ケースA: 同一列ブロック内の移動（左列同士、または右列同士）
                     if cur_is_left == target_is_left or not right_fields or not left_fields:
@@ -2905,13 +2907,9 @@ class TerminalApp(ctk.CTk):
                         t_idx = col_list.index(target_field)
                         step = t_idx - c_idx
                         if step > 0:
-                            for _ in range(step):
-                                self.session.send(KEY_SEQUENCES["Down"])
-                                time.sleep(step_delay)
+                            self.session.send(KEY_SEQUENCES["Down"] * step)
                         elif step < 0:
-                            for _ in range(abs(step)):
-                                self.session.send(KEY_SEQUENCES["Up"])
-                                time.sleep(step_delay)
+                            self.session.send(KEY_SEQUENCES["Up"] * abs(step))
 
                     # ケースB: 左列から右列への移動
                     elif cur_is_left and not target_is_left:
@@ -2920,13 +2918,9 @@ class TerminalApp(ctk.CTk):
                         t_idx = left_fields.index(best_left)
                         step = t_idx - c_idx
                         if step > 0:
-                            for _ in range(step):
-                                self.session.send(KEY_SEQUENCES["Down"])
-                                time.sleep(step_delay)
+                            self.session.send(KEY_SEQUENCES["Down"] * step)
                         elif step < 0:
-                            for _ in range(abs(step)):
-                                self.session.send(KEY_SEQUENCES["Up"])
-                                time.sleep(step_delay)
+                            self.session.send(KEY_SEQUENCES["Up"] * abs(step))
                         time.sleep(0.02)
                         # Tab (\t) で同一行の右列フィールドへジャンプ
                         self.session.send("\t")
@@ -2937,13 +2931,9 @@ class TerminalApp(ctk.CTk):
                             r_cur = min(right_fields, key=lambda f: abs(f.row - best_left.row))
                             r_step = right_fields.index(target_field) - right_fields.index(r_cur)
                             if r_step > 0:
-                                for _ in range(r_step):
-                                    self.session.send(KEY_SEQUENCES["Down"])
-                                    time.sleep(step_delay)
+                                self.session.send(KEY_SEQUENCES["Down"] * r_step)
                             elif r_step < 0:
-                                for _ in range(abs(r_step)):
-                                    self.session.send(KEY_SEQUENCES["Up"])
-                                    time.sleep(step_delay)
+                                self.session.send(KEY_SEQUENCES["Up"] * abs(r_step))
 
                     # ケースC: 右列から左列への移動
                     elif not cur_is_left and target_is_left:
@@ -2952,13 +2942,9 @@ class TerminalApp(ctk.CTk):
                         t_idx = right_fields.index(best_right)
                         step = t_idx - c_idx
                         if step > 0:
-                            for _ in range(step):
-                                self.session.send(KEY_SEQUENCES["Down"])
-                                time.sleep(step_delay)
+                            self.session.send(KEY_SEQUENCES["Down"] * step)
                         elif step < 0:
-                            for _ in range(abs(step)):
-                                self.session.send(KEY_SEQUENCES["Up"])
-                                time.sleep(step_delay)
+                            self.session.send(KEY_SEQUENCES["Up"] * abs(step))
                         time.sleep(0.02)
                         # Progress 4GL 正規の BACK-TAB (Ctrl-U: \x15) で左列フィールドへジャンプ
                         self.session.send("\x15")
@@ -2969,53 +2955,62 @@ class TerminalApp(ctk.CTk):
                             l_cur = min(left_fields, key=lambda f: abs(f.row - best_right.row))
                             l_step = left_fields.index(target_field) - left_fields.index(l_cur)
                             if l_step > 0:
-                                for _ in range(l_step):
-                                    self.session.send(KEY_SEQUENCES["Down"])
-                                    time.sleep(step_delay)
+                                self.session.send(KEY_SEQUENCES["Down"] * l_step)
                             elif l_step < 0:
-                                for _ in range(abs(l_step)):
-                                    self.session.send(KEY_SEQUENCES["Up"])
-                                    time.sleep(step_delay)
+                                self.session.send(KEY_SEQUENCES["Up"] * abs(l_step))
 
-                    time.sleep(0.04)
+                    # サーバーから目的行への着弾パケットが届くまで待機（最大0.3秒・途中経過の描画を徹底遮断）
+                    start_wait = time.time()
+                    while time.time() - start_wait < 0.30:
+                        cur = getattr(self, "_current_cursor", None)
+                        if cur and cur[0] == target_field.row:
+                            break
+                        time.sleep(0.01)
 
-                # 2. フィールド内での列位置調整（着弾後の実カーソル列 actual_col を参照して安全に微調整）
+                # 2. フィールド内での列位置調整（着弾後の実カーソル列 actual_col を参照して安全に一括調整）
                 actual_cur = getattr(self, "_current_cursor", None)
                 actual_col = actual_cur[1] if actual_cur and actual_cur[0] == target_field.row else target_field.start_col
                 col_diff = click_col - actual_col
                 if col_diff > 0:
                     max_right = max(0, target_field.end_col - actual_col)
-                    for _ in range(min(col_diff, max_right)):
-                        self.session.send(KEY_SEQUENCES["Right"])
-                        time.sleep(0.01)
+                    steps = min(col_diff, max_right)
+                    if steps > 0:
+                        self.session.send(KEY_SEQUENCES["Right"] * steps)
                 elif col_diff < 0:
                     max_left = max(0, actual_col - target_field.start_col)
-                    for _ in range(min(abs(col_diff), max_left)):
-                        self.session.send(KEY_SEQUENCES["Left"])
-                        time.sleep(0.01)
+                    steps = min(abs(col_diff), max_left)
+                    if steps > 0:
+                        self.session.send(KEY_SEQUENCES["Left"] * steps)
 
-                # サーバーからの最終描画・カーソル更新が到着するのをわずかに待機
-                time.sleep(0.04)
+                # 列調整キーのサーバー応答着弾待機
+                if col_diff != 0:
+                    start_col_wait = time.time()
+                    while time.time() - start_col_wait < 0.15:
+                        cur = getattr(self, "_current_cursor", None)
+                        if cur and cur[0] == target_field.row and cur[1] == click_col:
+                            break
+                        time.sleep(0.01)
+                else:
+                    time.sleep(0.02)
+
             except Exception as e:
                 log_error(f"入力欄ナビゲーションエラー: {e}")
             finally:
-                self._is_navigating_field = False
-                try:
-                    def _on_finish():
-                        # 着弾完了後にパッと目的地で白カーソルを点灯・点滅再開
-                        cur = getattr(self, "_current_cursor", None)
-                        if cur is not None:
-                            r, c = cur
-                            self.textbox.tag_remove("remote_cursor", "1.0", "end")
-                            self.textbox.tag_add("remote_cursor", f"{r + 1}.{c}", f"{r + 1}.{c + 1}")
-                            try:
-                                self.textbox._textbox.tag_raise("remote_cursor")
-                            except Exception:
-                                pass
-                        self._reset_cursor_blink()
-                    self.after(20, _on_finish)
-                except Exception:
-                    pass
+                # 途中の画面更新がすべて収束した直後、メインスレッド(GUI)でアトミックに解除＆目的地点灯
+                def _on_finish():
+                    self._is_navigating_field = False
+                    cur = getattr(self, "_current_cursor", None)
+                    if cur is not None:
+                        r, c = cur
+                        self.textbox.tag_remove("remote_cursor", "1.0", "end")
+                        self.textbox.tag_add("remote_cursor", f"{r + 1}.{c}", f"{r + 1}.{c + 1}")
+                        try:
+                            self.textbox._textbox.tag_raise("remote_cursor")
+                        except Exception:
+                            pass
+                    self._reset_cursor_blink()
+
+                self.after(10, _on_finish)
 
         threading.Thread(target=_do_navigate, daemon=True, name="field-nav").start()
         return "break"
