@@ -1201,6 +1201,8 @@ class TerminalApp(ctk.CTk):
         self.textbox.bind("<Control-Shift-c>", self.copy_screen_text)
         self.textbox.bind("<<Paste>>", self._on_paste_event)
         self.textbox.bind("<<Cut>>", lambda event: "break")
+        self.textbox._textbox.bind("<<Paste>>", self._on_paste_event)
+        self.textbox._textbox.bind("<<Cut>>", lambda event: "break")
 
         # 画面クリックによる入力欄直接フォーカス＆ホバー時のカーソル形状変更
         self.textbox._textbox.bind("<Button-1>", self._on_terminal_click, add="+")
@@ -1215,15 +1217,14 @@ class TerminalApp(ctk.CTk):
         self.textbox.tag_config("reverse", background=self.terminal_colors["reverse_bg"], foreground=self.terminal_colors["reverse_fg"])
         self.textbox.tag_config("menu_highlight", background=self.terminal_colors["menu_highlight_bg"], foreground=self.terminal_colors["menu_highlight_fg"])
 
-        # 入力可能箇所（underline）: 文字とアンダーラインを別の色で美しく差別化
-        field_fg = self.terminal_colors.get("text", "#0F172A")
+        # 入力可能箇所（underline）: 下線専用色(underlinefg)で美しく差別化
+        # ※ foreground を指定すると reverse(反転)タグ等の文字色が上書きされて同色塗りつぶしになるため、foregroundは指定しない
         underline_color = self.terminal_colors.get("underline_fg", "#2563EB")
         try:
             self.textbox._textbox.tag_config(
                 "underline",
                 underline=True,
                 underlinefg=underline_color,
-                foreground=field_fg,
             )
         except Exception:
             self.textbox.tag_config("underline", underline=True, foreground=underline_color)
@@ -1233,8 +1234,12 @@ class TerminalApp(ctk.CTk):
         except Exception:
             self.textbox.tag_config("bold", foreground=self.terminal_colors["accent"])
 
-        # カーソルおよび選択タグの優先度を最上位に設定（下線や反転で隠れるのを防ぐ）
+        # タグの優先度を設定:
+        # reverse を underline より上位に設定（反転文字の文字色が下線設定で上書きされるのを完全に防ぐ）
+        # menu_highlight, remote_cursor, sel を最上位に設定
         try:
+            self.textbox._textbox.tag_raise("reverse", "underline")
+            self.textbox._textbox.tag_raise("menu_highlight")
             self.textbox._textbox.tag_raise("remote_cursor")
             self.textbox._textbox.tag_raise("sel")
         except Exception:
@@ -1752,6 +1757,12 @@ class TerminalApp(ctk.CTk):
             return "break"
         if not text:
             return "break"
+
+        # テキスト選択状態があれば解除（貼り付け後の画面選択残りを防止）
+        try:
+            self.textbox._textbox.tag_remove("sel", "1.0", "end")
+        except Exception:
+            pass
 
         # 改行コードの正規化: Windows (\r\n) や Unix (\n) を VT100 / QAD 形式 (\r) に変換
         text = text.replace("\r\n", "\r").replace("\n", "\r")

@@ -61,7 +61,8 @@ def extract_row_data(line, cols):
         is_wide_char = (len(data) > 0 and wcwidth(data[0]) == 2)
 
         tags = []
-        if c.reverse:
+        # 下線付き文字（入力欄）では、余計な反転背景（背景文字化）を抑止して自然な文字＋下線表示にする
+        if c.reverse and not c.underscore:
             tags.append("reverse")
         if c.underscore:
             tags.append("underline")
