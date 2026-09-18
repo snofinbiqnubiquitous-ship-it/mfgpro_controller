@@ -1401,23 +1401,6 @@ class TerminalApp(ctk.CTk):
         self._refresh_shortcut_buttons()
         self._show_input_error(f"ショートカット「{name} ({code})」を追加しました")
 
-    def is_menu_screen(self):
-        """現在の画面がメインメニューまたはメニュー選択画面かどうかを精密判定"""
-        lines = []
-        if getattr(self, "raw_lines", None):
-            lines = [self.raw_lines[r][0] for r in sorted(self.raw_lines.keys()) if self.raw_lines.get(r)]
-        if not lines:
-            try:
-                content = self.textbox.get("1.0", "end")
-                lines = content.splitlines()
-            except Exception:
-                lines = []
-
-        full_text = "\n".join(lines)
-        if not full_text.strip():
-            return False
-
-        # 1. 上部タイトル判定 (メインメニュー / Main Menu)
     def is_main_menu(self):
         """現在の画面がQADメインメニュー（mfmenu / Main Menu）かどうかを判定（右肩日付は変数として無視）"""
         lines = []
@@ -1511,17 +1494,28 @@ class TerminalApp(ctk.CTk):
                 if getattr(self, "_is_waiting_query", False):
                     self._is_waiting_query = False
 
-                max_steps = 6
-                for step in range(max_steps):
+                # メインメニューに戻るまで最大3回試行（通常は業務画面から1回のF4で戻る）
+                for step in range(3):
                     if self.is_main_menu():
                         break
+
+                    log_info(f"HOME画面復帰: F4 を送信します (step {step + 1})")
                     self.session.send(KEY_SEQUENCES["F4"])
-                    # サーバー応答と画面更新を待機（最大0.3秒）
+
+                    # サーバーからの画面反映を十分に待機（最大1.20秒）
+                    # ※ 待機時間が短すぎると、画面が更新される前に2回目のF4が誤送信されてしまうのを完全に防止
                     start_wait = time.time()
-                    while time.time() - start_wait < 0.30:
-                        time.sleep(0.04)
+                    while time.time() - start_wait < 1.20:
+                        time.sleep(0.05)
                         if self.is_main_menu():
                             break
+
+                    # メインメニューに着弾したことを検知したら直ちに終了（余計なF4は絶対に送らない）
+                    if self.is_main_menu():
+                        log_info("HOME画面復帰: メインメニュー着弾を確認しました")
+                        break
+
+                    time.sleep(0.2)
 
                 if self.is_main_menu():
                     self.after(0, lambda: self.set_status("🏠 HOME画面（メインメニュー）に戻りました", "success", clear_delay=3))
