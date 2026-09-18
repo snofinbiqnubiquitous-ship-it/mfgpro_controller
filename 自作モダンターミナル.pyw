@@ -1229,6 +1229,13 @@ class TerminalApp(ctk.CTk):
         except Exception:
             self.textbox.tag_config("bold", foreground=self.terminal_colors["accent"])
 
+        # カーソルおよび選択タグの優先度を最上位に設定（下線や反転で隠れるのを防ぐ）
+        try:
+            self.textbox._textbox.tag_raise("remote_cursor")
+            self.textbox._textbox.tag_raise("sel")
+        except Exception:
+            pass
+
     def _build_shortcut_bar(self):
         """最下段のショートカット（直接移動）バーを構築"""
         self.shortcut_bar = ctk.CTkFrame(
@@ -2318,6 +2325,10 @@ class TerminalApp(ctk.CTk):
             self._current_cursor = cursor
             row, column = cursor
             self.textbox.tag_add("remote_cursor", f"{row + 1}.{column}", f"{row + 1}.{column + 1}")
+            try:
+                self.textbox._textbox.tag_raise("remote_cursor")
+            except Exception:
+                pass
         else:
             self._current_cursor = None
         try:
@@ -2749,14 +2760,13 @@ class TerminalApp(ctk.CTk):
                     background="#FFFFFF",
                     foreground="#000000",
                 )
+                self.textbox._textbox.tag_raise("remote_cursor")
             else:
-                # 消灯時: ターミナル背景と同化し、通常文字色に復元
-                bg = self.terminal_colors.get("terminal", "#E2E8F0")
-                fg = self.terminal_colors.get("text", "#0F172A")
+                # 消灯時: スタイルを透過（クリア）し、下地の文字色・背景色（反転や下線）をそのまま保持
                 self.textbox._textbox.tag_config(
                     "remote_cursor",
-                    background=bg,
-                    foreground=fg,
+                    background="",
+                    foreground="",
                 )
         except Exception:
             pass
@@ -2812,11 +2822,12 @@ class TerminalApp(ctk.CTk):
         for f in fields:
             if f.row == cur_row and f.start_col <= cur_col <= f.end_col:
                 return f
-        for f in fields:
-            if f.row == cur_row:
-                return f
+        # 同一行にあるフィールドのうち、列の距離が最も近いものを選択（左列固定偏重を防止）
+        same_row = [f for f in fields if f.row == cur_row]
+        if same_row:
+            return min(same_row, key=lambda f: min(abs(f.start_col - cur_col), abs(f.end_col - cur_col)))
         if fields:
-            return min(fields, key=lambda f: abs(f.row - cur_row))
+            return min(fields, key=lambda f: (abs(f.row - cur_row), min(abs(f.start_col - cur_col), abs(f.end_col - cur_col))))
         return None
 
     def _on_terminal_click(self, event):
@@ -2825,11 +2836,11 @@ class TerminalApp(ctk.CTk):
         self._reset_cursor_blink()
 
         if not self.is_connected or self.session is None:
-            return
+            return "break"
         if getattr(self, "_is_waiting_query", False) or getattr(self, "_is_capturing_winprint", False):
-            return
+            return "break"
         if getattr(self, "_is_navigating_field", False):
-            return
+            return "break"
 
         try:
             click_index = self.textbox._textbox.index(f"@{event.x},{event.y}")
@@ -2837,16 +2848,16 @@ class TerminalApp(ctk.CTk):
             click_row = int(parts[0]) - 1
             click_col = int(parts[1])
         except Exception:
-            return
+            return "break"
 
         fields = self._get_all_input_fields()
         if not fields:
-            return
+            return "break"
 
         target_field = self._find_field_at(fields, click_row, click_col)
         if target_field is None:
-            # 入力可能欄以外をクリックした場合は通常フォーカスのみで移動しない
-            return
+            # 入力可能欄以外をクリックした場合は通常フォーカスのみで、キャレット発生を抑止
+            return "break"
 
         # テキスト選択状態の解除
         try:
@@ -2865,45 +2876,117 @@ class TerminalApp(ctk.CTk):
         if cur_field is None:
             cur_field = fields[0]
 
-        target_idx = fields.index(target_field)
-        cur_idx = fields.index(cur_field)
+        # 画面上のフィールドを左右の列ブロックに分割（QADのFrom/To 2列構成に対応）
+        left_fields = [f for f in fields if f.start_col < 40]
+        right_fields = [f for f in fields if f.start_col >= 40]
 
-        log_info(f"入力欄クリック検知: 現在={cur_field}(idx={cur_idx}) -> 宛先={target_field}(idx={target_idx}), クリック列={click_col}")
+        cur_is_left = cur_field in left_fields
+        target_is_left = target_field in left_fields
+
+        log_info(f"入力欄クリック検知: 現在={cur_field}(左列={cur_is_left}) -> 宛先={target_field}(左列={target_is_left}), クリック列={click_col}")
 
         def _do_navigate():
             self._is_navigating_field = True
             try:
-                # 1. 異なるフィールド間の移動（順序差分に応じた Down / Up 送信）
-                if target_idx != cur_idx:
-                    step_diff = target_idx - cur_idx
-                    if step_diff > 0:
-                        for _ in range(step_diff):
-                            self.session.send(KEY_SEQUENCES["Down"])
-                            time.sleep(0.03)
-                    else:
-                        for _ in range(abs(step_diff)):
-                            self.session.send(KEY_SEQUENCES["Up"])
-                            time.sleep(0.03)
+                # 1. フィールド間移動
+                if cur_field != target_field:
+                    # ケースA: 同一列ブロック内の移動（左列同士、または右列同士）
+                    if cur_is_left == target_is_left or not right_fields or not left_fields:
+                        col_list = left_fields if target_is_left or not right_fields else right_fields
+                        c_idx = col_list.index(cur_field) if cur_field in col_list else 0
+                        t_idx = col_list.index(target_field)
+                        step = t_idx - c_idx
+                        if step > 0:
+                            for _ in range(step):
+                                self.session.send(KEY_SEQUENCES["Down"])
+                                time.sleep(0.04)
+                        elif step < 0:
+                            for _ in range(abs(step)):
+                                self.session.send(KEY_SEQUENCES["Up"])
+                                time.sleep(0.04)
 
-                    time.sleep(0.05)
+                    # ケースB: 左列から右列への移動
+                    elif cur_is_left and not target_is_left:
+                        # まず左列内でターゲットの行に最も近い左列フィールドへ垂直移動
+                        best_left = min(left_fields, key=lambda f: abs(f.row - target_field.row))
+                        c_idx = left_fields.index(cur_field)
+                        t_idx = left_fields.index(best_left)
+                        step = t_idx - c_idx
+                        if step > 0:
+                            for _ in range(step):
+                                self.session.send(KEY_SEQUENCES["Down"])
+                                time.sleep(0.04)
+                        elif step < 0:
+                            for _ in range(abs(step)):
+                                self.session.send(KEY_SEQUENCES["Up"])
+                                time.sleep(0.04)
+                        time.sleep(0.05)
+                        # Tab (\t) で同一行の右列フィールドへジャンプ
+                        self.session.send("\t")
+                        time.sleep(0.05)
+                        # 目的行と異なる場合、右列内での上下微調整
+                        same_row_right = [f for f in right_fields if f.row == target_field.row]
+                        if same_row_right and best_left.row != target_field.row:
+                            r_cur = min(right_fields, key=lambda f: abs(f.row - best_left.row))
+                            r_step = right_fields.index(target_field) - right_fields.index(r_cur)
+                            if r_step > 0:
+                                for _ in range(r_step):
+                                    self.session.send(KEY_SEQUENCES["Down"])
+                                    time.sleep(0.04)
+                            elif r_step < 0:
+                                for _ in range(abs(r_step)):
+                                    self.session.send(KEY_SEQUENCES["Up"])
+                                    time.sleep(0.04)
 
-                    # 2. フィールド内での列位置調整
-                    col_offset = max(0, min(click_col - target_field.start_col, target_field.end_col - target_field.start_col))
-                    if col_offset > 0:
-                        for _ in range(col_offset):
-                            self.session.send(KEY_SEQUENCES["Right"])
-                            time.sleep(0.02)
-                else:
-                    # 同じフィールド内の列移動
-                    col_diff = click_col - cur_col
-                    if col_diff > 0:
-                        for _ in range(col_diff):
-                            self.session.send(KEY_SEQUENCES["Right"])
-                            time.sleep(0.02)
-                    elif col_diff < 0:
-                        for _ in range(abs(col_diff)):
-                            self.session.send(KEY_SEQUENCES["Left"])
-                            time.sleep(0.02)
+                    # ケースC: 右列から左列への移動
+                    elif not cur_is_left and target_is_left:
+                        # まず右列内でターゲットの行に最も近い右列フィールドへ垂直移動
+                        best_right = min(right_fields, key=lambda f: abs(f.row - target_field.row))
+                        c_idx = right_fields.index(cur_field)
+                        t_idx = right_fields.index(best_right)
+                        step = t_idx - c_idx
+                        if step > 0:
+                            for _ in range(step):
+                                self.session.send(KEY_SEQUENCES["Down"])
+                                time.sleep(0.04)
+                        elif step < 0:
+                            for _ in range(abs(step)):
+                                self.session.send(KEY_SEQUENCES["Up"])
+                                time.sleep(0.04)
+                        time.sleep(0.05)
+                        # Progress 4GL 正規の BACK-TAB (Ctrl-U: \x15) で左列フィールドへジャンプ
+                        self.session.send("\x15")
+                        time.sleep(0.05)
+                        # 目的行と異なる場合、左列内での上下微調整
+                        same_row_left = [f for f in left_fields if f.row == target_field.row]
+                        if same_row_left and best_right.row != target_field.row:
+                            l_cur = min(left_fields, key=lambda f: abs(f.row - best_right.row))
+                            l_step = left_fields.index(target_field) - left_fields.index(l_cur)
+                            if l_step > 0:
+                                for _ in range(l_step):
+                                    self.session.send(KEY_SEQUENCES["Down"])
+                                    time.sleep(0.04)
+                            elif l_step < 0:
+                                for _ in range(abs(l_step)):
+                                    self.session.send(KEY_SEQUENCES["Up"])
+                                    time.sleep(0.04)
+
+                    time.sleep(0.06)
+
+                # 2. フィールド内での列位置調整（着弾後の実カーソル列 actual_col を参照して安全に微調整）
+                actual_cur = getattr(self, "_current_cursor", None)
+                actual_col = actual_cur[1] if actual_cur and actual_cur[0] == target_field.row else target_field.start_col
+                col_diff = click_col - actual_col
+                if col_diff > 0:
+                    max_right = max(0, target_field.end_col - actual_col)
+                    for _ in range(min(col_diff, max_right)):
+                        self.session.send(KEY_SEQUENCES["Right"])
+                        time.sleep(0.02)
+                elif col_diff < 0:
+                    max_left = max(0, actual_col - target_field.start_col)
+                    for _ in range(min(abs(col_diff), max_left)):
+                        self.session.send(KEY_SEQUENCES["Left"])
+                        time.sleep(0.02)
             except Exception as e:
                 log_error(f"入力欄ナビゲーションエラー: {e}")
             finally:

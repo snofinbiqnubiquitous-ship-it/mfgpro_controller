@@ -162,7 +162,7 @@ class TerminalSession:
             active_cols = cols if has_wide else 80
 
             offset = sum(len(self.screen.buffer[cursor.y][col].data)
-                         for col in range(min(cursor.x, active_cols - 1)))
+                         for col in range(min(cursor.x, active_cols)))
             position = None if cursor.hidden else (cursor.y, offset)
             changed = {}
             if dirty:
