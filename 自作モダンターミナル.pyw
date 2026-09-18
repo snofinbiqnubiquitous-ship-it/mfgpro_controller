@@ -1104,6 +1104,8 @@ class TerminalApp(ctk.CTk):
 
         # 3. キー送信メニュー
         self.key_menu = tk.Menu(menubar, tearoff=False)
+        self.key_menu.add_command(label="🏠 HOME画面に戻る (メインメニュー)", accelerator="Ctrl+H", command=self.go_home_screen)
+        self.key_menu.add_separator()
         for index, (_, buttons) in enumerate(TOOLBAR_GROUPS):
             if index:
                 self.key_menu.add_separator()
@@ -1262,6 +1264,15 @@ class TerminalApp(ctk.CTk):
         )
         self.shortcut_scroll_frame.grid(row=0, column=1, sticky="ew", padx=4, pady=2)
 
+        # 「🏠 HOME画面に戻る」ボタン（ワンクリックでQADメインメニューへ安全復帰）
+        self.home_btn = ctk.CTkButton(
+            self.shortcut_bar, text="🏠 HOME画面に戻る", width=130, height=28,
+            fg_color="#D97706", hover_color="#B45309", text_color="#FFFFFF",
+            font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
+            corner_radius=6, command=self.go_home_screen
+        )
+        self.home_btn.grid(row=0, column=2, padx=(4, 4), pady=4)
+
         # 右側「📄 winPrint」ボタン（ワンクリックでOutput欄にwinPrintを入力）
         self.winprint_btn = ctk.CTkButton(
             self.shortcut_bar, text="📄 winPrint", width=86, height=28,
@@ -1269,7 +1280,7 @@ class TerminalApp(ctk.CTk):
             font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
             corner_radius=6, command=self.input_winprint
         )
-        self.winprint_btn.grid(row=0, column=2, padx=(4, 4), pady=4)
+        self.winprint_btn.grid(row=0, column=3, padx=(4, 4), pady=4)
 
         # 右端「＋ 追加」ボタン
         self.add_shortcut_btn = ctk.CTkButton(
@@ -1278,7 +1289,7 @@ class TerminalApp(ctk.CTk):
             font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
             corner_radius=6, command=self.open_add_shortcut_dialog
         )
-        self.add_shortcut_btn.grid(row=0, column=3, padx=(4, 10), pady=4)
+        self.add_shortcut_btn.grid(row=0, column=4, padx=(4, 10), pady=4)
 
         self._refresh_shortcut_buttons()
 
@@ -1466,10 +1477,60 @@ class TerminalApp(ctk.CTk):
 
         return False
 
+    def go_home_screen(self):
+        """HOME画面（QADメインメニュー）に戻る"""
+        if not self.is_connected or not self.session:
+            self._show_input_error("サーバーに接続されていません")
+            return
+
+        if self.is_main_menu():
+            self.set_status("🏠 既にHOME画面（メインメニュー）です", "info", clear_delay=3)
+            self.focus_terminal()
+            return
+
+        self.set_status("🏠 HOME画面に戻っています...", "working")
+
+        def _do_home():
+            try:
+                import time
+                if getattr(self, "_is_waiting_query", False):
+                    self._is_waiting_query = False
+
+                max_steps = 6
+                for step in range(max_steps):
+                    if self.is_main_menu():
+                        break
+                    self.session.send(KEY_SEQUENCES["F4"])
+                    # サーバー応答と画面更新を待機（最大0.3秒）
+                    start_wait = time.time()
+                    while time.time() - start_wait < 0.30:
+                        time.sleep(0.04)
+                        if self.is_main_menu():
+                            break
+
+                if self.is_main_menu():
+                    self.after(0, lambda: self.set_status("🏠 HOME画面（メインメニュー）に戻りました", "success", clear_delay=3))
+                else:
+                    self.after(0, lambda: self.set_status("● 接続済み (Ready)", "info"))
+            except Exception as e:
+                log_error(f"HOME画面復帰エラー: {e}")
+                self.after(0, lambda: self.set_status("❌ HOME画面への復帰でエラーが発生しました", "error", clear_delay=4))
+            finally:
+                self.after(50, self.focus_terminal)
+
+        import threading
+        threading.Thread(target=_do_home, daemon=True, name="go-home").start()
+
     def jump_to_menu(self, code):
         """指定されたメニュー番号へ直接ジャンプ（メイン画面ならF4を押さず直接入力、業務画面ならF4で戻って入力）"""
         if not self.is_connected or not self.session:
             self._show_input_error("サーバーに接続されていません")
+            return
+
+        # HOME / MAIN 等のショートカット指定時は直接HOME画面復帰を実行
+        code_str = str(code).strip()
+        if code_str.upper() in ("HOME", "MAIN", "0", "MENU"):
+            self.go_home_screen()
             return
 
         # 現在の画面がメインメニュー（mfmenu）かどうかを判定
@@ -2184,6 +2245,8 @@ class TerminalApp(ctk.CTk):
         self.connection_menu.entryconfigure(0, state="normal" if idle else "disabled")
         self.connection_menu.entryconfigure(1, state="disabled" if idle else "normal")
         state = "normal" if self.is_connected else "disabled"
+        if hasattr(self, "home_btn"):
+            self.home_btn.configure(state=state)
         if hasattr(self, "winprint_btn"):
             self.winprint_btn.configure(state=state)
         for button in getattr(self, "shortcut_buttons", []):
@@ -2591,6 +2654,11 @@ class TerminalApp(ctk.CTk):
             # Ctrl+E: 画面のデータをCSV化してExcelで開く
             if is_ctrl and not is_shift and keysym_lower == "e":
                 return self.export_to_excel(event)
+
+            # Ctrl+H: HOME画面（メインメニュー）に戻る
+            if is_ctrl and not is_shift and keysym_lower == "h":
+                self.go_home_screen()
+                return "break"
 
         # 2. サーバー側ショートカットの制御（F1/F4以外のCtrl系および不要ファンクションキーを無効化）
         if self.config.get("block_server_shortcuts", True):
