@@ -21,6 +21,10 @@
     {
       "name": "Customer Data",
       "code": "99.2.1.4"
+    },
+    {
+      "name": "SO作成",
+      "code": "99.7.1.1"
     }
   ]
 }

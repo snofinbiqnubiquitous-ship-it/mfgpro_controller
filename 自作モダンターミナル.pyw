@@ -90,6 +90,7 @@ DEFAULT_CONFIG = {
     "enable_windows_shortcuts": True,
     "block_server_shortcuts": True,
     "auto_excel_export": True,
+    "auto_login_main_menu": True,
     "shortcuts": [
         {"name": "在庫スナップショット", "code": "99.3.6.1"},
         {"name": "在庫移動明細", "code": "99.3.21.4"},
@@ -115,6 +116,8 @@ def load_config():
         cfg["block_server_shortcuts"] = True
     if "auto_excel_export" not in cfg:
         cfg["auto_excel_export"] = True
+    if "auto_login_main_menu" not in cfg:
+        cfg["auto_login_main_menu"] = True
     return cfg
 
 
@@ -1068,6 +1071,13 @@ class TerminalApp(ctk.CTk):
         self.connection_menu.add_command(label="ログイン / 接続", command=self.connect_to_server)
         self.connection_menu.add_command(label="切断", command=self.disconnect_server)
         self.connection_menu.add_separator()
+        self.auto_main_menu_var = tk.BooleanVar(value=bool(self.config.get("auto_login_main_menu", True)))
+        self.connection_menu.add_checkbutton(
+            label="ログイン後に自動でMain Menuへ移動",
+            variable=self.auto_main_menu_var,
+            command=self.toggle_auto_login_main_menu,
+        )
+        self.connection_menu.add_separator()
         self.connection_menu.add_command(label="終了", command=self.on_close)
         menubar.add_cascade(label="接続", menu=self.connection_menu)
 
@@ -1826,6 +1836,16 @@ class TerminalApp(ctk.CTk):
         else:
             self.set_status("レポート自動Excel展開を無効化しました", "info", clear_delay=4)
 
+    def toggle_auto_login_main_menu(self):
+        """ログイン後に自動でMain Menuへ移動する機能の有効/無効切替"""
+        val = bool(self.auto_main_menu_var.get())
+        self.config["auto_login_main_menu"] = val
+        save_config(self.config)
+        if val:
+            self._show_input_error("ログイン後に自動でMain Menuへ移動を有効化しました")
+        else:
+            self._show_input_error("ログイン後の自動移動を無効化しました")
+
     def _check_is_report_output(self):
         """現在の画面が QAD レポート出力（local 出力結果）であるかを高精度に判定"""
         # メインメニューや通常メニュー画面は除外
@@ -2306,6 +2326,72 @@ class TerminalApp(ctk.CTk):
         self._show_input_error("")
         self.session.start()
 
+    def _auto_navigate_to_main_menu(self):
+        """ログイン完了後、自動で 2 -> 1 -> Enter x 2 -> Space と進んで QAD Main Menu まで移動"""
+        log_info("自動ログイン: Main Menu への自動遷移シーケンスを開始します")
+        try:
+            # Step 1: 初期画面の描画待ち
+            self.set_status("⏳ 自動ログイン中... (初期メニュー待機)", "working")
+            time.sleep(1.0)
+            if not self.is_connected or self.session is None:
+                return
+
+            # Step 2: "2" + Enter 送信（環境選択）
+            log_info("自動ログイン: '2' + Enter を送信")
+            self.set_status("⏳ 自動ログイン中... (環境選択 '2')", "working")
+            self.session.send("2\r")
+            time.sleep(1.0)
+            if not self.is_connected or self.session is None:
+                return
+
+            # Step 3: "1" + Enter 送信（QAD起動）
+            log_info("自動ログイン: '1' + Enter を送信")
+            self.set_status("⏳ 自動ログイン中... (QAD起動 '1')", "working")
+            self.session.send("1\r")
+            time.sleep(1.0)
+            if not self.is_connected or self.session is None:
+                return
+
+            # Step 4: 追加入力 (Enter x 2)
+            log_info("自動ログイン: Enter x 2 を送信")
+            self.session.send("\r\r")
+            time.sleep(0.8)
+
+            # Step 5: メインメニュー着弾のスマート監視（最大15秒）
+            self.set_status("⏳ メインメニューへ移動中...", "working")
+            start_time = time.time()
+            while time.time() - start_time < 15.0:
+                if not self.is_connected or self.session is None:
+                    return
+
+                if self.is_main_menu():
+                    log_info("自動ログイン: Main Menu 着弾を検知しました！")
+                    break
+
+                cur_text = self._get_current_screen_text()
+                cur_lower = cur_text.lower() if cur_text else ""
+
+                # Space継続画面（Program Information や Press SPACEBAR 等）
+                if any(k in cur_lower for k in ["space", "press spacebar", "continue", "program information"]) or any(k in cur_text for k in ["スペース", "ｽﾍﾟｰｽ"]):
+                    log_info("自動ログイン: Space継続画面を検知。Spaceを送信")
+                    self.session.send(" ")
+                    time.sleep(0.6)
+                    continue
+
+                time.sleep(0.8)
+                if not self.is_main_menu():
+                    self.session.send(" ")
+
+            if self.is_main_menu():
+                self.after(0, lambda: self.set_status("● 接続済み (Main Menu)", "success", clear_delay=4))
+            else:
+                self.after(0, lambda: self.set_status("● 接続済み (Ready)", "info"))
+        except Exception as e:
+            log_error(f"自動ログイン・メインメニュー移動エラー: {e}")
+            self.after(0, lambda: self.set_status("● 接続済み (Ready)", "info"))
+        finally:
+            self.after(50, self.focus_terminal)
+
     def _poll(self):
         if self.closing:
             return
@@ -2324,6 +2410,9 @@ class TerminalApp(ctk.CTk):
                 self._update_status_info()
                 log_info("SSH接続確立 (connected)")
                 self.focus_terminal()
+                # ログイン後に自動でMain Menuへ移動
+                if self.config.get("auto_login_main_menu", True):
+                    threading.Thread(target=self._auto_navigate_to_main_menu, daemon=True, name="auto-main-menu").start()
             elif event == "closed":
                 if self.is_connected:
                     self._update_screen()
