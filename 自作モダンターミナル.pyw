@@ -2323,12 +2323,14 @@ class TerminalApp(ctk.CTk):
         self.textbox.tag_remove("remote_cursor", "1.0", "end")
         if cursor is not None:
             self._current_cursor = cursor
-            row, column = cursor
-            self.textbox.tag_add("remote_cursor", f"{row + 1}.{column}", f"{row + 1}.{column + 1}")
-            try:
-                self.textbox._textbox.tag_raise("remote_cursor")
-            except Exception:
-                pass
+            # フィールド移動中は画面上を走るカーソルを描画せず非表示（直接移動のシームレスな見た目を実現）
+            if not getattr(self, "_is_navigating_field", False):
+                row, column = cursor
+                self.textbox.tag_add("remote_cursor", f"{row + 1}.{column}", f"{row + 1}.{column + 1}")
+                try:
+                    self.textbox._textbox.tag_raise("remote_cursor")
+                except Exception:
+                    pass
         else:
             self._current_cursor = None
         try:
@@ -2885,9 +2887,15 @@ class TerminalApp(ctk.CTk):
 
         log_info(f"入力欄クリック検知: 現在={cur_field}(左列={cur_is_left}) -> 宛先={target_field}(左列={target_is_left}), クリック列={click_col}")
 
+        # 移動開始：即座に移動フラグをONにし、途中のカーソルを非表示にして画面上を走るのを防止（シームレス化）
+        self._is_navigating_field = True
+        self.textbox.tag_remove("remote_cursor", "1.0", "end")
+        # 万が一の通信遅延に備えた安全タイマー（0.6秒後に自動解除）
+        self.after(600, lambda: setattr(self, "_is_navigating_field", False))
+
         def _do_navigate():
-            self._is_navigating_field = True
             try:
+                step_delay = 0.015  # 高速キー送信ディレイ（一瞬で直接移動したように見せる）
                 # 1. フィールド間移動
                 if cur_field != target_field:
                     # ケースA: 同一列ブロック内の移動（左列同士、または右列同士）
@@ -2899,15 +2907,14 @@ class TerminalApp(ctk.CTk):
                         if step > 0:
                             for _ in range(step):
                                 self.session.send(KEY_SEQUENCES["Down"])
-                                time.sleep(0.04)
+                                time.sleep(step_delay)
                         elif step < 0:
                             for _ in range(abs(step)):
                                 self.session.send(KEY_SEQUENCES["Up"])
-                                time.sleep(0.04)
+                                time.sleep(step_delay)
 
                     # ケースB: 左列から右列への移動
                     elif cur_is_left and not target_is_left:
-                        # まず左列内でターゲットの行に最も近い左列フィールドへ垂直移動
                         best_left = min(left_fields, key=lambda f: abs(f.row - target_field.row))
                         c_idx = left_fields.index(cur_field)
                         t_idx = left_fields.index(best_left)
@@ -2915,15 +2922,15 @@ class TerminalApp(ctk.CTk):
                         if step > 0:
                             for _ in range(step):
                                 self.session.send(KEY_SEQUENCES["Down"])
-                                time.sleep(0.04)
+                                time.sleep(step_delay)
                         elif step < 0:
                             for _ in range(abs(step)):
                                 self.session.send(KEY_SEQUENCES["Up"])
-                                time.sleep(0.04)
-                        time.sleep(0.05)
+                                time.sleep(step_delay)
+                        time.sleep(0.02)
                         # Tab (\t) で同一行の右列フィールドへジャンプ
                         self.session.send("\t")
-                        time.sleep(0.05)
+                        time.sleep(0.02)
                         # 目的行と異なる場合、右列内での上下微調整
                         same_row_right = [f for f in right_fields if f.row == target_field.row]
                         if same_row_right and best_left.row != target_field.row:
@@ -2932,15 +2939,14 @@ class TerminalApp(ctk.CTk):
                             if r_step > 0:
                                 for _ in range(r_step):
                                     self.session.send(KEY_SEQUENCES["Down"])
-                                    time.sleep(0.04)
+                                    time.sleep(step_delay)
                             elif r_step < 0:
                                 for _ in range(abs(r_step)):
                                     self.session.send(KEY_SEQUENCES["Up"])
-                                    time.sleep(0.04)
+                                    time.sleep(step_delay)
 
                     # ケースC: 右列から左列への移動
                     elif not cur_is_left and target_is_left:
-                        # まず右列内でターゲットの行に最も近い右列フィールドへ垂直移動
                         best_right = min(right_fields, key=lambda f: abs(f.row - target_field.row))
                         c_idx = right_fields.index(cur_field)
                         t_idx = right_fields.index(best_right)
@@ -2948,15 +2954,15 @@ class TerminalApp(ctk.CTk):
                         if step > 0:
                             for _ in range(step):
                                 self.session.send(KEY_SEQUENCES["Down"])
-                                time.sleep(0.04)
+                                time.sleep(step_delay)
                         elif step < 0:
                             for _ in range(abs(step)):
                                 self.session.send(KEY_SEQUENCES["Up"])
-                                time.sleep(0.04)
-                        time.sleep(0.05)
+                                time.sleep(step_delay)
+                        time.sleep(0.02)
                         # Progress 4GL 正規の BACK-TAB (Ctrl-U: \x15) で左列フィールドへジャンプ
                         self.session.send("\x15")
-                        time.sleep(0.05)
+                        time.sleep(0.02)
                         # 目的行と異なる場合、左列内での上下微調整
                         same_row_left = [f for f in left_fields if f.row == target_field.row]
                         if same_row_left and best_right.row != target_field.row:
@@ -2965,13 +2971,13 @@ class TerminalApp(ctk.CTk):
                             if l_step > 0:
                                 for _ in range(l_step):
                                     self.session.send(KEY_SEQUENCES["Down"])
-                                    time.sleep(0.04)
+                                    time.sleep(step_delay)
                             elif l_step < 0:
                                 for _ in range(abs(l_step)):
                                     self.session.send(KEY_SEQUENCES["Up"])
-                                    time.sleep(0.04)
+                                    time.sleep(step_delay)
 
-                    time.sleep(0.06)
+                    time.sleep(0.04)
 
                 # 2. フィールド内での列位置調整（着弾後の実カーソル列 actual_col を参照して安全に微調整）
                 actual_cur = getattr(self, "_current_cursor", None)
@@ -2981,18 +2987,33 @@ class TerminalApp(ctk.CTk):
                     max_right = max(0, target_field.end_col - actual_col)
                     for _ in range(min(col_diff, max_right)):
                         self.session.send(KEY_SEQUENCES["Right"])
-                        time.sleep(0.02)
+                        time.sleep(0.01)
                 elif col_diff < 0:
                     max_left = max(0, actual_col - target_field.start_col)
                     for _ in range(min(abs(col_diff), max_left)):
                         self.session.send(KEY_SEQUENCES["Left"])
-                        time.sleep(0.02)
+                        time.sleep(0.01)
+
+                # サーバーからの最終描画・カーソル更新が到着するのをわずかに待機
+                time.sleep(0.04)
             except Exception as e:
                 log_error(f"入力欄ナビゲーションエラー: {e}")
             finally:
                 self._is_navigating_field = False
                 try:
-                    self.after(50, self._reset_cursor_blink)
+                    def _on_finish():
+                        # 着弾完了後にパッと目的地で白カーソルを点灯・点滅再開
+                        cur = getattr(self, "_current_cursor", None)
+                        if cur is not None:
+                            r, c = cur
+                            self.textbox.tag_remove("remote_cursor", "1.0", "end")
+                            self.textbox.tag_add("remote_cursor", f"{r + 1}.{c}", f"{r + 1}.{c + 1}")
+                            try:
+                                self.textbox._textbox.tag_raise("remote_cursor")
+                            except Exception:
+                                pass
+                        self._reset_cursor_blink()
+                    self.after(20, _on_finish)
                 except Exception:
                     pass
 
