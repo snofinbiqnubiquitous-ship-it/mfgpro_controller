@@ -21,14 +21,35 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dateutil import parser as date_parser
 from dateutil.relativedelta import relativedelta
+from PIL import Image, ImageDraw, ImageTk
 try:
     from ctkdateentry import CTkDateEntry
     HAS_CTK_DATE_ENTRY = True
 except ImportError:
     HAS_CTK_DATE_ENTRY = False
 
+# ---------------------------------------------------------------------------
+# プロジェクト本体ディレクトリ（PROJECT_ROOT）の動的探索・解決
+# （デスクトップ等、外部フォルダから直接スクリプトが起動された場合でも完全動作を保証）
+# ---------------------------------------------------------------------------
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_CANDIDATES = [
+    _SCRIPT_DIR,
+    Path(r"C:\Users\0138018\.antigravity\mfgpro_controller"),
+    Path.home() / ".antigravity" / "mfgpro_controller",
+]
+
+PROJECT_ROOT = _SCRIPT_DIR
+for _candidate in _CANDIDATES:
+    if (_candidate / "terminal_core.py").is_file():
+        PROJECT_ROOT = _candidate
+        break
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 # --- デバッグログ設定 (terminal_debug.log) ---
-LOG_FILE = Path(__file__).resolve().parent / "terminal_debug.log"
+LOG_FILE = PROJECT_ROOT / "terminal_debug.log"
 logger = logging.getLogger("ModernTerminal")
 logger.setLevel(logging.DEBUG)
 if not logger.handlers:
@@ -54,18 +75,21 @@ def log_error(msg, exc_info=False):
 log_info("=" * 70)
 log_info(f"QAD Modern Terminal 起動 - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 log_info(f"Python: {sys.version} | 実行パス: {sys.executable}")
+log_info(f"PROJECT_ROOT: {PROJECT_ROOT}")
 log_info("=" * 70)
 
 # Explorerの関連付けは通常、ライブラリ未導入の標準Pythonを使用する。
 # このプロジェクトの仮想環境があれば、GUIのimportより先に切り替える（pythonwを優先）。
 if __name__ == "__main__":
-    app_path = Path(__file__).resolve()
-    local_env = app_path.parent / ".venv"
+    local_env = PROJECT_ROOT / ".venv"
     local_python = local_env / "Scripts" / "pythonw.exe"
     if not local_python.is_file():
         local_python = local_env / "Scripts" / "python.exe"
     if local_python.is_file() and Path(sys.prefix).resolve() != local_env.resolve():
-        os.execv(str(local_python), [str(local_python), str(app_path), *sys.argv[1:]])
+        target_script = PROJECT_ROOT / "自作モダンターミナル.pyw"
+        if not target_script.is_file():
+            target_script = Path(__file__).resolve()
+        os.execv(str(local_python), [str(local_python), str(target_script), *sys.argv[1:]])
 
 import tkinter as tk
 from tkinter import colorchooser, messagebox
@@ -90,7 +114,7 @@ except ImportError as exc:
 
 
 # --- 設定管理 (terminal_config.json) ---
-CONFIG_FILE = Path(__file__).resolve().parent / "terminal_config.json"
+CONFIG_FILE = PROJECT_ROOT / "terminal_config.json"
 
 DEFAULT_CONFIG = {
     "host": "mfg03",
@@ -109,6 +133,7 @@ DEFAULT_CONFIG = {
         {"name": "在庫スナップショット", "code": "99.3.6.1"},
         {"name": "在庫移動明細", "code": "99.3.21.4"},
     ],
+    "tab_aliases": {},
 }
 
 
@@ -124,6 +149,8 @@ def load_config():
             pass
     if "shortcuts" not in cfg or not isinstance(cfg["shortcuts"], list):
         cfg["shortcuts"] = list(DEFAULT_CONFIG["shortcuts"])
+    if "tab_aliases" not in cfg or not isinstance(cfg["tab_aliases"], dict):
+        cfg["tab_aliases"] = dict(DEFAULT_CONFIG.get("tab_aliases", {}))
     if "enable_windows_shortcuts" not in cfg:
         cfg["enable_windows_shortcuts"] = True
     if "block_server_shortcuts" not in cfg:
@@ -1451,7 +1478,423 @@ class ComplaintDialog(ctk.CTkToplevel):
         )
 
 
+class TabAliasDialog(ctk.CTkToplevel):
+    """タブ表示名（エイリアス）の設定ダイアログ"""
+    def __init__(self, parent, config, on_save_callback):
+        super().__init__(parent)
+        self.parent = parent
+        self.config = config
+        self.on_save_callback = on_save_callback
+        self.aliases = dict(config.get("tab_aliases", {}))
+
+        self.title("タブ表示名（エイリアス）の設定")
+        self.geometry("520x460")
+        self.minsize(460, 380)
+        self.configure(fg_color=parent.ui_colors["background"])
+        self.transient(parent)
+        self.grab_set()
+
+        # ヘッダー説明
+        header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        header_frame.pack(fill="x", padx=20, pady=(16, 8))
+        lbl_title = ctk.CTkLabel(
+            header_frame,
+            text="🏷️ タブ表示名（メニュー番号エイリアス）の設定",
+            font=ctk.CTkFont(family=parent.ui_font_family, size=15, weight="bold"),
+            text_color=parent.ui_colors["text"]
+        )
+        lbl_title.pack(anchor="w")
+
+        lbl_desc = ctk.CTkLabel(
+            header_frame,
+            text="特定のメニュー番号に対し、タブに表示するカスタム名称を設定できます。\n（未設定のメニューは番号のみが表示されます）",
+            font=ctk.CTkFont(family=parent.ui_font_family, size=11),
+            text_color=parent.ui_colors["muted"],
+            justify="left"
+        )
+        lbl_desc.pack(anchor="w", pady=(4, 0))
+
+        # 一覧表示領域（スクロールフレーム）
+        self.list_frame = ctk.CTkScrollableFrame(
+            self,
+            fg_color=parent.ui_colors["panel"],
+            corner_radius=8,
+            border_width=1,
+            border_color=parent.ui_colors["border"]
+        )
+        self.list_frame.pack(fill="both", expand=True, padx=20, pady=8)
+
+        # 入力フォーム（メニュー番号 ＆ 表示名）
+        input_frame = ctk.CTkFrame(self, fg_color=parent.ui_colors["panel"], corner_radius=8)
+        input_frame.pack(fill="x", padx=20, pady=8)
+
+        ctk.CTkLabel(input_frame, text="メニュー番号:", font=ctk.CTkFont(family=parent.ui_font_family, size=12)).grid(row=0, column=0, padx=(12, 4), pady=10, sticky="w")
+        self.code_entry = ctk.CTkEntry(input_frame, placeholder_text="例: 99.7.6.20", width=110, font=ctk.CTkFont(family=parent.ui_font_family, size=12))
+        self.code_entry.grid(row=0, column=1, padx=(0, 10), pady=10, sticky="w")
+
+        ctk.CTkLabel(input_frame, text="表示名:", font=ctk.CTkFont(family=parent.ui_font_family, size=12)).grid(row=0, column=2, padx=(0, 4), pady=10, sticky="w")
+        self.name_entry = ctk.CTkEntry(input_frame, placeholder_text="例: 受注残", width=140, font=ctk.CTkFont(family=parent.ui_font_family, size=12))
+        self.name_entry.grid(row=0, column=3, padx=(0, 10), pady=10, sticky="w")
+
+        self.add_btn = ctk.CTkButton(
+            input_frame,
+            text="＋ 追加/更新",
+            width=80,
+            fg_color="#2563EB",
+            hover_color="#1D4ED8",
+            text_color="#FFFFFF",
+            font=ctk.CTkFont(family=parent.ui_font_family, size=12, weight="bold"),
+            command=self._add_or_update_alias
+        )
+        self.add_btn.grid(row=0, column=4, padx=(0, 12), pady=10, sticky="e")
+
+        # 下部ボタンバー
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=20, pady=(4, 16))
+
+        close_btn = ctk.CTkButton(
+            btn_frame,
+            text="閉じる",
+            width=90,
+            fg_color=parent.ui_colors["button"],
+            hover_color=parent.ui_colors["hover"],
+            text_color=parent.ui_colors["text"],
+            font=ctk.CTkFont(family=parent.ui_font_family, size=12),
+            command=self.destroy
+        )
+        close_btn.pack(side="right")
+
+        self._refresh_list()
+
+    def _refresh_list(self):
+        for w in self.list_frame.winfo_children():
+            w.destroy()
+
+        if not self.aliases:
+            empty_lbl = ctk.CTkLabel(
+                self.list_frame,
+                text="カスタム表示名がまだ登録されていません。\n下の入力欄から追加してください。",
+                text_color=self.parent.ui_colors["muted"],
+                font=ctk.CTkFont(family=self.parent.ui_font_family, size=12)
+            )
+            empty_lbl.pack(pady=30)
+            return
+
+        for code, name in sorted(self.aliases.items()):
+            row_frame = ctk.CTkFrame(self.list_frame, fg_color="transparent")
+            row_frame.pack(fill="x", pady=3, padx=6)
+
+            code_lbl = ctk.CTkLabel(
+                row_frame,
+                text=code,
+                width=110,
+                anchor="w",
+                font=ctk.CTkFont(family=self.parent.ui_font_family, size=12, weight="bold"),
+                text_color=self.parent.ui_colors["text"]
+            )
+            code_lbl.pack(side="left", padx=(4, 8))
+
+            arrow_lbl = ctk.CTkLabel(
+                row_frame,
+                text="➔",
+                width=24,
+                text_color=self.parent.ui_colors["muted"],
+                font=ctk.CTkFont(size=11)
+            )
+            arrow_lbl.pack(side="left", padx=(0, 8))
+
+            name_lbl = ctk.CTkLabel(
+                row_frame,
+                text=name,
+                anchor="w",
+                font=ctk.CTkFont(family=self.parent.ui_font_family, size=12),
+                text_color="#2563EB"
+            )
+            name_lbl.pack(side="left", fill="x", expand=True)
+
+            edit_btn = ctk.CTkButton(
+                row_frame,
+                text="編集",
+                width=46,
+                height=24,
+                fg_color=self.parent.ui_colors["button"],
+                hover_color=self.parent.ui_colors["hover"],
+                text_color=self.parent.ui_colors["text"],
+                font=ctk.CTkFont(family=self.parent.ui_font_family, size=11),
+                command=lambda c=code, n=name: self._load_for_edit(c, n)
+            )
+            edit_btn.pack(side="right", padx=(4, 0))
+
+            del_btn = ctk.CTkButton(
+                row_frame,
+                text="削除",
+                width=46,
+                height=24,
+                fg_color="transparent",
+                hover_color="#EF4444",
+                text_color="#EF4444",
+                font=ctk.CTkFont(family=self.parent.ui_font_family, size=11),
+                command=lambda c=code: self._delete_alias(c)
+            )
+            del_btn.pack(side="right", padx=(4, 0))
+
+    def _load_for_edit(self, code, name):
+        self.code_entry.delete(0, "end")
+        self.code_entry.insert(0, code)
+        self.name_entry.delete(0, "end")
+        self.name_entry.insert(0, name)
+        self.name_entry.focus_set()
+
+    def _add_or_update_alias(self):
+        code = self.code_entry.get().strip()
+        name = self.name_entry.get().strip()
+        if not code or not name:
+            messagebox.showwarning("入力エラー", "メニュー番号と表示名の両方を入力してください。", parent=self)
+            return
+
+        self.aliases[code] = name
+        self.config["tab_aliases"] = self.aliases
+        save_config(self.config)
+        self.on_save_callback()
+        self._refresh_list()
+        self.code_entry.delete(0, "end")
+        self.name_entry.delete(0, "end")
+
+    def _delete_alias(self, code):
+        if code in self.aliases:
+            del self.aliases[code]
+            self.config["tab_aliases"] = self.aliases
+            save_config(self.config)
+            self.on_save_callback()
+            self._refresh_list()
+
+
+class TerminalTab:
+    """タブごとに独立したSSHセッション、バッファ、テキストボックスを保持するクラス"""
+    def __init__(self, app, tab_id: int, title: str):
+        self.app = app
+        self.tab_id = tab_id
+        self.title = title
+        self.session = None
+        self.events = queue.Queue()
+        self.is_connected = False
+        self.closing = False
+        self.rendered_lines = [None] * ROWS
+        self.raw_lines = {}
+        self.font_size = 18
+        self.active_cols = 80
+        self.auto_fit = True
+        self._resize_job = None
+
+        self.current_cursor = None
+        self.cursor_blink_visible = True
+        self.is_navigating_field = False
+        self._is_waiting_query = False
+
+        # タブウィジェット参照
+        self.tab_frame = None
+        self.tab_label = None
+
+        # ターミナルパネル & テキストボックス（terminal_container 内に配置）
+        self.terminal_panel = ctk.CTkFrame(
+            app.terminal_container,
+            fg_color=app.terminal_colors["terminal"],
+            corner_radius=0
+        )
+        self.terminal_panel.grid_columnconfigure(0, weight=1)
+        self.terminal_panel.grid_rowconfigure(0, weight=1)
+
+        self.terminal_font = ctk.CTkFont(family=app.terminal_font_family, size=self.font_size)
+        self.textbox = ctk.CTkTextbox(
+            self.terminal_panel,
+            font=self.terminal_font,
+            fg_color=app.terminal_colors["terminal"],
+            text_color=app.terminal_colors["text"],
+            wrap="none",
+            corner_radius=0,
+            border_width=0,
+            activate_scrollbars=False,
+        )
+        self.textbox.grid(row=0, column=0, sticky="nsew")
+        self.textbox._textbox.configure(spacing1=0, spacing2=0, spacing3=0, padx=0, pady=0)
+
+        app._apply_text_tags_to_widget(self.textbox)
+        self._bind_events()
+
+    def _bind_events(self):
+        tb = self.textbox
+        app = self.app
+        tb.bind("<Key>", app.on_key_press)
+        tb.bind("<Control-Shift-C>", app.copy_screen_text)
+        tb.bind("<Control-Shift-c>", app.copy_screen_text)
+        tb.bind("<Control-d>", app.insert_today_date)
+        tb.bind("<Control-D>", app.insert_today_date)
+        tb._textbox.bind("<Control-d>", app.insert_today_date)
+        tb._textbox.bind("<Control-D>", app.insert_today_date)
+        tb.bind("<<Paste>>", app._on_paste_event)
+        tb.bind("<<Cut>>", lambda event: "break")
+        tb._textbox.bind("<<Paste>>", app._on_paste_event)
+        tb._textbox.bind("<<Cut>>", lambda event: "break")
+
+        tb._textbox.bind("<Button-1>", app._on_terminal_click, add="+")
+        tb._textbox.tag_bind("underline", "<Enter>", lambda e: tb._textbox.configure(cursor="xterm"))
+        tb._textbox.tag_bind("underline", "<Leave>", lambda e: tb._textbox.configure(cursor="arrow"))
+
+        self.terminal_panel.bind("<Configure>", app._on_panel_resize)
+
+
 class TerminalApp(ctk.CTk):
+    # --- タブ委譲用プロパティ（既存メソッドを1行も変えずに完全互換動作させるアダプター） ---
+    @property
+    def active_tab(self):
+        if not hasattr(self, "tabs") or not self.tabs:
+            return None
+        for tab in self.tabs:
+            if tab.tab_id == self.active_tab_id:
+                return tab
+        return self.tabs[0] if self.tabs else None
+
+    @property
+    def session(self):
+        tab = self.active_tab
+        return tab.session if tab else None
+
+    @session.setter
+    def session(self, val):
+        tab = self.active_tab
+        if tab:
+            tab.session = val
+
+    @property
+    def textbox(self):
+        tab = self.active_tab
+        return tab.textbox if tab else None
+
+    @property
+    def events(self):
+        tab = self.active_tab
+        return tab.events if tab else None
+
+    @property
+    def is_connected(self):
+        tab = self.active_tab
+        return tab.is_connected if tab else False
+
+    @is_connected.setter
+    def is_connected(self, val):
+        tab = self.active_tab
+        if tab:
+            tab.is_connected = val
+
+    @property
+    def rendered_lines(self):
+        tab = self.active_tab
+        return tab.rendered_lines if tab else [None] * ROWS
+
+    @rendered_lines.setter
+    def rendered_lines(self, val):
+        tab = self.active_tab
+        if tab:
+            tab.rendered_lines = val
+
+    @property
+    def raw_lines(self):
+        tab = self.active_tab
+        return tab.raw_lines if tab else {}
+
+    @raw_lines.setter
+    def raw_lines(self, val):
+        tab = self.active_tab
+        if tab:
+            tab.raw_lines = val
+
+    @property
+    def font_size(self):
+        tab = self.active_tab
+        return tab.font_size if tab else 18
+
+    @font_size.setter
+    def font_size(self, val):
+        tab = self.active_tab
+        if tab:
+            tab.font_size = val
+
+    @property
+    def active_cols(self):
+        tab = self.active_tab
+        return tab.active_cols if tab else 80
+
+    @active_cols.setter
+    def active_cols(self, val):
+        tab = self.active_tab
+        if tab:
+            tab.active_cols = val
+
+    @property
+    def auto_fit(self):
+        tab = self.active_tab
+        return tab.auto_fit if tab else True
+
+    @auto_fit.setter
+    def auto_fit(self, val):
+        tab = self.active_tab
+        if tab:
+            tab.auto_fit = val
+
+    @property
+    def terminal_font(self):
+        tab = self.active_tab
+        return tab.terminal_font if tab else None
+
+    @property
+    def terminal_panel(self):
+        tab = self.active_tab
+        return tab.terminal_panel if tab else getattr(self, "terminal_container", None)
+
+    @property
+    def _current_cursor(self):
+        tab = self.active_tab
+        return tab.current_cursor if tab else None
+
+    @_current_cursor.setter
+    def _current_cursor(self, val):
+        tab = self.active_tab
+        if tab:
+            tab.current_cursor = val
+
+    @property
+    def _cursor_blink_visible(self):
+        tab = self.active_tab
+        return tab.cursor_blink_visible if tab else True
+
+    @_cursor_blink_visible.setter
+    def _cursor_blink_visible(self, val):
+        tab = self.active_tab
+        if tab:
+            tab.cursor_blink_visible = val
+
+    @property
+    def _is_navigating_field(self):
+        tab = self.active_tab
+        return tab.is_navigating_field if tab else False
+
+    @_is_navigating_field.setter
+    def _is_navigating_field(self, val):
+        tab = self.active_tab
+        if tab:
+            tab.is_navigating_field = val
+
+    @property
+    def _is_waiting_query(self):
+        tab = self.active_tab
+        return tab._is_waiting_query if tab else False
+
+    @_is_waiting_query.setter
+    def _is_waiting_query(self, val):
+        tab = self.active_tab
+        if tab:
+            tab._is_waiting_query = val
+
     def __init__(self):
         self.config = load_config()
         self.theme_name = self.config.get("theme", "light")
@@ -1472,44 +1915,51 @@ class TerminalApp(ctk.CTk):
         self.minsize(1020, 660)
         self.configure(fg_color=self.ui_colors["background"])
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
-        self.grid_rowconfigure(2, weight=0)
-        self.grid_rowconfigure(3, weight=0)
-        self.grid_rowconfigure(4, weight=0)
+        self.grid_rowconfigure(0, weight=0)  # 最上部: Chrome風タブバー
+        self.grid_rowconfigure(1, weight=1)  # ターミナル領域
+        self.grid_rowconfigure(2, weight=0)  # ショートカットバー
+        self.grid_rowconfigure(3, weight=0)  # データ送信バー
+        self.grid_rowconfigure(4, weight=0)  # ステータスバー
 
-        self.session = None
-        self.events = queue.Queue()
-        self.is_connected = False
+        # マルチタブ管理用変数
+        self.tabs = []
+        self.active_tab_id = None
+        self._next_tab_id = 1
         self.closing = False
-        self.rendered_lines = [None] * ROWS
-        self.raw_lines = {}
-        self.font_size = 18
-        self.active_cols = 80
-        self.auto_fit = True
         self._resize_job = None
         self.shortcut_buttons = []
         self._is_capturing_report = False
         self._is_capturing_winprint = False
         self._last_report_capture_time = 0.0
-        self._is_waiting_query = False
         self._is_gas_transmitting = False
 
         self._query_wait_start_time = 0.0
         self._current_status_type = "info"
         self._status_clear_timer = None
 
-        # 入力受付カーソルの白点滅・フィールドナビゲーション管理
-        self._current_cursor = None
-        self._cursor_blink_visible = True
+        # 入力受付カーソルの白点滅タイマー管理
         self._cursor_blink_job = None
-        self._is_navigating_field = False
 
         self._build_menu()
-        self._build_header()
-        self._build_terminal()
+        self._build_tab_bar()
+        self._build_terminal_container()
         self._build_shortcut_bar()
         self._build_data_transmission_bar()
         self._build_statusbar()
+
+        # タブ操作グローバルショートカット
+        self.bind("<Control-t>", lambda e: self.create_new_tab())
+        self.bind("<Control-T>", lambda e: self.create_new_tab())
+        self.bind("<Control-w>", lambda e: self.close_tab(self.active_tab_id))
+        self.bind("<Control-W>", lambda e: self.close_tab(self.active_tab_id))
+        self.bind("<Control-Tab>", lambda e: self.cycle_tab(1))
+        self.bind("<Control-Shift-Tab>", lambda e: self.cycle_tab(-1))
+        self.bind("<Control-Prior>", lambda e: self.cycle_tab(-1))
+        self.bind("<Control-Next>", lambda e: self.cycle_tab(1))
+
+        # 初期タブを作成
+        self.create_new_tab("Main", auto_connect=False)
+
         self._set_state("未接続")
         self._show_message("")
         self._start_cursor_blink()
@@ -1596,6 +2046,8 @@ class TerminalApp(ctk.CTk):
         self.auto_fit_var = tk.BooleanVar(value=True)
         view.add_checkbutton(label="画面サイズに自動調整 (Auto Fit)", variable=self.auto_fit_var, command=self.toggle_auto_fit)
         view.add_separator()
+        view.add_command(label="🏷️ タブ表示名（エイリアス）の設定...", command=self.open_tab_alias_dialog)
+        view.add_separator()
         view.add_command(label="ターミナルにフォーカス", command=self.focus_terminal)
         menubar.add_cascade(label="表示", menu=view)
 
@@ -1623,100 +2075,505 @@ class TerminalApp(ctk.CTk):
 
         self.configure(menu=menubar)
 
-    def _build_header(self):
-        self.header = ctk.CTkFrame(self, fg_color=self.ui_colors["background"], corner_radius=0)
-        self.header.grid(row=0, column=0, sticky="ew")
-        self.header.grid_columnconfigure(0, weight=1)
-        self.status_label = ctk.CTkLabel(self.header, text="未接続", text_color=self.ui_colors["muted"],
-                                         font=ctk.CTkFont(family=self.ui_font_family, size=14))
-        self.status_label.grid(row=0, column=0, sticky="w", padx=24, pady=(10, 0))
-
-        # 画面コピーボタン
-        self.copy_btn = self._button(self.header, "📋 画面コピー", self.copy_screen_text)
-        self.copy_btn.grid(row=0, column=1, padx=(0, 8), pady=(10, 0))
-
-        self.connect_btn = self._button(self.header, "ログイン", self.connect_to_server, True)
-        self.connect_btn.grid(row=0, column=2, padx=(0, 8), pady=(10, 0))
-        self.disconnect_btn = self._button(self.header, "切断", self.disconnect_server)
-        self.disconnect_btn.grid(row=0, column=3, padx=(0, 20), pady=(10, 0))
-
-    def _build_terminal(self):
-        # ターミナルパネル（外枠）: 右カラム廃止により画面横幅100%をフル活用
-        self.terminal_panel = ctk.CTkFrame(self, fg_color=self.ui_colors["background"], corner_radius=0)
-        self.terminal_panel.grid(row=1, column=0, padx=8, pady=(4, 4), sticky="nsew")
-        self.terminal_panel.grid_columnconfigure(0, weight=1)
-        self.terminal_panel.grid_rowconfigure(0, weight=1)
-
-        self.font_size = 18
-        self.active_cols = 80
-        self.terminal_font = ctk.CTkFont(family=self.terminal_font_family, size=self.font_size)
-
-        # ターミナル本体：パネルいっぱいに最大表示（スクロールバーを完全排除）
-        self.textbox = ctk.CTkTextbox(
-            self.terminal_panel, font=self.terminal_font, fg_color=self.terminal_colors["terminal"],
-            text_color=self.terminal_colors["text"], wrap="none", corner_radius=10,
-            border_width=1, border_color=self.terminal_colors["border"],
-            activate_scrollbars=False,
+    def _build_tab_bar(self):
+        """最上部にGoogle Chromeスタイルの角丸タブバーを構築（クイックメニュー等と同じ背景色）"""
+        self.tab_bar = ctk.CTkFrame(
+            self,
+            fg_color=self.ui_colors["background"],
+            height=36,
+            corner_radius=0
         )
-        self.textbox.grid(row=0, column=0, sticky="nsew")
-        # 罫線の縦線が上下で隙間なく完全に繋がり、かつ下端が切れないようパディングを初期化
-        self.textbox._textbox.configure(spacing1=0, spacing2=0, spacing3=0, padx=0, pady=0)
-        self._apply_text_tags()
+        self.tab_bar.grid(row=0, column=0, sticky="ew", padx=8, pady=(4, 0))
+        self.tab_bar.grid_columnconfigure(0, weight=1)
+        self.tab_bar.grid_columnconfigure(1, weight=0)
 
-        self.textbox.bind("<Key>", self.on_key_press)
-        self.textbox.bind("<FocusIn>", lambda event: self.textbox.configure(border_color=self.terminal_colors["focus"]))
-        self.textbox.bind("<FocusOut>", lambda event: self.textbox.configure(border_color=self.terminal_colors["border"]))
-        self.textbox.bind("<Control-Shift-C>", self.copy_screen_text)
-        self.textbox.bind("<Control-Shift-c>", self.copy_screen_text)
-        self.textbox.bind("<Control-d>", self.insert_today_date)
-        self.textbox.bind("<Control-D>", self.insert_today_date)
-        self.textbox._textbox.bind("<Control-d>", self.insert_today_date)
-        self.textbox._textbox.bind("<Control-D>", self.insert_today_date)
-        self.textbox.bind("<<Paste>>", self._on_paste_event)
-        self.textbox.bind("<<Cut>>", lambda event: "break")
-        self.textbox._textbox.bind("<<Paste>>", self._on_paste_event)
-        self.textbox._textbox.bind("<<Cut>>", lambda event: "break")
+        # タブボタンが並ぶ領域（height=36を明示固定して200px巨大化を完全防止）
+        self.tabs_container = ctk.CTkFrame(self.tab_bar, fg_color="transparent", corner_radius=0, height=36)
+        self.tabs_container.grid(row=0, column=0, sticky="sw", padx=0, pady=0)
 
-        # 画面クリックによる入力欄直接フォーカス＆ホバー時のカーソル形状変更
-        self.textbox._textbox.bind("<Button-1>", self._on_terminal_click, add="+")
-        self.textbox._textbox.tag_bind("underline", "<Enter>", lambda e: self.textbox._textbox.configure(cursor="xterm"))
-        self.textbox._textbox.tag_bind("underline", "<Leave>", lambda e: self.textbox._textbox.configure(cursor="arrow"))
+        # 右端のクイック接続操作ツールバー（画面コピーとログイン情報は削除）
+        self.right_tool_bar = ctk.CTkFrame(self.tab_bar, fg_color="transparent", corner_radius=0)
+        self.right_tool_bar.grid(row=0, column=1, sticky="se", padx=(0, 4), pady=(0, 3))
 
-        self.terminal_panel.bind("<Configure>", self._on_panel_resize)
+        self.connect_btn = ctk.CTkButton(
+            self.right_tool_bar,
+            text="ログイン",
+            width=58,
+            height=24,
+            fg_color="#2563EB",
+            hover_color="#1D4ED8",
+            text_color="#FFFFFF",
+            font=ctk.CTkFont(family=self.ui_font_family, size=11, weight="bold"),
+            corner_radius=6,
+            command=self.connect_to_server
+        )
+        self.connect_btn.pack(side="left", padx=(0, 4))
 
-    def _apply_text_tags(self):
-        """テキストボックスのタグ設定（反転・下線・太字等）を現在のターミナルカラーで更新"""
-        self._update_cursor_tag_style()
-        self.textbox.tag_config("reverse", background=self.terminal_colors["reverse_bg"], foreground=self.terminal_colors["reverse_fg"])
-        self.textbox.tag_config("menu_highlight", background=self.terminal_colors["menu_highlight_bg"], foreground=self.terminal_colors["menu_highlight_fg"])
+        self.disconnect_btn = ctk.CTkButton(
+            self.right_tool_bar,
+            text="切断",
+            width=50,
+            height=24,
+            fg_color=self.ui_colors["button"],
+            hover_color=self.ui_colors["hover"],
+            text_color=self.ui_colors["muted"],
+            font=ctk.CTkFont(family=self.ui_font_family, size=11),
+            corner_radius=6,
+            command=self.disconnect_server
+        )
+        self.disconnect_btn.pack(side="left", padx=(0, 2))
 
-        # 入力可能箇所（underline）: 下線専用色(underlinefg)で美しく差別化
-        # ※ foreground を指定すると reverse(反転)タグ等の文字色が上書きされて同色塗りつぶしになるため、foregroundは指定しない
+    def _build_terminal_container(self):
+        """タブ直下のターミナル格納枠（全タブ共通親コンテナ）"""
+        self.terminal_container = ctk.CTkFrame(
+            self,
+            fg_color=self.terminal_colors["terminal"],
+            corner_radius=0
+        )
+        self.terminal_container.grid(row=1, column=0, padx=8, pady=(0, 4), sticky="nsew")
+        self.terminal_container.grid_columnconfigure(0, weight=1)
+        self.terminal_container.grid_rowconfigure(0, weight=1)
+
+    def _get_chrome_tab_image(self, width: int, height: int, is_active: bool, is_first: bool = False):
+        """Pillow 4倍スーパーサンプリングによる最高品位の滑らかなChromeタブ背景を生成（キャッシュ付き）"""
+        if not hasattr(self, "_tab_image_cache"):
+            self._tab_image_cache = {}
+
+        term_bg = self.terminal_colors.get("terminal", "#1E293B")
+        bar_bg = self.ui_colors.get("background", "#F1F5F9")
+        inactive_bg = "#94A3B8"
+
+        cache_key = (width, height, is_active, is_first, term_bg, bar_bg, inactive_bg)
+        if cache_key in self._tab_image_cache:
+            return self._tab_image_cache[cache_key]
+
+        scale = 4
+        W = width * scale
+        H = height * scale
+        # 引き締まったスタイリッシュなフィレット半径（6px相当）
+        R = 6 * scale
+
+        if is_active:
+            im = Image.new("RGBA", (W, H), bar_bg)
+            draw = ImageDraw.Draw(im)
+
+            if is_first:
+                # ========================================================
+                # 一番左のアクティブタブ: 左端は垂直に画面左端と直結！
+                # ========================================================
+                draw.rectangle([0, H - R, W, H], fill=term_bg)
+                draw.ellipse([0, 0, 2 * R, 2 * R], fill=term_bg)
+                draw.ellipse([W - 3 * R, 0, W - R, 2 * R], fill=term_bg)
+                draw.rectangle([R, 0, W - 2 * R, 2 * R], fill=term_bg)
+                draw.rectangle([0, R, W - R, H], fill=term_bg)
+                draw.ellipse([W - R, H - 2 * R, W + R, H], fill=bar_bg)
+            else:
+                # ========================================================
+                # 2番目以降のアクティブタブ: 左右両方に引き締まった逆アールフィレット
+                # ========================================================
+                draw.rectangle([0, H - R, W, H], fill=term_bg)
+                draw.ellipse([R, 0, 3 * R, 2 * R], fill=term_bg)
+                draw.ellipse([W - 3 * R, 0, W - R, 2 * R], fill=term_bg)
+                draw.rectangle([2 * R, 0, W - 2 * R, 2 * R], fill=term_bg)
+                draw.rectangle([R, R, W - R, H], fill=term_bg)
+                draw.ellipse([-R, H - 2 * R, R, H], fill=bar_bg)
+                draw.ellipse([W - R, H - 2 * R, W + R, H], fill=bar_bg)
+        else:
+            r = 6 * scale
+            im = Image.new("RGBA", (W, H), bar_bg)
+            draw = ImageDraw.Draw(im)
+            draw.rounded_rectangle([0, 0, W, H], radius=r, fill=inactive_bg)
+
+        smooth_im = im.resize((width, height), Image.Resampling.LANCZOS)
+        photo = ImageTk.PhotoImage(smooth_im)
+        self._tab_image_cache[cache_key] = photo
+        return photo
+
+    def _render_tab_buttons(self):
+        """Google Chromeスタイルの角丸・幅広タブボタンを再描画（オーバーラップ配置で隙間完全ゼロ化）"""
+        for w in self.tabs_container.winfo_children():
+            w.destroy()
+
+        active_tab = self.active_tab
+        term_bg = self.terminal_colors.get("terminal", "#1E293B")
+        bar_bg = self.ui_colors.get("background", "#F1F5F9")
+        inactive_bg = "#94A3B8"
+
+        cur_x = 0
+        overlap = 6
+        canvases = []
+
+        for i, tab in enumerate(self.tabs):
+            is_active = (tab == active_tab)
+            is_first = (i == 0)
+            tid = tab.tab_id
+            title_text = tab.title
+            if len(title_text) > 20:
+                title_text = title_text[:18] + "…"
+
+            if is_active:
+                H = 34
+                W = max(150, len(title_text) * 9 + 54)
+                y_pos = 2
+            else:
+                H = 28
+                W = max(136, len(title_text) * 9 + 46)
+                y_pos = 5
+
+            if i > 0:
+                prev_is_active = (self.tabs[i - 1] == active_tab)
+                if is_active or prev_is_active:
+                    cur_x -= overlap
+                else:
+                    cur_x += 1
+
+            photo = self._get_chrome_tab_image(W, H, is_active=is_active, is_first=is_first)
+
+            canvas = tk.Canvas(
+                self.tabs_container,
+                width=W,
+                height=H,
+                bg=bar_bg,
+                highlightthickness=0,
+                cursor="hand2"
+            )
+            canvas.place(x=cur_x, y=y_pos)
+            canvas.create_image(0, 0, image=photo, anchor="nw")
+            canvas.image = photo
+
+            if is_active:
+                text_x = 16 if is_first else 20
+                txt_color = self.terminal_colors.get("text", "#FFFFFF")
+                canvas.create_text(
+                    text_x,
+                    H // 2,
+                    text=title_text,
+                    fill=txt_color,
+                    font=ctk.CTkFont(family=self.ui_font_family, size=11, weight="bold"),
+                    anchor="w"
+                )
+
+                btn_x = W - 18
+                btn_y = H // 2
+                btn_r = 9
+                hover_circle = canvas.create_oval(
+                    btn_x - btn_r, btn_y - btn_r, btn_x + btn_r, btn_y + btn_r,
+                    fill=term_bg, outline=term_bg, tags=f"close_{tid}"
+                )
+                close_txt = canvas.create_text(
+                    btn_x, btn_y, text="✕", fill="#94A3B8", font=("Arial", 9, "bold"), tags=f"close_{tid}"
+                )
+
+                canvas.tag_bind(f"close_{tid}", "<Enter>", lambda e, c=canvas, hc=hover_circle, ct=close_txt: (c.itemconfig(hc, fill="#EF4444", outline="#EF4444"), c.itemconfig(ct, fill="#FFFFFF")))
+                canvas.tag_bind(f"close_{tid}", "<Leave>", lambda e, c=canvas, hc=hover_circle, ct=close_txt, bg=term_bg: (c.itemconfig(hc, fill=bg, outline=bg), c.itemconfig(ct, fill="#94A3B8")))
+                canvas.tag_bind(f"close_{tid}", "<Button-1>", lambda e, target_id=tid: (self.close_tab(target_id), "break"))
+
+                def _on_active_click(event, target_id=tid, bx=btn_x, by=btn_y, br=btn_r):
+                    if (event.x - bx) ** 2 + (event.y - by) ** 2 <= (br + 2) ** 2:
+                        return
+                    self.switch_tab(target_id)
+
+                canvas.bind("<Button-1>", _on_active_click)
+
+            else:
+                canvas.create_text(
+                    14,
+                    H // 2,
+                    text=title_text,
+                    fill="#0F172A",
+                    font=ctk.CTkFont(family=self.ui_font_family, size=11, weight="bold"),
+                    anchor="w"
+                )
+
+                btn_x = W - 16
+                btn_y = H // 2
+                btn_r = 8
+                hover_circle = canvas.create_oval(
+                    btn_x - btn_r, btn_y - btn_r, btn_x + btn_r, btn_y + btn_r,
+                    fill=inactive_bg, outline=inactive_bg, tags=f"close_{tid}"
+                )
+                close_txt = canvas.create_text(
+                    btn_x, btn_y, text="✕", fill="#1E293B", font=("Arial", 9, "bold"), tags=f"close_{tid}"
+                )
+
+                canvas.tag_bind(f"close_{tid}", "<Enter>", lambda e, c=canvas, hc=hover_circle, ct=close_txt: (c.itemconfig(hc, fill="#EF4444", outline="#EF4444"), c.itemconfig(ct, fill="#FFFFFF")))
+                canvas.tag_bind(f"close_{tid}", "<Leave>", lambda e, c=canvas, hc=hover_circle, ct=close_txt, bg=inactive_bg: (c.itemconfig(hc, fill=bg, outline=bg), c.itemconfig(ct, fill="#1E293B")))
+                canvas.tag_bind(f"close_{tid}", "<Button-1>", lambda e, target_id=tid: (self.close_tab(target_id), "break"))
+
+                def _on_inact_click(event, target_id=tid, bx=btn_x, by=btn_y, br=btn_r):
+                    if (event.x - bx) ** 2 + (event.y - by) ** 2 <= (br + 2) ** 2:
+                        return
+                    self.switch_tab(target_id)
+
+                canvas.bind("<Button-1>", _on_inact_click)
+
+            canvases.append((canvas, is_active))
+            cur_x += W
+
+        # アクティブタブを前面に引き上げ（自然なオーバーラップ）
+        for c, is_active in canvases:
+            if is_active:
+                tk.Misc.lift(c)
+
+        # 新規タブ「＋」ボタン（最後のタブに寄り添うように配置）
+        plus_btn = ctk.CTkButton(
+            self.tabs_container,
+            text="+",
+            width=24,
+            height=24,
+            corner_radius=12,
+            fg_color="transparent",
+            hover_color=self.ui_colors.get("button", "#E2E8F0"),
+            text_color="#475569",
+            font=("Arial", 14, "bold"),
+            command=lambda: self.create_new_tab()
+        )
+        plus_btn.place(x=cur_x + 4, y=6)
+
+        # tabs_container の幅と高さを明示調整（height=36を固定して200px巨大化を完全防止）
+        self.tabs_container.configure(width=cur_x + 36, height=36)
+
+    def create_new_tab(self, title=None, auto_connect=True):
+        """新しいタブを作成し、アクティブにする（デフォルトタイトルはMain）"""
+        tab_id = self._next_tab_id
+        self._next_tab_id += 1
+        if not title:
+            title = "Main"
+
+        tab = TerminalTab(self, tab_id, title)
+        self.tabs.append(tab)
+        self.switch_tab(tab_id)
+
+        if auto_connect:
+            self.connect_tab(tab)
+
+        return tab
+
+    def switch_tab(self, tab_id: int):
+        """アクティブタブを切り替える"""
+        target_tab = None
+        for t in self.tabs:
+            if t.tab_id == tab_id:
+                target_tab = t
+                break
+        if not target_tab:
+            return
+
+        self.active_tab_id = tab_id
+
+        # ターミナルパネルの表示・非表示切り替え
+        for tab in self.tabs:
+            if tab.tab_id == tab_id:
+                tab.terminal_panel.grid(row=0, column=0, sticky="nsew")
+            else:
+                tab.terminal_panel.grid_remove()
+
+        # タブボタンの再描画
+        self._render_tab_buttons()
+
+        # 画面状態・ボタン状態の復元
+        self._set_state("接続済み" if target_tab.is_connected else "未接続", "success" if target_tab.is_connected else "muted")
+        self._update_status_info()
+        self.focus_terminal()
+
+        # 切り替え時に即座に差分を強制描画
+        if target_tab.is_connected and target_tab.session:
+            target_tab.raw_lines.clear()
+            self._update_tab_screen(target_tab, force=True)
+
+    def close_tab(self, tab_id: int):
+        """指定したIDのタブを安全に閉じる"""
+        if len(self.tabs) <= 1:
+            self._show_input_error("最後のタブは閉じられません")
+            return
+
+        target_idx = None
+        for i, tab in enumerate(self.tabs):
+            if tab.tab_id == tab_id:
+                target_idx = i
+                break
+
+        if target_idx is None:
+            return
+
+        target_tab = self.tabs[target_idx]
+
+        # SSHセッションを安全に切断
+        if target_tab.session:
+            try:
+                target_tab.closing = True
+                target_tab.session.stop()
+            except Exception as e:
+                log_error(f"タブ切断エラー: {e}")
+
+        # UI要素の破棄
+        try:
+            target_tab.terminal_panel.destroy()
+        except Exception:
+            pass
+
+        self.tabs.pop(target_idx)
+
+        # アクティブタブだった場合は直前のタブに切り替え
+        if self.active_tab_id == tab_id:
+            new_idx = max(0, target_idx - 1)
+            self.switch_tab(self.tabs[new_idx].tab_id)
+        else:
+            self._render_tab_buttons()
+
+    def cycle_tab(self, direction=1):
+        """Ctrl+Tab 等で次のタブまたは前のタブに巡回切り替え"""
+        if len(self.tabs) <= 1:
+            return
+        cur_idx = 0
+        for i, tab in enumerate(self.tabs):
+            if tab.tab_id == self.active_tab_id:
+                cur_idx = i
+                break
+        next_idx = (cur_idx + direction) % len(self.tabs)
+        self.switch_tab(self.tabs[next_idx].tab_id)
+
+    def open_tab_alias_dialog(self):
+        """タブ表示名（エイリアス）の設定ダイアログを開く"""
+        TabAliasDialog(self, self.config, self._on_tab_alias_saved)
+
+    def _on_tab_alias_saved(self):
+        """エイリアス設定保存時のコールバック（全タブのタイトルを再評価）"""
+        for tab in self.tabs:
+            self._detect_tab_title(tab)
+        self._render_tab_buttons()
+
+    def _detect_tab_title(self, tab: TerminalTab):
+        """画面の内容からQADメニュー番号を検知してタブ名を更新（Main または メニュー番号/エイリアス名）"""
+        if not tab or not tab.is_connected:
+            return
+
+        lines = []
+        if tab.raw_lines:
+            lines = [tab.raw_lines[r][0] for r in sorted(tab.raw_lines.keys()) if tab.raw_lines.get(r)]
+        if not lines:
+            return
+
+        first_few = " ".join(lines[:4])
+        aliases = self.config.get("tab_aliases", {})
+
+        new_title = None
+        if "mfmenu" in first_few.lower() and "main menu" in first_few.lower():
+            new_title = aliases.get("main", aliases.get("mfmenu", "Main"))
+        else:
+            m = re.search(r'\b(\d{1,2}\.\d{1,2}(?:\.\d{1,2})*(?:\.\d{1,2})*)\b', first_few)
+            if m:
+                code = m.group(1)
+                new_title = aliases.get(code, code)
+
+        if new_title and tab.title != new_title:
+            tab.title = new_title
+            self._render_tab_buttons()
+
+    def connect_tab(self, tab: TerminalTab):
+        """指定されたタブでSSH接続を開始"""
+        if tab is None or tab.session is not None or tab.closing:
+            return
+
+        host = self.config.get("host", "mfg03")
+        port = int(self.config.get("port", 22))
+        user = self.config.get("user", "takehik")
+        pwd = ""
+        b64 = self.config.get("pass_b64", "")
+        if b64:
+            try:
+                pwd = base64.b64decode(b64.encode("ascii")).decode("utf-8", errors="replace")
+            except Exception:
+                pass
+
+        tab.session = TerminalSession(host, port, user, pwd, tab.events)
+        if tab == self.active_tab:
+            self._set_state("接続中…", "warning")
+            self._show_tab_message(tab, "")
+            self._show_input_error("")
+        tab.session.start()
+
+    def _auto_navigate_to_main_menu_for_tab(self, tab: TerminalTab):
+        """指定タブに対して自動ログイン（2 -> 1 -> Enter x 2 -> Space）を実行"""
+        log_info(f"自動ログイン: Tab {tab.tab_id} のMain Menu自動遷移シーケンスを開始")
+        try:
+            time.sleep(1.0)
+            if not tab.is_connected or tab.session is None:
+                return
+
+            tab.session.send("2\r")
+            time.sleep(1.0)
+            if not tab.is_connected or tab.session is None:
+                return
+
+            tab.session.send("1\r")
+            time.sleep(1.0)
+            if not tab.is_connected or tab.session is None:
+                return
+
+            tab.session.send("\r\r")
+            time.sleep(0.8)
+
+            start_time = time.time()
+            while time.time() - start_time < 15.0:
+                if not tab.is_connected or tab.session is None:
+                    return
+
+                lines = [tab.raw_lines[r][0] for r in sorted(tab.raw_lines.keys()) if tab.raw_lines.get(r)]
+                full_text = "\n".join(lines).lower()
+                if "mfmenu" in full_text and "main menu" in full_text:
+                    log_info(f"自動ログイン: Tab {tab.tab_id} Main Menu 着弾検知")
+                    break
+
+                if any(k in full_text for k in ["space", "press spacebar", "continue", "program information"]):
+                    tab.session.send(" ")
+                    time.sleep(0.6)
+                    continue
+
+                time.sleep(0.8)
+                if not ("mfmenu" in full_text and "main menu" in full_text):
+                    tab.session.send(" ")
+
+            if tab == self.active_tab:
+                self.after(0, lambda: self.set_status("● 接続済み (Main Menu)", "success", clear_delay=4))
+        except Exception as e:
+            log_error(f"Tab {tab.tab_id} 自動ログインエラー: {e}")
+
+    def _apply_text_tags_to_widget(self, tb):
+        """指定テキストボックスのタグ設定（反転・下線・太字等）を現在のターミナルカラーで適用"""
+        if not tb:
+            return
+        tb.tag_config("reverse", background=self.terminal_colors["reverse_bg"], foreground=self.terminal_colors["reverse_fg"])
+        tb.tag_config("menu_highlight", background=self.terminal_colors["menu_highlight_bg"], foreground=self.terminal_colors["menu_highlight_fg"])
+
         underline_color = self.terminal_colors.get("underline_fg", "#2563EB")
         try:
-            self.textbox._textbox.tag_config(
+            tb._textbox.tag_config(
                 "underline",
                 underline=True,
                 underlinefg=underline_color,
             )
         except Exception:
-            self.textbox.tag_config("underline", underline=True, foreground=underline_color)
+            tb.tag_config("underline", underline=True, foreground=underline_color)
 
         try:
-            self.textbox._textbox.tag_config("bold", font=(self.terminal_font_family, self.font_size, "bold"))
+            tb._textbox.tag_config("bold", font=(self.terminal_font_family, self.font_size, "bold"))
         except Exception:
-            self.textbox.tag_config("bold", foreground=self.terminal_colors["accent"])
+            tb.tag_config("bold", foreground=self.terminal_colors["accent"])
 
-        # タグの優先度を設定:
-        # reverse を underline より上位に設定（反転文字の文字色が下線設定で上書きされるのを完全に防ぐ）
-        # menu_highlight, remote_cursor, sel を最上位に設定
         try:
-            self.textbox._textbox.tag_raise("reverse", "underline")
-            self.textbox._textbox.tag_raise("menu_highlight")
-            self.textbox._textbox.tag_raise("remote_cursor")
-            self.textbox._textbox.tag_raise("sel")
+            tb._textbox.tag_raise("reverse", "underline")
+            tb._textbox.tag_raise("menu_highlight")
+            tb._textbox.tag_raise("remote_cursor")
+            tb._textbox.tag_raise("sel")
         except Exception:
             pass
+
+    def _apply_text_tags(self):
+        """アクティブなテキストボックスにタグ設定を適用"""
+        self._update_cursor_tag_style()
+        if self.textbox:
+            self._apply_text_tags_to_widget(self.textbox)
 
     def _build_shortcut_bar(self):
         """最下段のショートカット（直接移動）バーを構築"""
@@ -3634,13 +4491,21 @@ class TerminalApp(ctk.CTk):
         self._refresh_theme_ui()
 
     def _refresh_theme_ui(self):
-        """ターミナル表示部分（画面内）の配色を再描画（右カラム・メニューバー・ヘッダーは初期色固定）"""
-        self.textbox.configure(
-            fg_color=self.terminal_colors["terminal"],
-            text_color=self.terminal_colors["text"],
-            border_color=self.terminal_colors["border"],
-        )
-        self._apply_text_tags()
+        """ターミナル表示部分（画面内）の配色を再描画"""
+        self._tab_image_cache = {}
+        if hasattr(self, "terminal_container"):
+            self.terminal_container.configure(fg_color=self.terminal_colors["terminal"])
+        for tab in getattr(self, "tabs", []):
+            if hasattr(tab, "terminal_panel"):
+                tab.terminal_panel.configure(fg_color=self.terminal_colors["terminal"])
+            if tab.textbox:
+                tab.textbox.configure(
+                    fg_color=self.terminal_colors["terminal"],
+                    text_color=self.terminal_colors["text"],
+                )
+                self._apply_text_tags_to_widget(tab.textbox)
+        self._update_cursor_tag_style()
+        self._render_tab_buttons()
         self._rerender_all()
 
     # --- ログイン情報ダイアログ ---
@@ -3652,13 +4517,35 @@ class TerminalApp(ctk.CTk):
 
     # --- 状態更新・描画ロジック ---
     def _set_state(self, text, color="muted"):
-        self.status_label.configure(text=text, text_color=self.ui_colors.get(color, self.ui_colors["muted"]))
-        idle = self.session is None
-        self.connect_btn.configure(state="normal" if idle else "disabled")
-        self.disconnect_btn.configure(state="disabled" if idle else "normal")
+        cur_tab = self.active_tab
+        user = self.config.get("user", "takehik")
+        host = self.config.get("host", "mfg03")
+
+        if hasattr(self, "status_label") and self.status_label is not None:
+            try:
+                if cur_tab and cur_tab.is_connected:
+                    self.status_label.configure(text=f"🟢 {user}@{host}", text_color="#10B981")
+                elif text == "接続中…":
+                    self.status_label.configure(text="⏳ 接続中…", text_color="#F59E0B")
+                else:
+                    self.status_label.configure(text="⚪ 未接続", text_color="#94A3B8")
+            except Exception:
+                pass
+
+        idle = (cur_tab is None or cur_tab.session is None)
+        if hasattr(self, "connect_btn") and self.connect_btn is not None:
+            try:
+                self.connect_btn.configure(state="normal" if idle else "disabled")
+            except Exception:
+                pass
+        if hasattr(self, "disconnect_btn") and self.disconnect_btn is not None:
+            try:
+                self.disconnect_btn.configure(state="disabled" if idle else "normal")
+            except Exception:
+                pass
         self.connection_menu.entryconfigure(0, state="normal" if idle else "disabled")
         self.connection_menu.entryconfigure(1, state="disabled" if idle else "normal")
-        state = "normal" if self.is_connected else "disabled"
+        state = "normal" if (cur_tab and cur_tab.is_connected) else "disabled"
         if hasattr(self, "home_btn"):
             self.home_btn.configure(state=state)
         if hasattr(self, "winprint_btn"):
@@ -3669,187 +4556,141 @@ class TerminalApp(ctk.CTk):
         if hasattr(self, "_update_data_transmission_buttons_state"):
             self._update_data_transmission_buttons_state()
 
-    def _show_message(self, message):
-        self.textbox.configure(state="normal")
-        self.textbox.delete("1.0", "end")
+    def _show_tab_message(self, tab: TerminalTab, message: str):
+        """指定タブのテキストボックスに初期/案内メッセージを表示"""
+        if not tab or not tab.textbox:
+            return
+        tb = tab.textbox
+        tb.configure(state="normal")
+        tb.delete("1.0", "end")
         if message:
-            self.textbox.insert("1.0", message)
+            tb.insert("1.0", message)
         else:
-            self.textbox.insert("1.0", "\n" * (ROWS - 1))
+            tb.insert("1.0", "\n" * (ROWS - 1))
         for tag in ("reverse", "menu_highlight", "underline", "bold", "remote_cursor"):
-            self.textbox.tag_remove(tag, "1.0", "end")
-        self.textbox.configure(state="disabled")
-        self.rendered_lines = [None] * ROWS
-        self.raw_lines = {}
+            tb.tag_remove(tag, "1.0", "end")
+        tb.configure(state="disabled")
+        tab.rendered_lines = [None] * ROWS
+        tab.raw_lines = {}
         try:
-            self.textbox._textbox.yview_moveto(0.0)
-            self.textbox._textbox.xview_moveto(0.0)
+            tb._textbox.yview_moveto(0.0)
+            tb._textbox.xview_moveto(0.0)
         except Exception:
             pass
 
+    def _show_message(self, message):
+        """アクティブタブのテキストボックスにメッセージを表示"""
+        cur = self.active_tab
+        if cur:
+            self._show_tab_message(cur, message)
+
     def connect_to_server(self):
-        if self.session is not None or self.closing:
-            return
-
-        host = self.config.get("host", "mfg03")
-        port = int(self.config.get("port", 22))
-        user = self.config.get("user", "takehik")
-        pwd = ""
-        b64 = self.config.get("pass_b64", "")
-        if b64:
-            try:
-                pwd = base64.b64decode(b64.encode("ascii")).decode("utf-8", errors="replace")
-            except Exception:
-                pass
-
-        self.session = TerminalSession(host, port, user, pwd, self.events)
-        self._set_state("接続中…", "warning")
-        self._show_message("")
-        self._show_input_error("")
-        self.session.start()
-
-    def _auto_navigate_to_main_menu(self):
-        """ログイン完了後、自動で 2 -> 1 -> Enter x 2 -> Space と進んで QAD Main Menu まで移動"""
-        log_info("自動ログイン: Main Menu への自動遷移シーケンスを開始します")
-        try:
-            # Step 1: 初期画面の描画待ち
-            self.set_status("⏳ 自動ログイン中... (初期メニュー待機)", "working")
-            time.sleep(1.0)
-            if not self.is_connected or self.session is None:
-                return
-
-            # Step 2: "2" + Enter 送信（環境選択）
-            log_info("自動ログイン: '2' + Enter を送信")
-            self.set_status("⏳ 自動ログイン中... (環境選択 '2')", "working")
-            self.session.send("2\r")
-            time.sleep(1.0)
-            if not self.is_connected or self.session is None:
-                return
-
-            # Step 3: "1" + Enter 送信（QAD起動）
-            log_info("自動ログイン: '1' + Enter を送信")
-            self.set_status("⏳ 自動ログイン中... (QAD起動 '1')", "working")
-            self.session.send("1\r")
-            time.sleep(1.0)
-            if not self.is_connected or self.session is None:
-                return
-
-            # Step 4: 追加入力 (Enter x 2)
-            log_info("自動ログイン: Enter x 2 を送信")
-            self.session.send("\r\r")
-            time.sleep(0.8)
-
-            # Step 5: メインメニュー着弾のスマート監視（最大15秒）
-            self.set_status("⏳ メインメニューへ移動中...", "working")
-            start_time = time.time()
-            while time.time() - start_time < 15.0:
-                if not self.is_connected or self.session is None:
-                    return
-
-                if self.is_main_menu():
-                    log_info("自動ログイン: Main Menu 着弾を検知しました！")
-                    break
-
-                cur_text = self._get_current_screen_text()
-                cur_lower = cur_text.lower() if cur_text else ""
-
-                # Space継続画面（Program Information や Press SPACEBAR 等）
-                if any(k in cur_lower for k in ["space", "press spacebar", "continue", "program information"]) or any(k in cur_text for k in ["スペース", "ｽﾍﾟｰｽ"]):
-                    log_info("自動ログイン: Space継続画面を検知。Spaceを送信")
-                    self.session.send(" ")
-                    time.sleep(0.6)
-                    continue
-
-                time.sleep(0.8)
-                if not self.is_main_menu():
-                    self.session.send(" ")
-
-            if self.is_main_menu():
-                self.after(0, lambda: self.set_status("● 接続済み (Main Menu)", "success", clear_delay=4))
-            else:
-                self.after(0, lambda: self.set_status("● 接続済み (Ready)", "info"))
-        except Exception as e:
-            log_error(f"自動ログイン・メインメニュー移動エラー: {e}")
-            self.after(0, lambda: self.set_status("● 接続済み (Ready)", "info"))
-        finally:
-            self.after(50, self.focus_terminal)
+        """アクティブタブのSSH接続を開始"""
+        cur = self.active_tab
+        if cur:
+            self.connect_tab(cur)
 
     def _poll(self):
+        """全タブのSSHイベントを監視・ディスパッチし、アクティブタブを描画"""
         if self.closing:
             return
-        while True:
-            try:
-                session, event, error = self.events.get_nowait()
-            except queue.Empty:
-                break
-            if session is not self.session:
-                continue
-            if event == "connected":
-                self.is_connected = True
-                self._show_message("\n".join([" " * COLS] * ROWS))
-                self._set_state("接続済み", "success")
-                self.set_status("● 接続済み (Ready)", "info")
-                self._update_status_info()
-                log_info("SSH接続確立 (connected)")
-                self.focus_terminal()
-                # ログイン後に自動でMain Menuへ移動
-                if self.config.get("auto_login_main_menu", True):
-                    threading.Thread(target=self._auto_navigate_to_main_menu, daemon=True, name="auto-main-menu").start()
-            elif event == "32printer_data":
-                # error 変数に captured バイト列が格納されている
-                self._handle_32printer_data(error)
-            elif event == "closed":
-                if self.is_connected:
-                    self._update_screen()
-                self.session = None
-                self.is_connected = False
-                self._is_waiting_query = False
-                self._set_state("接続エラー" if error else "切断済み", "error" if error else "muted")
-                self.set_status("● 接続エラー" if error else "● 切断済み", "error" if error else "info")
-                self._update_status_info()
-                log_info(f"SSH切断 (closed, error={error})")
-                if error:
-                    messagebox.showerror("SSH接続エラー", error, parent=self)
-        if self.is_connected:
-            self._update_screen()
+
+        for tab in list(self.tabs):
+            while True:
+                try:
+                    session, event, error = tab.events.get_nowait()
+                except queue.Empty:
+                    break
+                if session is not tab.session:
+                    continue
+
+                if event == "connected":
+                    tab.is_connected = True
+                    self._show_tab_message(tab, "\n".join([" " * COLS] * ROWS))
+                    if tab == self.active_tab:
+                        self._set_state("接続済み", "success")
+                        self.set_status("● 接続済み (Ready)", "info")
+                        self._update_status_info()
+                        self.focus_terminal()
+                    self._render_tab_buttons()
+                    log_info(f"SSH接続確立 (connected) [Tab {tab.tab_id}]")
+                    if self.config.get("auto_login_main_menu", True):
+                        threading.Thread(
+                            target=lambda t=tab: self._auto_navigate_to_main_menu_for_tab(t),
+                            daemon=True,
+                            name=f"auto-main-menu-{tab.tab_id}"
+                        ).start()
+                elif event == "32printer_data":
+                    self._handle_32printer_data(error)
+                elif event == "closed":
+                    if tab.is_connected:
+                        self._update_tab_screen(tab)
+                    tab.session = None
+                    tab.is_connected = False
+                    tab._is_waiting_query = False
+                    if tab == self.active_tab:
+                        self._set_state("接続エラー" if error else "切断済み", "error" if error else "muted")
+                        self.set_status("● 接続エラー" if error else "● 切断済み", "error" if error else "info")
+                        self._update_status_info()
+                    self._render_tab_buttons()
+                    log_info(f"SSH切断 (closed, error={error}) [Tab {tab.tab_id}]")
+                    if error and tab == self.active_tab:
+                        messagebox.showerror("SSH接続エラー", error, parent=self)
+
+        # アクティブタブの画面差分描画 ＆ タイトル自動検知
+        cur = self.active_tab
+        if cur and cur.is_connected and cur.session:
+            self._update_tab_screen(cur)
+            self._detect_tab_title(cur)
+
         self.update_job = self.after(33, self._poll)
 
-    def _update_screen(self):
-        snapshot = self.session.snapshot()
+    def _update_tab_screen(self, tab: TerminalTab, force: bool = False):
+        """指定タブの画面スナップショットを取得し、差分更新"""
+        if not tab or not tab.session:
+            return
+        snapshot = tab.session.snapshot()
         if snapshot is None:
             return
         changed, cursor, active_cols = snapshot
-        if getattr(self, "active_cols", 80) != active_cols:
-            self.active_cols = active_cols
-            self._update_status_info()
-            if self.auto_fit:
-                self._apply_auto_fit()
+        if getattr(tab, "active_cols", 80) != active_cols:
+            tab.active_cols = active_cols
+            if tab == self.active_tab:
+                self._update_status_info()
+                if tab.auto_fit:
+                    self._apply_auto_fit()
 
-        changed = {row: data for row, data in changed.items() if self.raw_lines.get(row) != data}
-        if changed:
-            self.textbox.configure(state="normal")
-            for row, (raw_line, spans) in changed.items():
+        if force:
+            changed_items = {row: data for row, data in changed.items()}
+        else:
+            changed_items = {row: data for row, data in changed.items() if tab.raw_lines.get(row) != data}
+
+        tb = tab.textbox
+        if changed_items:
+            tb.configure(state="normal")
+            for row, (raw_line, spans) in changed_items.items():
                 line, pad_spans = self._align_border_line(raw_line)
                 start_idx = f"{row + 1}.0"
                 end_idx = f"{row + 1}.end"
-                self.textbox.delete(start_idx, end_idx)
-                self.textbox.insert(start_idx, line)
+                tb.delete(start_idx, end_idx)
+                tb.insert(start_idx, line)
                 for tag in ("reverse", "underline", "bold"):
-                    self.textbox.tag_remove(tag, start_idx, end_idx)
+                    tb.tag_remove(tag, start_idx, end_idx)
                 for s_idx, e_idx, tags in spans:
                     for tag in tags:
-                        self.textbox.tag_add(tag, f"{row + 1}.{s_idx}", f"{row + 1}.{e_idx}")
+                        tb.tag_add(tag, f"{row + 1}.{s_idx}", f"{row + 1}.{e_idx}")
                 for s_idx, e_idx, p_tag in pad_spans:
-                    self.textbox.tag_add(p_tag, f"{row + 1}.{s_idx}", f"{row + 1}.{e_idx}")
-                self.rendered_lines[row] = (line, spans)
-                self.raw_lines[row] = (raw_line, spans)
+                    tb.tag_add(p_tag, f"{row + 1}.{s_idx}", f"{row + 1}.{e_idx}")
+                tab.rendered_lines[row] = (line, spans)
+                tab.raw_lines[row] = (raw_line, spans)
 
-            self._apply_menu_highlight()
-            self._auto_align_header_border()
-            self.textbox.configure(state="disabled")
+            if tab == self.active_tab:
+                self._apply_menu_highlight()
+                self._auto_align_header_border()
+            tb.configure(state="disabled")
 
-            # レポート自動検知（local 出力時、自動で全ページ取得してExcelを開く）
-            if self.config.get("auto_excel_export", True) and not self._is_capturing_report and not getattr(self, "_is_capturing_winprint", False):
+            # レポート自動検知（アクティブタブのみ）
+            if tab == self.active_tab and self.config.get("auto_excel_export", True) and not self._is_capturing_report and not getattr(self, "_is_capturing_winprint", False):
                 now = time.time()
                 is_waiting = getattr(self, "_is_waiting_query", False)
                 cooldown = 0.5 if is_waiting else 3.0
@@ -3858,7 +4699,7 @@ class TerminalApp(ctk.CTk):
                         self._start_auto_report_capture()
 
             # クエリ待機タイムアウトまたはメニュー復帰の管理
-            if getattr(self, "_is_waiting_query", False):
+            if tab == self.active_tab and getattr(self, "_is_waiting_query", False):
                 now = time.time()
                 if self.is_main_menu() or self.is_menu_screen():
                     log_info("メニュー画面に戻ったためクエリ待機状態を解除します")
@@ -3869,25 +4710,30 @@ class TerminalApp(ctk.CTk):
                     self._is_waiting_query = False
                     self.set_status("● 接続済み (Ready)", "info")
 
-
-        self.textbox.tag_remove("remote_cursor", "1.0", "end")
+        tb.tag_remove("remote_cursor", "1.0", "end")
         if cursor is not None:
-            self._current_cursor = cursor
-            # フィールド移動中は画面上を走るカーソルを描画せず非表示（直接移動のシームレスな見た目を実現）
-            if not getattr(self, "_is_navigating_field", False):
+            tab.current_cursor = cursor
+            if tab == self.active_tab and not getattr(tab, "is_navigating_field", False):
                 row, column = cursor
-                self.textbox.tag_add("remote_cursor", f"{row + 1}.{column}", f"{row + 1}.{column + 1}")
+                tb.tag_add("remote_cursor", f"{row + 1}.{column}", f"{row + 1}.{column + 1}")
                 try:
-                    self.textbox._textbox.tag_raise("remote_cursor")
+                    tb._textbox.tag_raise("remote_cursor")
                 except Exception:
                     pass
         else:
-            self._current_cursor = None
+            tab.current_cursor = None
+
         try:
-            self.textbox._textbox.yview_moveto(0.0)
-            self.textbox._textbox.xview_moveto(0.0)
+            tb._textbox.yview_moveto(0.0)
+            tb._textbox.xview_moveto(0.0)
         except Exception:
             pass
+
+    def _update_screen(self):
+        """アクティブタブの画面を差分更新"""
+        cur = self.active_tab
+        if cur:
+            self._update_tab_screen(cur)
 
     def _align_border_line(self, line):
         """半角カナ・漢字を含む罫線行のピクセル幅を純ASCII罫線行と揃える"""
@@ -4729,18 +5575,26 @@ class TerminalApp(ctk.CTk):
         self._rerender_all()
 
     def disconnect_server(self):
-        if self.session is None:
+        cur = self.active_tab
+        if cur is None or cur.session is None:
             return
-        self.session.stop()
-        self.session = None
-        self.is_connected = False
-        for tag in ("remote_cursor", "reverse", "menu_highlight", "underline", "bold"):
-            self.textbox.tag_remove(tag, "1.0", "end")
+        cur.session.stop()
+        cur.session = None
+        cur.is_connected = False
+        if cur.textbox:
+            for tag in ("remote_cursor", "reverse", "menu_highlight", "underline", "bold"):
+                cur.textbox.tag_remove(tag, "1.0", "end")
         self._set_state("切断済み")
+        self._render_tab_buttons()
 
     def show_help(self):
         messagebox.showinfo(
             "操作ガイド",
+            "【Chrome風タブ操作】\n"
+            "・Ctrl+T: 新規タブを開いて新しいSSHセッションを開始\n"
+            "・Ctrl+W: 現在のタブを閉じる\n"
+            "・Ctrl+Tab / Ctrl+Shift+Tab: タブを左右に切り替え\n"
+            "・各タブの「✕」ボタンや「＋」ボタンでも直感的に操作可能\n\n"
             "【ログイン・接続】\n"
             "・「ログイン」ボタンまたはメニュー「接続」→「ログイン / 接続」から開始します。\n"
             "・メニューバーの「ログイン情報」からホストやユーザー・パスワードを安全に登録・保存できます。\n\n"
@@ -4776,8 +5630,13 @@ class TerminalApp(ctk.CTk):
         if self.update_job is not None:
             self.after_cancel(self.update_job)
             self.update_job = None
-        if self.session is not None:
-            self.session.stop()
+        for tab in getattr(self, "tabs", []):
+            if tab.session is not None:
+                try:
+                    tab.closing = True
+                    tab.session.stop()
+                except Exception:
+                    pass
         self.destroy()
 
 
