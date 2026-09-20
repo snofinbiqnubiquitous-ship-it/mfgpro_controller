@@ -1155,14 +1155,18 @@ class LoginConfigDialog(ctk.CTkToplevel):
         messagebox.showinfo("設定完了", "ログイン情報を保存しました。\n次回の接続から適用されます。", parent=self.parent)
 
 
-class AddShortcutDialog(ctk.CTkToplevel):
-    """メニュー番号へ直接移動するショートカットを追加するダイアログ"""
+class ShortcutDialog(ctk.CTkToplevel):
+    """メニュー番号へ直接移動するショートカットを追加・再編集するダイアログ"""
 
-    def __init__(self, parent, on_add_callback):
+    def __init__(self, parent, on_save_callback, initial_name="", initial_code="", is_edit=False):
         super().__init__(parent)
         self.parent = parent
-        self.on_add_callback = on_add_callback
-        self.title("ショートカットの追加")
+        self.on_save_callback = on_save_callback
+        self.initial_name = initial_name
+        self.initial_code = initial_code
+        self.is_edit = is_edit
+
+        self.title("ショートカットの編集" if is_edit else "ショートカットの追加")
         self.geometry("380x240")
         self.resizable(False, False)
         self.transient(parent)
@@ -1179,13 +1183,16 @@ class AddShortcutDialog(ctk.CTkToplevel):
         frame = ctk.CTkFrame(self, corner_radius=12)
         frame.pack(fill="both", expand=True, padx=16, pady=16)
 
-        ctk.CTkLabel(frame, text="⚡ ショートカットの追加", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(6, 12))
+        title_text = "✏️ ショートカットの編集" if self.is_edit else "⚡ ショートカットの追加"
+        ctk.CTkLabel(frame, text=title_text, font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(6, 12))
 
         # 表示名
         row_name = ctk.CTkFrame(frame, fg_color="transparent")
         row_name.pack(fill="x", padx=12, pady=5)
         ctk.CTkLabel(row_name, text="表示名:", width=85, anchor="w").pack(side="left")
         self.name_entry = ctk.CTkEntry(row_name, width=210, placeholder_text="例: 在庫スナップショット")
+        if self.initial_name:
+            self.name_entry.insert(0, self.initial_name)
         self.name_entry.pack(side="left", fill="x", expand=True)
 
         # メニュー番号
@@ -1193,6 +1200,8 @@ class AddShortcutDialog(ctk.CTkToplevel):
         row_code.pack(fill="x", padx=12, pady=5)
         ctk.CTkLabel(row_code, text="メニュー番号:", width=85, anchor="w").pack(side="left")
         self.code_entry = ctk.CTkEntry(row_code, width=210, placeholder_text="例: 99.3.6.1")
+        if self.initial_code:
+            self.code_entry.insert(0, self.initial_code)
         self.code_entry.pack(side="left", fill="x", expand=True)
 
         # ボタン
@@ -1204,13 +1213,14 @@ class AddShortcutDialog(ctk.CTkToplevel):
                                    command=self.destroy)
         cancel_btn.grid(row=0, column=0, padx=6, sticky="ew")
 
-        add_btn = ctk.CTkButton(btn_frame, text="追加する", fg_color="#356BC4", hover_color="#285BAF",
-                                command=self._on_add)
-        add_btn.grid(row=0, column=1, padx=6, sticky="ew")
+        save_btn_text = "更新する" if self.is_edit else "追加する"
+        save_btn = ctk.CTkButton(btn_frame, text=save_btn_text, fg_color="#356BC4", hover_color="#285BAF",
+                                 command=self._on_save)
+        save_btn.grid(row=0, column=1, padx=6, sticky="ew")
 
         self.name_entry.focus_set()
 
-    def _on_add(self):
+    def _on_save(self):
         name = self.name_entry.get().strip()
         code = self.code_entry.get().strip()
         if not name:
@@ -1219,9 +1229,13 @@ class AddShortcutDialog(ctk.CTkToplevel):
         if not code:
             messagebox.showwarning("入力エラー", "メニュー番号を入力してください。", parent=self)
             return
-        if self.on_add_callback:
-            self.on_add_callback(name, code)
+        if self.on_save_callback:
+            self.on_save_callback(name, code)
         self.destroy()
+
+
+# 既存コードとの後方互換性エイリアス
+AddShortcutDialog = ShortcutDialog
 
 
 class ComplaintDialog(ctk.CTkToplevel):
@@ -1836,8 +1850,8 @@ class TerminalApp(ctk.CTk):
                 command=lambda n=name, c=code: self._handle_shortcut_click(n, c)
             )
             btn.pack(side="left", padx=4, pady=2)
-            # 右クリックで削除メニュー表示
-            btn.bind("<Button-3>", lambda event, i=idx, n=name: self._show_shortcut_context_menu(event, i, n))
+            # 右クリックで編集・削除メニュー表示
+            btn.bind("<Button-3>", lambda event, i=idx, n=name, c=code: self._show_shortcut_context_menu(event, i, n, c))
             self.shortcut_buttons.append(btn)
 
     def _handle_shortcut_click(self, name, code):
@@ -1849,14 +1863,40 @@ class TerminalApp(ctk.CTk):
         else:
             self.jump_to_menu(code_str)
 
-    def _show_shortcut_context_menu(self, event, idx, name):
-        """ショートカットボタンの右クリックコンテキストメニュー"""
+    def _show_shortcut_context_menu(self, event, idx, name, code):
+        """ショートカットボタンの右クリックコンテキストメニュー（再編集／削除）"""
         menu = tk.Menu(self, tearoff=False)
-        menu.add_command(label=f"「{name}」を削除", command=lambda: self._delete_shortcut(idx))
+        menu.add_command(label=f"✏️ 「{name}」を編集...", command=lambda: self.open_edit_shortcut_dialog(idx))
+        menu.add_command(label=f"🗑️ 「{name}」を削除", command=lambda: self._delete_shortcut(idx))
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
+
+    def open_edit_shortcut_dialog(self, idx):
+        """ショートカット再編集ダイアログを開く"""
+        shortcuts = self.config.get("shortcuts", [])
+        if 0 <= idx < len(shortcuts):
+            sc = shortcuts[idx]
+            name = sc.get("name", "")
+            code = sc.get("code", "")
+            ShortcutDialog(
+                self,
+                on_save_callback=lambda new_name, new_code: self._on_shortcut_updated(idx, new_name, new_code),
+                initial_name=name,
+                initial_code=code,
+                is_edit=True
+            )
+
+    def _on_shortcut_updated(self, idx, name, code):
+        """ショートカット更新コールバック"""
+        shortcuts = self.config.get("shortcuts", [])
+        if 0 <= idx < len(shortcuts):
+            shortcuts[idx] = {"name": name, "code": code}
+            self.config["shortcuts"] = shortcuts
+            save_config(self.config)
+            self._refresh_shortcut_buttons()
+            self._show_input_error(f"ショートカット「{name} ({code})」を更新しました")
 
     def _delete_shortcut(self, idx):
         """ショートカットを削除"""
@@ -1870,7 +1910,7 @@ class TerminalApp(ctk.CTk):
 
     def open_add_shortcut_dialog(self):
         """「＋」追加ダイアログを開く"""
-        AddShortcutDialog(self, self._on_shortcut_added)
+        ShortcutDialog(self, self._on_shortcut_added, is_edit=False)
 
     def _on_shortcut_added(self, name, code):
         """ショートカット追加コールバック"""
