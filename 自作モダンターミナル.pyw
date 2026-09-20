@@ -231,8 +231,10 @@ def parse_report_to_rows(input_text: str) -> list:
                     val = ""
                 if len(val) == 8 and val[2] == '/' and val[5] == '/':
                     val = convert_date_format(val)
-                row.append(val)
             if any(row):
+                # 2ページ目以降の改ページヘッダー行の重複混入を除外
+                if all_rows and (row == all_rows[0] or (len(row) > 0 and row[0] == all_rows[0][0])):
+                    continue
                 all_rows.append(row)
 
     return all_rows
