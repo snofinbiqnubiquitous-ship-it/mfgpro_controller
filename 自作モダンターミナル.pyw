@@ -2639,31 +2639,27 @@ class TerminalApp(ctk.CTk):
         threading.Thread(target=_thread_target, daemon=True, name="parallel-gas-worker").start()
 
     def _run_parallel_gas_worker(self, host, port, user, pwd):
-        """ThreadPoolExecutor による2セッション時差並行抽出＆即時GAS送信ワーカー
-        QADサーバー上でのキー衝突・画面遷移の混ざりを防ぐため、2.5秒のスタガード（時差起動）を実施。
+        """2メニュー連続自動抽出＆即時GAS送信ワーカー
+        QADサーバー（Progress 4GL）の32prnスプール競合や同一ユーザーセッション衝突を物理的に防ぐため、
+        受注残(99.7.6.20)と売上(99.7.5.11)を順番に直列実行し、それぞれ抽出完了と同時にGASへ即時転送します。
         """
         results = {}
         overall_start = time.time()
 
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            # セッション1 (Sales 99.7.5.11) を先に開始
-            f_sales = executor.submit(self._parallel_extract_99_7_5_11, host, port, user, pwd)
-            # 2.5秒待機してログイン衝突を防ぎ、セッション2 (OrderBooking 99.7.6.20) を開始
-            time.sleep(2.5)
-            f_order = executor.submit(self._parallel_extract_99_7_6_20, host, port, user, pwd)
+        tasks = [
+            ("99.7.6.20", self._parallel_extract_99_7_6_20),
+            ("99.7.5.11", self._parallel_extract_99_7_5_11),
+        ]
 
-            futures = {f_sales: "99.7.5.11", f_order: "99.7.6.20"}
-
-            for f in as_completed(futures):
-                menu_name = futures[f]
-                try:
-                    res = f.result()
-                    results[menu_name] = res
-                    self.after(0, lambda m=menu_name, r=res: self._on_parallel_subtask_success(m, r))
-                except Exception as err:
-                    log_error(f"並行送信 [{menu_name}] エラー: {err}", exc_info=True)
-                    results[menu_name] = {"error": str(err)}
-                    self.after(0, lambda m=menu_name, e=str(err): self._on_parallel_subtask_error(m, e))
+        for menu_name, worker_fn in tasks:
+            try:
+                res = worker_fn(host, port, user, pwd)
+                results[menu_name] = res
+                self.after(0, lambda m=menu_name, r=res: self._on_parallel_subtask_success(m, r))
+            except Exception as err:
+                log_error(f"データ送信 [{menu_name}] エラー: {err}", exc_info=True)
+                results[menu_name] = {"error": str(err)}
+                self.after(0, lambda m=menu_name, e=str(err): self._on_parallel_subtask_error(m, e))
 
         total_elapsed = time.time() - overall_start
         self._is_gas_transmitting = False

@@ -3,7 +3,7 @@
   "port": 22,
   "user": "takehik",
   "pass_b64": "bmh5N21qdTg=",
-  "theme": "classic_green",
+  "theme": "dark",
   "custom_terminal_bg": null,
   "custom_terminal_fg": null,
   "enable_windows_shortcuts": true,
