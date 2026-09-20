@@ -2639,14 +2639,20 @@ class TerminalApp(ctk.CTk):
         threading.Thread(target=_thread_target, daemon=True, name="parallel-gas-worker").start()
 
     def _run_parallel_gas_worker(self, host, port, user, pwd):
-        """ThreadPoolExecutor による2セッション完全並行抽出＆即時GAS送信ワーカー"""
+        """ThreadPoolExecutor による2セッション時差並行抽出＆即時GAS送信ワーカー
+        QADサーバー上でのキー衝突・画面遷移の混ざりを防ぐため、2.5秒のスタガード（時差起動）を実施。
+        """
         results = {}
         overall_start = time.time()
 
         with ThreadPoolExecutor(max_workers=2) as executor:
-            f_order = executor.submit(self._parallel_extract_99_7_6_20, host, port, user, pwd)
+            # セッション1 (Sales 99.7.5.11) を先に開始
             f_sales = executor.submit(self._parallel_extract_99_7_5_11, host, port, user, pwd)
-            futures = {f_order: "99.7.6.20", f_sales: "99.7.5.11"}
+            # 2.5秒待機してログイン衝突を防ぎ、セッション2 (OrderBooking 99.7.6.20) を開始
+            time.sleep(2.5)
+            f_order = executor.submit(self._parallel_extract_99_7_6_20, host, port, user, pwd)
+
+            futures = {f_sales: "99.7.5.11", f_order: "99.7.6.20"}
 
             for f in as_completed(futures):
                 menu_name = futures[f]
@@ -2699,31 +2705,33 @@ class TerminalApp(ctk.CTk):
                 time.sleep(0.1)
 
             _clear_shell_buffer(shell)
-            shell.send("99.7.6.20\r")
-            _wait_shell_text(shell, "Sales Order", timeout=15)
             time.sleep(0.5)
+            shell.send("99.7.6.20\r")
+            if not _wait_shell_text(shell, "Sales Order", timeout=15):
+                raise TimeoutError("99.7.6.20 画面への遷移に失敗しました。")
+            time.sleep(0.8)
             _clear_shell_buffer(shell)
 
             # 条件入力: Sales Order~Item Number スキップ(6回 Enter)
             for _ in range(6):
                 shell.send("\r")
-                time.sleep(0.1)
+                time.sleep(0.15)
 
             # Prod Line (From/To) に 1fgi
             shell.send("1fgi\r")
-            time.sleep(0.15)
+            time.sleep(0.2)
             shell.send("1fgi\r")
-            time.sleep(0.15)
+            time.sleep(0.2)
 
             # Site~Customer PO スキップ(8回 Enter)
             for _ in range(8):
                 shell.send("\r")
-                time.sleep(0.1)
+                time.sleep(0.15)
 
             # Due Date (From) = 本日日付 (MM/dd/yy)
             today_str = datetime.date.today().strftime("%m/%d/%y")
             shell.send(today_str + "\r")
-            time.sleep(0.2)
+            time.sleep(0.3)
 
             # Output欄へ移動: F1 (\x1bOP)
             shell.send("\x1bOP")
@@ -2734,11 +2742,14 @@ class TerminalApp(ctk.CTk):
             shell.send("32prn\r")
             time.sleep(0.5)
 
+            # 実行直前のバッファ完全フラッシュ（エコーバック破棄）
+            _clear_shell_buffer(shell)
+
             # 実行: F1 -> F1 -> Ctrl+F (\x06)
             shell.send("\x1bOP")
-            time.sleep(0.4)
+            time.sleep(0.5)
             shell.send("\x1bOP")
-            time.sleep(0.4)
+            time.sleep(0.5)
             shell.send("\x06")
 
             # 32prn ストリーム直接受信
@@ -2827,42 +2838,47 @@ class TerminalApp(ctk.CTk):
                 time.sleep(0.1)
 
             _clear_shell_buffer(shell)
-            shell.send("99.7.5.11\r")
-            _wait_shell_text(shell, "Invoice", timeout=15)
             time.sleep(0.5)
+            shell.send("99.7.5.11\r")
+            if not _wait_shell_text(shell, "Invoice", timeout=15):
+                raise TimeoutError("99.7.5.11 画面への遷移に失敗しました。")
+            time.sleep(0.8)
             _clear_shell_buffer(shell)
 
             # 条件入力: Invoice(2) + Sales Order(2) = 計4回 Enter
             for _ in range(4):
                 shell.send("\r")
-                time.sleep(0.1)
+                time.sleep(0.15)
 
             # Effective From/To
             shell.send(start_day + "\r")
-            time.sleep(0.15)
+            time.sleep(0.2)
             shell.send(end_day + "\r")
-            time.sleep(0.15)
+            time.sleep(0.2)
 
             # Customer(2) + Bill-To(2) + Salespsn(2) + Item(2) + Group(2) = 計10回 Enter
             for _ in range(10):
                 shell.send("\r")
-                time.sleep(0.1)
+                time.sleep(0.15)
 
             # Prod Line (From/To) に 1FGI
             shell.send("1FGI\r")
-            time.sleep(0.15)
+            time.sleep(0.2)
             shell.send("1FGI\r")
-            time.sleep(0.15)
+            time.sleep(0.2)
 
             # Site(2) + Include Sample(1) = 計3回 Enter で Output 欄へ
             for _ in range(3):
                 shell.send("\r")
-                time.sleep(0.1)
+                time.sleep(0.15)
             _clear_shell_buffer(shell)
 
             # Output欄に 32prn を入力
             shell.send("32prn\r")
             time.sleep(0.5)
+
+            # 実行直前のバッファ完全フラッシュ（エコーバック破棄）
+            _clear_shell_buffer(shell)
 
             # 実行: F1 -> Ctrl+F (\x06)
             shell.send("\x1bOP")
