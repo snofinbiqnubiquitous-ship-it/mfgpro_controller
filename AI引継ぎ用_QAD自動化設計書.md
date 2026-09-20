@@ -72,10 +72,22 @@ QAD の出力先（`prd_det`）定義：
 ### 3-4. 画面ごとの Output フィールドへの到達方法 ⚠️ 最重要
 **QADの各レポート画面によって、Output フィールドへのカーソル移動方法が異なります。**
 
-| レポート | 画面番号 | Output欄への到達方法 |
-|---------|---------|-------------------|
-| 在庫スナップショット | 99.3.6.1 | 条件入力後に **F1キーを1回押す** とOutput欄にジャンプする |
-| 在庫移動明細 | 99.3.21.4 | F1キーを押すと即座にレポート実行されてしまうため、**Lot入力後にEnterキーを11回**送って1フィールドずつOutput欄まで移動する |
+| レポート | 画面番号 | Output欄への到達方法 | 実行キー |
+|---------|---------|-------------------|---------|
+| 在庫スナップショット | 99.3.6.1 | 条件入力後に **F1キーを1回押す** とOutput欄にジャンプする | F1 -> F1 -> Ctrl+F |
+| 在庫移動明細 | 99.3.21.4 | F1キーを押すと即座にレポート実行されてしまうため、**Lot入力後にEnterキーを11回**送って1フィールドずつOutput欄まで移動する | F1 -> Ctrl+F |
+| 受注残 (OrderBooking) | 99.7.6.20 | 条件入力後に **F1キーを1回押す** とOutput欄にジャンプする | F1 -> F1 -> Ctrl+F |
+| 売上データ (Sales Data) | 99.7.5.11 | 条件入力（Prod Line）後に **Enterキーを3回** 送るとOutput欄に到達する | F1 -> Ctrl+F |
+
+### 3-5. 32prn 並行処理アーキテクチャ (Parallel Extraction & Fast GAS Routing) ⚠️ 最重要
+- **背景**: 複数の重いレポートを順番（直列）に取得すると 1分以上かかります。
+- **アーキテクチャ**:
+  - `ThreadPoolExecutor(max_workers=2)` を用い、各画面ごとに独立した SSH セッション（`paramiko.SSHClient`）を完全並行で立ち上げます。
+  - `32prn` は SSH の仮想端末ストリーム（インメモリ）で直接届くため、サーバー上で出力ファイル（`winPrint`）の重複衝突が**原理的に一切発生しません**。
+  - **早く完了したセッションから順に、即座にブラウザ経由で GAS へ doPost 送信** します（体感待ち時間を大幅短縮）。
+  - 送信時の一時HTMLファイル名は `gas_submit_{menu}_{timestamp}_{uuid}.html` として一意化し、同時オープンの衝突を防ぎます。
+- **GAS側ルーター連携**:
+  - JSONトップレベルに `{ menu: "99.7.6.20", title: "OrderBooking", exportedAt: "...", data: rows }` を持たせ、同一URLの `doPost(e)` 内でメニュー番号ごとに適切なシートへ一括書き込み（`setValues`）します。
 
 **[罠]** 99.3.21.4 でEnterの回数を間違えると（例: 15回）、Output欄を通り過ぎてしまい、`Output: local`（デフォルト）のまま実行され、画面出力モードになります。正しいEnter回数は画面のフィールド構造から正確に計算する必要があります。
 
@@ -170,19 +182,19 @@ Python から Google Apps Script (GAS) へ抽出したデータを転送しま�
 
 ## 6. GAS URL 一覧
 
-| 用途 | URL |
-|------|-----|
-| 在庫（Inventory） | `https://script.google.com/a/macros/ap.averydennison.com/s/AKfycbwS6dZ9umUKP71NGieiW_tDffygGtAFHKOAxyAo7cWDe3T_xMxlISSdmXoNlK6TaENfkA/exec` |
-| Complaint | `https://script.google.com/a/macros/ap.averydennison.com/s/AKfycbyEwl3D8kjtbkk34V_9aJGrlgt39B480O_W3zCI6JiSC4glpS4XNj6JSC4ZiyMNKA/exec` |
+| 用途 | メニューコード | URL |
+|------|---------------|-----|
+| 在庫（Inventory） | 99.3.6.1 | `https://script.google.com/a/macros/ap.averydennison.com/s/AKfycbwS6dZ9umUKP71NGieiW_tDffygGtAFHKOAxyAo7cWDe3T_xMxlISSdmXoNlK6TaENfkA/exec` |
+| Complaint | 99.3.21.4 | `https://script.google.com/a/macros/ap.averydennison.com/s/AKfycbyEwl3D8kjtbkk34V_9aJGrlgt39B480O_W3zCI6JiSC4glpS4XNj6JSC4ZiyMNKA/exec` |
+| **受注残＆売上 並行送信 (新ルーター)** | **99.7.6.20 & 99.7.5.11** | `https://script.google.com/a/macros/ap.averydennison.com/s/AKfycbxkUsNnoE0mPLRt-6XNwEP4ns9hqSzeWKsu4i_BXSrfcPvdye2rRDp_RBvOLeTvKje-/exec` |
 
 ---
 
 ## 7. サーバー安全性の保証
-本ツールがサーバー上で行う書き込み操作は **`rm -f /home/takehik/winPrint` の1つだけ** です。
-- パスは完全にハードコード（固定値）されており、変数展開やワイルドカードは使用していません
-- `rm -rf`（ディレクトリ削除）は使用していません
-- `sftp.put()`（アップロード）は使用していません
-- 他のユーザーのファイル、システムファイル、データベースには一切アクセスしません
+- **従来の winPrint 方式**: `rm -f /home/{USER}/winPrint` による削除処理のみ。
+- **最新の 32prn 方式**:
+  - 仮想端末ストリーム（メモリ上）のみでデータをやり取りするため、**サーバー上へのファイル作成・書き込み・削除処理は一切発生しません（完全ファイルレス・完全Read Only）**。
+  - サーバーのディスクやファイルシステムに負荷や意図しない変更を与える心配が完全にゼロです。
 
 ---
 
@@ -190,14 +202,7 @@ Python から Google Apps Script (GAS) へ抽出したデータを転送しま�
 
 | ツール名 | 対象レポート | 画面番号 | ファイルパス |
 |---------|------------|---------|------------|
+| **自作モダンターミナル** | ターミナル全般 ＋ 在庫 / Complaint / **並行送信(受注残＆売上)** | 99.3.6.1 / 99.3.21.4 / 99.7.6.20 / 99.7.5.11 | `C:\Users\0138018\.antigravity\mfgpro_controller\自作モダンターミナル.pyw`<br>(デスクトップ同期済み) |
+| **並行データ送信_受注残＆売上** | 受注残 ＆ 売上データ (32prn 並行処理) | 99.7.6.20 & 99.7.5.11 | `C:\Users\0138018\.antigravity\並行データ送信_受注残＆売上.py` |
 | 全自動在庫レポート抽出＆GAS送信ツール | 在庫スナップショット | 99.3.6.1 | `C:\Users\0138018\.antigravity\全自動在庫レポート抽出＆GAS送信ツール.py` |
 | Complaint送信 | 在庫移動明細 | 99.3.21.4 | `C:\Users\0138018\.antigravity\Complaint送信.pyw` |
-
-### 主な技術的差異
-
-| 項目 | 在庫ツール (99.3.6.1) | Complaint (99.3.21.4) |
-|------|----------------------|----------------------|
-| UI | CUIコンソール (print) | GUI (customtkinter) |
-| Output欄への移動 | F1キー1回でジャンプ | Enterキー11回で移動 |
-| ターミナル幅 | width=256 | width=132 |
-| GUIステータス表示 | なし（コンソール出力） | あり（[1/6]〜[6/6]リアルタイム表示） |

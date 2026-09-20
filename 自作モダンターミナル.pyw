@@ -17,6 +17,8 @@ import subprocess
 import configparser
 import logging
 from logging.handlers import RotatingFileHandler
+import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dateutil import parser as date_parser
 from dateutil.relativedelta import relativedelta
 try:
@@ -147,6 +149,7 @@ def save_config(cfg):
 # --- GAS連携用設定・共通処理 ---
 INVENTORY_GAS_URL = "https://script.google.com/a/macros/ap.averydennison.com/s/AKfycbwS6dZ9umUKP71NGieiW_tDffygGtAFHKOAxyAo7cWDe3T_xMxlISSdmXoNlK6TaENfkA/exec"
 COMPLAINT_GAS_URL = "https://script.google.com/a/macros/ap.averydennison.com/s/AKfycbyEwl3D8kjtbkk34V_9aJGrlgt39B480O_W3zCI6JiSC4glpS4XNj6JSC4ZiyMNKA/exec"
+PARALLEL_GAS_URL = "https://script.google.com/a/macros/ap.averydennison.com/s/AKfycbxkUsNnoE0mPLRt-6XNwEP4ns9hqSzeWKsu4i_BXSrfcPvdye2rRDp_RBvOLeTvKje-/exec"
 CONFIG_INI_DIR = os.path.join(os.path.expanduser("~"), "Documents", "QAD_Tools")
 CONFIG_INI_PATH = os.path.join(CONFIG_INI_DIR, "config.ini")
 
@@ -234,11 +237,19 @@ def parse_report_to_rows(input_text: str) -> list:
 
     return all_rows
 
-def send_to_gas_via_browser(rows_or_list: list, gas_url: str, title: str = "Google Sheets へ送信中"):
-    """JSONデータをbase64化し、一時HTMLからブラウザ経由でGASへPOST送信する"""
-    json_str = json.dumps(rows_or_list, ensure_ascii=False)
+def send_to_gas_via_browser(rows_or_payload, gas_url: str, title: str = "Google Sheets へ送信中"):
+    """JSONデータをbase64化し、一時HTMLからブラウザ経由でGASへPOST送信する（衝突防止UUID付き）"""
+    json_str = json.dumps(rows_or_payload, ensure_ascii=False)
     b64_data = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
     data_size_kb = len(b64_data) / 1024
+
+    if isinstance(rows_or_payload, dict):
+        raw_data = rows_or_payload.get("data", [])
+        row_count = len(raw_data) - 1 if len(raw_data) > 1 else len(raw_data)
+        menu_tag = rows_or_payload.get("menu", "data").replace(".", "_")
+    else:
+        row_count = len(rows_or_payload) - 1 if len(rows_or_payload) > 1 else len(rows_or_payload)
+        menu_tag = "data"
 
     html_content = f"""<!DOCTYPE html>
 <html>
@@ -273,7 +284,7 @@ def send_to_gas_via_browser(rows_or_list: list, gas_url: str, title: str = "Goog
 <body onload="send()">
     <div style="font-family: sans-serif; padding: 30px; text-align: center;">
         <h2>{title}</h2>
-        <p>データ行数: {len(rows_or_list)-1 if len(rows_or_list) > 1 else len(rows_or_list)} 行 / データサイズ: {data_size_kb:.1f} KB</p>
+        <p>データ件数: {row_count:,} 件 / データサイズ: {data_size_kb:.1f} KB</p>
         <h3 id="statusMsg" style="color: #D97706;">⏳ 初期化中...</h3>
         <p>エラーが発生した場合は、この画面のまま止まります。成功すれば自動で閉じます。</p>
     </div>
@@ -284,8 +295,9 @@ def send_to_gas_via_browser(rows_or_list: list, gas_url: str, title: str = "Goog
 </body>
 </html>"""
 
+    unique_id = f"{menu_tag}_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
     temp_dir = tempfile.gettempdir()
-    path = os.path.join(temp_dir, f"gas_submit_{int(time.time())}.html")
+    path = os.path.join(temp_dir, f"gas_submit_{unique_id}.html")
     with open(path, 'w', encoding='utf-8') as f:
         f.write(html_content)
 
@@ -1796,13 +1808,24 @@ class TerminalApp(ctk.CTk):
         )
         self.complaint_gas_btn.pack(side="left", padx=4, pady=2)
 
+        # ボタン3: ⚡ 受注残＆売上 並行送信 (99.7.6.20 & 99.7.5.11)
+        self.parallel_gas_btn = ctk.CTkButton(
+            btn_frame, text="⚡ 受注残＆売上 並行送信 (99.7.6.20 & 99.7.5.11)", height=28,
+            fg_color="#D97706", hover_color="#B45309", text_color="#FFFFFF",
+            font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
+            corner_radius=6, command=self.run_parallel_gas_transmission
+        )
+        self.parallel_gas_btn.pack(side="left", padx=4, pady=2)
+
     def _update_data_transmission_buttons_state(self):
         """データ送信ボタンの有効/無効状態を更新"""
-        if not hasattr(self, "inventory_gas_btn") or not hasattr(self, "complaint_gas_btn"):
-            return
         state = "disabled" if self._is_gas_transmitting else "normal"
-        self.inventory_gas_btn.configure(state=state)
-        self.complaint_gas_btn.configure(state=state)
+        if hasattr(self, "inventory_gas_btn"):
+            self.inventory_gas_btn.configure(state=state)
+        if hasattr(self, "complaint_gas_btn"):
+            self.complaint_gas_btn.configure(state=state)
+        if hasattr(self, "parallel_gas_btn"):
+            self.parallel_gas_btn.configure(state=state)
 
     def _build_statusbar(self):
         """最下段の常時表示ステータスバーを構築（処理中の進捗・クエリ待機・Excel展開を可視化）"""
@@ -2251,15 +2274,6 @@ class TerminalApp(ctk.CTk):
             )
             return
 
-        # 実行確認
-        ok = messagebox.askyesno(
-            "在庫レポートGAS送信",
-            "QAD (99.3.6.1 - 1FGI) から最新在庫レポートを抽出し、\nGoogleスプレッドシートへ自動転送します。\n\n実行しますか？",
-            parent=self
-        )
-        if not ok:
-            return
-
         self._is_gas_transmitting = True
         self._update_data_transmission_buttons_state()
         self.set_status("🚀 在庫レポート抽出＆GAS送信を開始します...", "working")
@@ -2396,12 +2410,8 @@ class TerminalApp(ctk.CTk):
             self.after(0, self._update_data_transmission_buttons_state)
 
     def _on_inventory_gas_success(self, row_count: int):
-        self.set_status(f"✅ 在庫レポートをGASへ転送しました ({row_count:,}件)", "success", clear_delay=8)
-        messagebox.showinfo(
-            "GAS送信完了",
-            f"在庫レポート (1FGI) の抽出とGoogle Sheetsへの転送要求が完了しました！\n\n送信データ件数: {row_count:,} 件",
-            parent=self
-        )
+        self.set_status(f"✅ 在庫レポートをGASへ転送完了 ({row_count:,}件)", "success", clear_delay=8)
+        log_info(f"在庫レポートGAS送信完了: {row_count:,}件")
 
     def _on_inventory_gas_error(self, err_msg: str):
         self.set_status(f"❌ 在庫レポートGAS送信エラー: {err_msg}", "error", clear_delay=10)
@@ -2587,16 +2597,8 @@ class TerminalApp(ctk.CTk):
             self.after(0, self._update_data_transmission_buttons_state)
 
     def _on_complaint_gas_success(self, row_count: int, dialog_ref=None):
-        self.set_status(f"✅ ComplaintデータをGASへ転送しました ({row_count:,}件)", "success", clear_delay=8)
-        if dialog_ref:
-            dialog_ref.submit_btn.configure(state="normal")
-            dialog_ref.cancel_btn.configure(state="normal")
-            dialog_ref.update_dialog_status(f"✅ GASにデータ転送が完了しました ({row_count:,}件)", color="#16A34A")
-        messagebox.showinfo(
-            "GAS送信完了",
-            f"Complaint (99.3.21.4) データの抽出とGoogle Sheetsへの転送要求が完了しました！\n\n送信データ件数: {row_count:,} 件",
-            parent=dialog_ref or self
-        )
+        self.set_status(f"✅ ComplaintデータをGASへ転送完了 ({row_count:,}件)", "success", clear_delay=8)
+        log_info(f"ComplaintデータGAS送信完了: {row_count:,}件")
         if dialog_ref:
             dialog_ref.destroy()
 
@@ -2607,6 +2609,352 @@ class TerminalApp(ctk.CTk):
             dialog_ref.cancel_btn.configure(state="normal")
             dialog_ref.update_dialog_status("❌ エラーが発生しました", color="#DC2626")
         messagebox.showerror("エラー", f"Complaint送信の処理中にエラーが発生しました:\n\n{err_msg}", parent=dialog_ref or self)
+
+    # =========================================================================
+    # --- 32prn 並行データ送信機能 (99.7.6.20 受注残 & 99.7.5.11 売上) ---
+    # =========================================================================
+
+    def run_parallel_gas_transmission(self):
+        """99.7.6.20 (受注残) と 99.7.5.11 (売上データ) を完全独立セッションで並行抽出し、
+        早く出来上がった順に即時 GAS へブラウザ経由で doPost 転送する。
+        （確認ポップアップ・完了ポップアップは一切表示せず、ステータスバーとログで通知）
+        """
+        if self._is_gas_transmitting:
+            self.set_status("⚠️ 現在別のデータ送信処理が実行中です", "error", clear_delay=5)
+            return
+
+        host, port, user, pwd = self._get_qad_credentials()
+        if not user or not pwd:
+            self._show_input_error("QADのログイン情報が設定されていません。\nメニューの「ログイン情報」から設定してください。")
+            return
+
+        self._is_gas_transmitting = True
+        self._update_data_transmission_buttons_state()
+        self.set_status("🚀 [並行送信] 受注残(99.7.6.20)＆売上(99.7.5.11)の32prn並行抽出を開始します...", "working")
+        log_info(f"並行GAS送信開始 (99.7.6.20 & 99.7.5.11): ユーザー={user}, ホスト={host}")
+
+        def _thread_target():
+            self._run_parallel_gas_worker(host, port, user, pwd)
+
+        threading.Thread(target=_thread_target, daemon=True, name="parallel-gas-worker").start()
+
+    def _run_parallel_gas_worker(self, host, port, user, pwd):
+        """ThreadPoolExecutor による2セッション完全並行抽出＆即時GAS送信ワーカー"""
+        results = {}
+        overall_start = time.time()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            f_order = executor.submit(self._parallel_extract_99_7_6_20, host, port, user, pwd)
+            f_sales = executor.submit(self._parallel_extract_99_7_5_11, host, port, user, pwd)
+            futures = {f_order: "99.7.6.20", f_sales: "99.7.5.11"}
+
+            for f in as_completed(futures):
+                menu_name = futures[f]
+                try:
+                    res = f.result()
+                    results[menu_name] = res
+                    self.after(0, lambda m=menu_name, r=res: self._on_parallel_subtask_success(m, r))
+                except Exception as err:
+                    log_error(f"並行送信 [{menu_name}] エラー: {err}", exc_info=True)
+                    results[menu_name] = {"error": str(err)}
+                    self.after(0, lambda m=menu_name, e=str(err): self._on_parallel_subtask_error(m, e))
+
+        total_elapsed = time.time() - overall_start
+        self._is_gas_transmitting = False
+        self.after(0, self._update_data_transmission_buttons_state)
+        self.after(0, lambda: self._on_parallel_all_done(results, total_elapsed))
+
+    def _parallel_extract_99_7_6_20(self, host, port, user, pwd) -> dict:
+        """99.7.6.20 (OrderBooking / 受注残) を 32prn で高速抽出し、即座に GAS へ POST"""
+        start_t = time.time()
+        log_info("並行ワーカー [99.7.6.20 受注残]: 接続中...")
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            ssh.connect(host, port=port, username=user, password=pwd, timeout=15)
+            transport = ssh.get_transport()
+            if transport:
+                transport.set_keepalive(30)
+
+            shell = ssh.invoke_shell(term='vt100', width=256, height=60)
+            shell.settimeout(10.0)
+
+            time.sleep(2)
+            _clear_shell_buffer(shell)
+
+            # メニュー移動: 2 -> 1 -> space -> 99.7.6.20
+            shell.send("2\r")
+            _wait_shell_text(shell, "Selection:", timeout=10)
+            _clear_shell_buffer(shell)
+
+            shell.send("1\r")
+            login_start = time.time()
+            while time.time() - login_start < 15:
+                if shell.recv_ready():
+                    peek = shell.recv(4096)
+                    if b"Press space bar" in peek or b"Pausing" in peek:
+                        shell.send(" ")
+                    if b"Please select a function" in peek:
+                        break
+                time.sleep(0.1)
+
+            _clear_shell_buffer(shell)
+            shell.send("99.7.6.20\r")
+            _wait_shell_text(shell, "Sales Order", timeout=15)
+            time.sleep(0.5)
+            _clear_shell_buffer(shell)
+
+            # 条件入力: Sales Order~Item Number スキップ(6回 Enter)
+            for _ in range(6):
+                shell.send("\r")
+                time.sleep(0.1)
+
+            # Prod Line (From/To) に 1fgi
+            shell.send("1fgi\r")
+            time.sleep(0.15)
+            shell.send("1fgi\r")
+            time.sleep(0.15)
+
+            # Site~Customer PO スキップ(8回 Enter)
+            for _ in range(8):
+                shell.send("\r")
+                time.sleep(0.1)
+
+            # Due Date (From) = 本日日付 (MM/dd/yy)
+            today_str = datetime.date.today().strftime("%m/%d/%y")
+            shell.send(today_str + "\r")
+            time.sleep(0.2)
+
+            # Output欄へ移動: F1 (\x1bOP)
+            shell.send("\x1bOP")
+            time.sleep(1.0)
+            _clear_shell_buffer(shell)
+
+            # Output欄に 32prn を入力
+            shell.send("32prn\r")
+            time.sleep(0.5)
+
+            # 実行: F1 -> F1 -> Ctrl+F (\x06)
+            shell.send("\x1bOP")
+            time.sleep(0.4)
+            shell.send("\x1bOP")
+            time.sleep(0.4)
+            shell.send("\x06")
+
+            # 32prn ストリーム直接受信
+            query_start = time.time()
+            stream_buffer = bytearray()
+            capturing = False
+            finished = False
+            MAX_WAIT = 300
+
+            while time.time() - query_start < MAX_WAIT:
+                if shell.recv_ready():
+                    chunk = shell.recv(65535)
+                    if chunk:
+                        stream_buffer.extend(chunk)
+                        if b"begin 0 32PRINTER" in stream_buffer and not capturing:
+                            capturing = True
+                        if capturing:
+                            if re.search(rb'\nend(\r|\n|\x1b)', stream_buffer) or b"\x1b[4i" in stream_buffer:
+                                finished = True
+                                break
+                time.sleep(0.05)
+
+            if not finished:
+                raise TimeoutError("99.7.6.20: 32prn ストリーム受信がタイムアウトしました。")
+
+            raw_text = decode_32prn_stream(stream_buffer)
+            cleaned_text = clean_printer_data(raw_text)
+            rows = parse_report_to_rows(cleaned_text)
+
+            row_count = len(rows) - 1
+            if row_count <= 0:
+                raise ValueError("99.7.6.20: 抽出結果が0件でした。")
+
+            elapsed = time.time() - start_t
+            log_info(f"並行ワーカー [99.7.6.20 受注残]: 抽出完了 {row_count:,}件 ({elapsed:.1f}秒) ➔ 即時GAS送信")
+
+            payload = {
+                "menu": "99.7.6.20",
+                "title": "OrderBooking",
+                "sender": user,
+                "exportedAt": datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"),
+                "data": rows
+            }
+            send_to_gas_via_browser(payload, PARALLEL_GAS_URL, title="Google Sheets 転送 (99.7.6.20 OrderBooking)")
+            return {"count": row_count, "elapsed": elapsed}
+
+        finally:
+            ssh.close()
+
+    def _parallel_extract_99_7_5_11(self, host, port, user, pwd) -> dict:
+        """99.7.5.11 (Sales Data / 売上データ) を 32prn で高速抽出し、即座に GAS へ POST"""
+        start_t = time.time()
+        today = datetime.date.today()
+        start_day = today.replace(day=1).strftime("%m/%d/%y")
+        end_day = today.strftime("%m/%d/%y")
+
+        log_info(f"並行ワーカー [99.7.5.11 売上]: 接続中 (対象期間: {start_day} ～ {end_day})...")
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            ssh.connect(host, port=port, username=user, password=pwd, timeout=15)
+            transport = ssh.get_transport()
+            if transport:
+                transport.set_keepalive(30)
+
+            shell = ssh.invoke_shell(term='vt100', width=256, height=60)
+            shell.settimeout(10.0)
+
+            time.sleep(2)
+            _clear_shell_buffer(shell)
+
+            # メニュー移動: 2 -> 1 -> space -> 99.7.5.11
+            shell.send("2\r")
+            _wait_shell_text(shell, "Selection:", timeout=10)
+            _clear_shell_buffer(shell)
+
+            shell.send("1\r")
+            login_start = time.time()
+            while time.time() - login_start < 15:
+                if shell.recv_ready():
+                    peek = shell.recv(4096)
+                    if b"Press space bar" in peek or b"Pausing" in peek:
+                        shell.send(" ")
+                    if b"Please select a function" in peek:
+                        break
+                time.sleep(0.1)
+
+            _clear_shell_buffer(shell)
+            shell.send("99.7.5.11\r")
+            _wait_shell_text(shell, "Invoice", timeout=15)
+            time.sleep(0.5)
+            _clear_shell_buffer(shell)
+
+            # 条件入力: Invoice(2) + Sales Order(2) = 計4回 Enter
+            for _ in range(4):
+                shell.send("\r")
+                time.sleep(0.1)
+
+            # Effective From/To
+            shell.send(start_day + "\r")
+            time.sleep(0.15)
+            shell.send(end_day + "\r")
+            time.sleep(0.15)
+
+            # Customer(2) + Bill-To(2) + Salespsn(2) + Item(2) + Group(2) = 計10回 Enter
+            for _ in range(10):
+                shell.send("\r")
+                time.sleep(0.1)
+
+            # Prod Line (From/To) に 1FGI
+            shell.send("1FGI\r")
+            time.sleep(0.15)
+            shell.send("1FGI\r")
+            time.sleep(0.15)
+
+            # Site(2) + Include Sample(1) = 計3回 Enter で Output 欄へ
+            for _ in range(3):
+                shell.send("\r")
+                time.sleep(0.1)
+            _clear_shell_buffer(shell)
+
+            # Output欄に 32prn を入力
+            shell.send("32prn\r")
+            time.sleep(0.5)
+
+            # 実行: F1 -> Ctrl+F (\x06)
+            shell.send("\x1bOP")
+            time.sleep(0.5)
+            shell.send("\x06")
+
+            # 32prn ストリーム直接受信
+            query_start = time.time()
+            stream_buffer = bytearray()
+            capturing = False
+            finished = False
+            MAX_WAIT = 300
+
+            while time.time() - query_start < MAX_WAIT:
+                if shell.recv_ready():
+                    chunk = shell.recv(65535)
+                    if chunk:
+                        stream_buffer.extend(chunk)
+                        if b"begin 0 32PRINTER" in stream_buffer and not capturing:
+                            capturing = True
+                        if capturing:
+                            if re.search(rb'\nend(\r|\n|\x1b)', stream_buffer) or b"\x1b[4i" in stream_buffer:
+                                finished = True
+                                break
+                time.sleep(0.05)
+
+            if not finished:
+                raise TimeoutError("99.7.5.11: 32prn ストリーム受信がタイムアウトしました。")
+
+            raw_text = decode_32prn_stream(stream_buffer)
+            cleaned_text = clean_printer_data(raw_text)
+            rows = parse_report_to_rows(cleaned_text)
+
+            row_count = len(rows) - 1
+            if row_count <= 0:
+                raise ValueError("99.7.5.11: 抽出結果が0件でした。")
+
+            elapsed = time.time() - start_t
+            log_info(f"並行ワーカー [99.7.5.11 売上]: 抽出完了 {row_count:,}件 ({elapsed:.1f}秒) ➔ 即時GAS送信")
+
+            payload = {
+                "menu": "99.7.5.11",
+                "title": "Sales",
+                "sender": user,
+                "exportedAt": datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S"),
+                "data": rows
+            }
+            send_to_gas_via_browser(payload, PARALLEL_GAS_URL, title="Google Sheets 転送 (99.7.5.11 Sales)")
+            return {"count": row_count, "elapsed": elapsed}
+
+        finally:
+            ssh.close()
+
+    def _on_parallel_subtask_success(self, menu_name: str, res: dict):
+        """並行タスクの片方が完了した際の通知処理"""
+        cnt = res.get("count", 0)
+        elp = res.get("elapsed", 0.0)
+        label_map = {"99.7.6.20": "受注残", "99.7.5.11": "売上"}
+        lbl = label_map.get(menu_name, menu_name)
+        self.set_status(f"⚡ [完了速報] {lbl}({menu_name}) をGASへ転送完了 ({cnt:,}件 / {elp:.1f}秒)", "working")
+        log_info(f"並行送信サブタスク完了: {menu_name} ({lbl}) -> {cnt:,}件 ({elp:.1f}秒)")
+
+    def _on_parallel_subtask_error(self, menu_name: str, err: str):
+        """並行タスクの片方でエラーが発生した際の通知処理"""
+        label_map = {"99.7.6.20": "受注残", "99.7.5.11": "売上"}
+        lbl = label_map.get(menu_name, menu_name)
+        self.set_status(f"⚠️ [{lbl} {menu_name}] エラー: {err}", "error", clear_delay=8)
+        log_error(f"並行送信サブタスクエラー: {menu_name} ({lbl}) -> {err}")
+
+    def _on_parallel_all_done(self, results: dict, total_elapsed: float):
+        """すべての並行タスク完了時の通知処理（ポップアップは出さず、ステータスバーとログで通知）"""
+        details = []
+        total_count = 0
+        has_error = False
+
+        label_map = {"99.7.6.20": "受注残", "99.7.5.11": "売上"}
+        for menu, r in results.items():
+            lbl = label_map.get(menu, menu)
+            if "error" in r:
+                has_error = True
+                details.append(f"{lbl}: 失敗")
+            else:
+                cnt = r.get("count", 0)
+                total_count += cnt
+                details.append(f"{lbl}: {cnt:,}件")
+
+        summary_str = " & ".join(details)
+        if has_error:
+            self.set_status(f"⚠️ 並行送信完了 (一部エラー): {summary_str} ({total_elapsed:.1f}秒)", "warning", clear_delay=10)
+        else:
+            self.set_status(f"🎉 受注残＆売上の並行送信が完了しました ({summary_str} / 計{total_count:,}件 / {total_elapsed:.1f}秒)", "success", clear_delay=8)
+        log_info(f"並行送信全完了: {summary_str} (総所要時間: {total_elapsed:.1f}秒)")
 
     def jump_to_menu(self, code):
         """指定されたメニュー番号へ直接ジャンプ（メイン画面ならF4を押さず直接入力、業務画面ならF4で戻って入力）"""
