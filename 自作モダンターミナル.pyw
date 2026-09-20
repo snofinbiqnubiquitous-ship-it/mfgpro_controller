@@ -1159,6 +1159,8 @@ class TerminalApp(ctk.CTk):
                 self.key_menu.add_separator()
             for label, key in buttons:
                 self.key_menu.add_command(label=label, command=lambda k=key: self.send_key(k))
+        self.key_menu.add_separator()
+        self.key_menu.add_command(label="⚡ OrderBooking 自動実行 (99.7.6.20 抽出 ➔ Excel)", command=self.run_order_booking_automation)
         self.key_menu.add_command(label="📄 Output に 'winPrint' を入力 (高速ファイル出力)", command=self.input_winprint)
         self.auto_winprint_f1_var = tk.BooleanVar(value=bool(self.config.get("auto_winprint_on_f1", True)))
         self.key_menu.add_checkbutton(
@@ -1403,18 +1405,32 @@ class TerminalApp(ctk.CTk):
         for idx, sc in enumerate(shortcuts):
             name = sc.get("name", "")
             code = sc.get("code", "")
+            is_order_booking = (str(code).strip() == "99.7.6.20" or "orderbooking" in name.lower() or "order booking" in name.lower())
+            btn_text = f"⚡ {name} ({code})" if is_order_booking else f"{name} ({code})"
+            btn_fg = "#2563EB" if is_order_booking else self.ui_colors["button"]
+            btn_hover = "#1D4ED8" if is_order_booking else self.ui_colors["hover"]
+            btn_text_color = "#FFFFFF" if is_order_booking else self.ui_colors["text"]
             btn = ctk.CTkButton(
-                self.shortcut_scroll_frame, text=f"{name} ({code})", height=28,
-                fg_color=self.ui_colors["button"], hover_color=self.ui_colors["hover"],
-                text_color=self.ui_colors["text"],
-                font=ctk.CTkFont(family=self.ui_font_family, size=12),
+                self.shortcut_scroll_frame, text=btn_text, height=28,
+                fg_color=btn_fg, hover_color=btn_hover,
+                text_color=btn_text_color,
+                font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold" if is_order_booking else "normal"),
                 corner_radius=6, state=state,
-                command=lambda c=code: self.jump_to_menu(c)
+                command=lambda n=name, c=code: self._handle_shortcut_click(n, c)
             )
             btn.pack(side="left", padx=4, pady=2)
             # 右クリックで削除メニュー表示
             btn.bind("<Button-3>", lambda event, i=idx, n=name: self._show_shortcut_context_menu(event, i, n))
             self.shortcut_buttons.append(btn)
+
+    def _handle_shortcut_click(self, name, code):
+        """ショートカットボタン押下時のハンドラ（専用自動化マクロがある場合はそれを実行）"""
+        name_lower = str(name).strip().lower()
+        code_str = str(code).strip()
+        if code_str == "99.7.6.20" or "orderbooking" in name_lower or "order booking" in name_lower:
+            self.run_order_booking_automation()
+        else:
+            self.jump_to_menu(code_str)
 
     def _show_shortcut_context_menu(self, event, idx, name):
         """ショートカットボタンの右クリックコンテキストメニュー"""
@@ -1576,6 +1592,189 @@ class TerminalApp(ctk.CTk):
 
         import threading
         threading.Thread(target=_do_home, daemon=True, name="go-home").start()
+
+    def run_order_booking_automation(self):
+        """OrderBooking (99.7.6.20) の一括自動実行マクロ
+        シーケンス:
+        1. HOME画面（メインメニュー）に戻る
+        2. 99.7.6.20 の画面に移動する
+        3. Prod line の値、その隣の値（From/To）を "1fgi" にする
+        4. Due Date の値を、今日の日付で "MM/dd/yy" で入力する
+        5. F1 を押して Output の入力欄に移動する
+        6. winPrint を指定して Excel 出力する（サーバー監視＆重複行除外＆Excel自動展開）
+        """
+        if not self.is_connected or not self.session:
+            self._show_input_error("サーバーに接続されていません")
+            return
+
+        if getattr(self, "_is_capturing_winprint", False) or getattr(self, "_is_waiting_query", False):
+            self._show_input_error("現在別のレポート処理が実行中です。完了までお待ちください。")
+            return
+
+        log_info("=== OrderBooking 自動実行マクロ開始 ===")
+        self.set_status("🚀 OrderBooking 自動実行を開始します...", "working")
+
+        def _worker():
+            try:
+                # -------------------------------------------------------------
+                # Step 1: HOME画面（メインメニュー）に戻る
+                # -------------------------------------------------------------
+                self.set_status("🏠 Step 1/6: HOME画面（メインメニュー）へ復帰中...", "working")
+                if not self.is_main_menu():
+                    for step in range(4):
+                        if self.is_main_menu():
+                            break
+                        log_info(f"OrderBooking: HOME画面復帰のため F4 送信 (step {step + 1})")
+                        self.session.send(KEY_SEQUENCES["F4"])
+                        start_wait = time.time()
+                        while time.time() - start_wait < 1.20:
+                            time.sleep(0.05)
+                            if self.is_main_menu():
+                                break
+                        time.sleep(0.15)
+
+                if self.is_main_menu():
+                    log_info("OrderBooking: メインメニュー復帰完了")
+                else:
+                    log_warning("OrderBooking: メインメニューへの復帰確認が取れませんでしたが、続行を試みます")
+
+                time.sleep(0.25)
+
+                # -------------------------------------------------------------
+                # Step 2: 99.7.6.20 の画面に移動する
+                # -------------------------------------------------------------
+                self.set_status("📋 Step 2/6: 99.7.6.20 (OrderBooking) へ移動中...", "working")
+                log_info("OrderBooking: '99.7.6.20\\r' を送信します")
+                self.session.send("99.7.6.20\r")
+
+                # 画面遷移待機（99.7.6.20 または 条件入力画面が現れるのを待機、最大3.5秒）
+                start_nav = time.time()
+                while time.time() - start_nav < 3.5:
+                    time.sleep(0.1)
+                    txt = self._get_current_screen_text().lower()
+                    if "99.7.6.20" in txt or "prod" in txt or "due" in txt or "order" in txt or "line" in txt:
+                        break
+                time.sleep(0.4)
+
+                # -------------------------------------------------------------
+                # Step 3: Prod line の値、その隣の値を "1fgi" にする
+                # -------------------------------------------------------------
+                self.set_status("✏️ Step 3/6: Prod line を '1fgi' に設定中...", "working")
+
+                # 画面上の行から 'Prod line' の行を探索（描画完了までリトライ）
+                prod_row = None
+                for _ in range(15):
+                    for r in range(ROWS):
+                        lt = self._get_line_text(r)
+                        if re.search(r'prod(?:\s*line)?|製品ライン', lt, re.IGNORECASE):
+                            prod_row = r
+                            break
+                    if prod_row is not None:
+                        break
+                    time.sleep(0.1)
+
+                cur_pos = getattr(self, "_current_cursor", None)
+                cur_row = cur_pos[0] if cur_pos else 0
+
+                # もし Prod line の行が特定できたらそこへカーソル移動
+                if prod_row is not None and cur_row != prod_row:
+                    row_diff = prod_row - cur_row
+                    if row_diff > 0:
+                        self.session.send(KEY_SEQUENCES["Down"] * row_diff)
+                    elif row_diff < 0:
+                        self.session.send(KEY_SEQUENCES["Up"] * abs(row_diff))
+                    time.sleep(0.2)
+
+                # 左側の列（From欄）へ移動させるため、Back-Tab (\x15) を送信
+                self.session.send("\x15")
+                time.sleep(0.1)
+
+                # 1つ目の値（From欄）に "1fgi" を入力
+                log_info("OrderBooking: Prod line (From) に '1fgi' を入力")
+                self.session.send("1fgi")
+                time.sleep(0.15)
+
+                # その隣（To欄）へ移動 (Tab)
+                log_info("OrderBooking: その隣の欄へ移動 (Tab)")
+                self.session.send("\t")
+                time.sleep(0.15)
+
+                # 2つ目の値（To欄）に "1fgi" を入力
+                log_info("OrderBooking: Prod line (To) に '1fgi' を入力")
+                self.session.send("1fgi")
+                time.sleep(0.15)
+
+                # -------------------------------------------------------------
+                # Step 4: Due Date の値を、今日の日付で "MM/dd/yy" で入力する
+                # -------------------------------------------------------------
+                self.set_status("📅 Step 4/6: Due Date を今日の日付に設定中...", "working")
+
+                # 画面上の行から 'Due Date' の行を探索
+                due_row = None
+                for _ in range(10):
+                    for r in range(ROWS):
+                        lt = self._get_line_text(r)
+                        if re.search(r'due(?:\s*date)?|納期|期日', lt, re.IGNORECASE):
+                            due_row = r
+                            break
+                    if due_row is not None:
+                        break
+                    time.sleep(0.1)
+
+                cur_pos = getattr(self, "_current_cursor", None)
+                cur_row = cur_pos[0] if cur_pos else (prod_row if prod_row is not None else 0)
+
+                if due_row is not None:
+                    row_diff = due_row - cur_row
+                    if row_diff > 0:
+                        self.session.send(KEY_SEQUENCES["Down"] * row_diff)
+                    elif row_diff < 0:
+                        self.session.send(KEY_SEQUENCES["Up"] * abs(row_diff))
+                    time.sleep(0.2)
+                else:
+                    # 特定できない場合は1行下へ
+                    self.session.send(KEY_SEQUENCES["Down"])
+                    time.sleep(0.2)
+
+                # 左側の列（From欄）へ戻す
+                self.session.send("\x15")
+                time.sleep(0.1)
+
+                # 今日の日付 (MM/dd/yy) を入力
+                today_str = datetime.date.today().strftime("%m/%d/%y")
+                log_info(f"OrderBooking: Due Date に '{today_str}' を入力")
+                self.session.send(today_str)
+                time.sleep(0.25)
+
+                # -------------------------------------------------------------
+                # Step 5: F1 を押して Output の入力欄に移動する
+                # -------------------------------------------------------------
+                self.set_status("⚡ Step 5/6: F1 を押して Output 欄へジャンプ中...", "working")
+                log_info("OrderBooking: F1 を送信して Output 欄へジャンプ")
+                self.session.send(KEY_SEQUENCES["F1"])
+
+                # Output 欄に着弾するのを待機（最大2.0秒）
+                start_out_wait = time.time()
+                while time.time() - start_out_wait < 2.0:
+                    time.sleep(0.1)
+                    if self._is_cursor_at_output_field():
+                        log_info("OrderBooking: Output 欄への着弾を確認しました")
+                        break
+                time.sleep(0.3)
+
+                # -------------------------------------------------------------
+                # Step 6: winPrint を指定して Excel 出力する
+                # -------------------------------------------------------------
+                self.set_status("📄 Step 6/6: Output に 'winPrint' を設定し、レポート集計・Excel展開を開始...", "working")
+                log_info("OrderBooking: input_winprint を起動して自動実行・サーバー監視・Excel展開を開始")
+                self.after(0, self.input_winprint)
+
+            except Exception as e:
+                log_error(f"OrderBooking 自動実行エラー: {e}", exc_info=True)
+                self.set_status(f"❌ OrderBooking 自動実行エラー: {e}", "error", clear_delay=6)
+
+        import threading
+        threading.Thread(target=_worker, daemon=True, name="order-booking-macro").start()
 
     def jump_to_menu(self, code):
         """指定されたメニュー番号へ直接ジャンプ（メイン画面ならF4を押さず直接入力、業務画面ならF4で戻って入力）"""
