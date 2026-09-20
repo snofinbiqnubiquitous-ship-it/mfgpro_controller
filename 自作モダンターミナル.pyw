@@ -516,11 +516,44 @@ def parse_report_text_to_table(text, deduplicate=False):
     return rows
 
 
+def remove_duplicate_rows(rows):
+    """Excel展開前に、すべての列のデータが完全に重複している行（重複レコード）を除外する"""
+    if not rows or len(rows) <= 1:
+        return rows
+
+    header = rows[0]
+    unique_rows = [header]
+    seen = set()
+    # ヘッダー自体をseenに登録しておくことで、データ途中に混入した同一ヘッダーも除外
+    seen.add(tuple(str(c).strip() for c in header))
+
+    dup_count = 0
+    for r in rows[1:]:
+        # 全列が空の行はスキップ
+        if not any(str(c).strip() for c in r):
+            continue
+        key = tuple(str(c).strip() for c in r)
+        if key in seen:
+            dup_count += 1
+            continue
+        seen.add(key)
+        unique_rows.append(r)
+
+    if dup_count > 0:
+        log_info(f"remove_duplicate_rows: 全列のデータが一致する重複行を {dup_count} 件除外しました (元行数={len(rows)}, 除外後={len(unique_rows)})")
+    return unique_rows
+
+
 def paste_to_new_excel(rows, title="QAD_Report"):
     """新規Excelブックを開き、全セルを文字列書式(@)に設定してデータを一括展開する（前ゼロ落ち・指数変換を完全防止）"""
     if not rows:
         log_warning("paste_to_new_excel: 展開するデータが空です")
         return False, "展開するデータがありません"
+
+    # Excel出力前に全列のデータが重複している行を除外
+    orig_len = len(rows)
+    rows = remove_duplicate_rows(rows)
+    removed_dups = orig_len - len(rows)
 
     num_rows = len(rows)
     num_cols = max(len(r) for r in rows) if rows else 0
@@ -528,7 +561,8 @@ def paste_to_new_excel(rows, title="QAD_Report"):
         log_warning("paste_to_new_excel: 有効な行・列が0です")
         return False, "有効なデータ行がありません"
 
-    log_info(f"paste_to_new_excel: 開始 (行数={num_rows}, 列数={num_cols}, タイトル={title})")
+    dup_info = f"（重複 {removed_dups} 件を除外）" if removed_dups > 0 else ""
+    log_info(f"paste_to_new_excel: 開始 (行数={num_rows}, 列数={num_cols}, タイトル={title}{dup_info})")
 
     # 1. win32com による Excel COM 直接操作（前ゼロ落ち・指数変換なしの完全文字列貼り付け）
     try:
@@ -564,7 +598,7 @@ def paste_to_new_excel(rows, title="QAD_Report"):
             except Exception:
                 pass
             excel.Visible = True
-            msg = f"Excelに {num_rows - 1} 件のデータを展開しました（文字列書式）"
+            msg = f"Excelに {num_rows - 1} 件のデータを展開しました{dup_info}（文字列書式）"
             log_info(f"paste_to_new_excel: COM操作成功 - {msg}")
             return True, msg
         finally:
@@ -582,7 +616,7 @@ def paste_to_new_excel(rows, title="QAD_Report"):
             writer = csv.writer(f)
             writer.writerows(rows)
         os.startfile(str(csv_path))
-        msg = f"CSVを生成しExcelで起動しました ({num_rows - 1} 件)"
+        msg = f"CSVを生成しExcelで起動しました ({num_rows - 1} 件{dup_info})"
         log_info(f"paste_to_new_excel: フォールバックCSV起動成功 - {csv_path} ({msg})")
         return True, msg
     except Exception as e:
@@ -2186,7 +2220,7 @@ class TerminalApp(ctk.CTk):
                 # 新規Excelに全セル文字列書式(@)で一括展開
                 success, msg = paste_to_new_excel(rows, title=title)
                 if success:
-                    self.set_status(f"✅ winPrint出力を検知し、Excelに全 {row_count} 件を展開しました（文字列書式）", "success", clear_delay=8)
+                    self.set_status(f"✅ winPrint出力を検知し、{msg}", "success", clear_delay=8)
                 else:
                     self.set_status(f"❌ {msg}", "error", clear_delay=6)
 
