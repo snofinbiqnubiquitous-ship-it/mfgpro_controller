@@ -9,6 +9,7 @@
   "enable_windows_shortcuts": true,
   "block_server_shortcuts": true,
   "auto_excel_export": true,
+  "auto_login_main_menu": true,
   "shortcuts": [
     {
       "name": "在庫スナップショット",
@@ -25,6 +26,10 @@
     {
       "name": "SO作成",
       "code": "99.7.1.1"
+    },
+    {
+      "name": "Sales",
+      "code": "99.7.5.11"
     }
   ]
 }

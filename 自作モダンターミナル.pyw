@@ -91,6 +91,7 @@ DEFAULT_CONFIG = {
     "block_server_shortcuts": True,
     "auto_excel_export": True,
     "auto_login_main_menu": True,
+    "auto_winprint_on_f1": True,
     "shortcuts": [
         {"name": "在庫スナップショット", "code": "99.3.6.1"},
         {"name": "在庫移動明細", "code": "99.3.21.4"},
@@ -118,6 +119,8 @@ def load_config():
         cfg["auto_excel_export"] = True
     if "auto_login_main_menu" not in cfg:
         cfg["auto_login_main_menu"] = True
+    if "auto_winprint_on_f1" not in cfg:
+        cfg["auto_winprint_on_f1"] = True
     return cfg
 
 
@@ -1121,8 +1124,13 @@ class TerminalApp(ctk.CTk):
                 self.key_menu.add_separator()
             for label, key in buttons:
                 self.key_menu.add_command(label=label, command=lambda k=key: self.send_key(k))
-        self.key_menu.add_separator()
         self.key_menu.add_command(label="📄 Output に 'winPrint' を入力 (高速ファイル出力)", command=self.input_winprint)
+        self.auto_winprint_f1_var = tk.BooleanVar(value=bool(self.config.get("auto_winprint_on_f1", True)))
+        self.key_menu.add_checkbutton(
+            label="⚡ Output欄でF1押下時に自動でwinPrint実行",
+            variable=self.auto_winprint_f1_var,
+            command=self.toggle_auto_winprint_on_f1,
+        )
         menubar.add_cascade(label="キー送信", menu=self.key_menu)
 
 
@@ -1839,6 +1847,16 @@ class TerminalApp(ctk.CTk):
             self._show_input_error("ログイン後に自動でMain Menuへ移動を有効化しました")
         else:
             self._show_input_error("ログイン後の自動移動を無効化しました")
+
+    def toggle_auto_winprint_on_f1(self):
+        """Output欄でF1押下時に自動でwinPrintを実行する機能の有効/無効切替"""
+        val = bool(self.auto_winprint_f1_var.get())
+        self.config["auto_winprint_on_f1"] = val
+        save_config(self.config)
+        if val:
+            self._show_input_error("Output欄でF1押下時に自動でwinPrint実行を有効化しました")
+        else:
+            self._show_input_error("Output欄での自動winPrintを無効化しました（通常F1送信）")
 
     def _check_is_report_output(self):
         """現在の画面が QAD レポート出力（local 出力結果）であるかを高精度に判定"""
@@ -2770,7 +2788,8 @@ class TerminalApp(ctk.CTk):
         # 3. 通常キー送信（英数字・記号・Enter・Space・Tab・Backspace・矢印キー・F1・F4等）
         if self.is_connected:
             if event.keysym == "F1":
-                self._handle_f1_action()
+                if self._handle_f1_action():
+                    return "break"
             elif event.keysym == "F4":
                 if getattr(self, "_is_waiting_query", False):
                     log_info("F4押下によりクエリ待機を解除しました")
@@ -2779,12 +2798,84 @@ class TerminalApp(ctk.CTk):
             self._send(key_sequence(event.keysym, event.char, event.state))
         return "break"
 
+    def _get_line_text(self, row):
+        """指定行の画面テキストを取得（raw_linesまたはtextboxから安全に取得）"""
+        if getattr(self, "raw_lines", None) and row in self.raw_lines and self.raw_lines[row]:
+            return self.raw_lines[row][0]
+        try:
+            return self.textbox._textbox.get(f"{row + 1}.0", f"{row + 1}.end")
+        except Exception:
+            return ""
+
+    def _is_cursor_at_output_field(self):
+        """現在のカーソルがレポート画面の 'Output:' 入力欄にあるかを高精度に判定"""
+        if not self.is_connected or self.is_main_menu() or self.is_menu_screen():
+            return False
+
+        cur_pos = getattr(self, "_current_cursor", None)
+        if cur_pos is None:
+            return False
+
+        cur_row, cur_col = cur_pos
+        line_text = self._get_line_text(cur_row)
+        if not line_text:
+            return False
+
+        # 1. 行内に Output / 出力先 / 出力 ラベルが存在するか検索
+        m = re.search(r'(?:output|出力(?:先)?)\s*[:：]?', line_text, re.IGNORECASE)
+        if m:
+            label_start = m.start()
+            label_end = m.end()
+
+            # カーソルがラベルの開始位置（直前含む）からラベル後方の一定範囲内にあるか
+            if cur_col >= label_start:
+                after_label = line_text[label_end:]
+                # 次のラベル（例: "Batch ID:", "バッチID:", "To:" 等。複数スペースをまたがない）
+                m_next = re.search(r'\b[A-Za-z0-9_]+(?:\s[A-Za-z0-9_]+)?\s*[:：]|(?:バッチ(?:\s*ID)?|オプション)\s*[:：]', after_label)
+                if m_next:
+                    next_label_start = label_end + m_next.start()
+                    if cur_col < next_label_start:
+                        return True
+                    else:
+                        return False
+                else:
+                    # 次のラベルがない場合でも、Output欄の長さは通常25文字以内
+                    if cur_col <= label_end + 25:
+                        return True
+                    else:
+                        return False
+
+        # 2. カーソル直前の文字列（接頭辞）が Output: で終わっているかチェック
+        prefix = line_text[:max(0, cur_col)]
+        if re.search(r'(?:output|出力(?:先)?)\s*[:：]?\s*$', prefix, re.IGNORECASE):
+            return True
+
+        # 3. 画面上の underline 入力フィールドと照合
+        try:
+            fields = self._get_all_input_fields()
+            cur_field = self._find_field_at(fields, cur_row, cur_col)
+            if cur_field:
+                before_field = line_text[:cur_field.start_col].rstrip()
+                if re.search(r'(?:output|出力(?:先)?)\s*[:：]?$', before_field, re.IGNORECASE):
+                    return True
+        except Exception:
+            pass
+
+        return False
+
     def _handle_f1_action(self):
-        """F1キー押下時に画面状態をチェックし、レポート実行クエリ待機ステータスを設定またはwinPrint監視を開始"""
+        """F1キー押下時に画面状態をチェックし、Output欄であればwinPrint実行、またはレポート実行クエリ待機ステータスを設定"""
         if not self.is_connected:
-            return
+            return False
         if self.is_main_menu() or self.is_menu_screen():
-            return
+            return False
+
+        # Output欄でのF1押下時に自動でwinPrintを実行する設定が有効な場合
+        if self.config.get("auto_winprint_on_f1", True) and self._is_cursor_at_output_field():
+            log_info("Output欄での F1 押下を検知しました。自動で winPrint を設定して実行します。")
+            self.input_winprint()
+            return True
+
         cur_text = self._get_current_screen_text()
         lower = cur_text.lower() if cur_text else ""
 
@@ -2792,7 +2883,7 @@ class TerminalApp(ctk.CTk):
         if "winprint" in lower:
             log_info("Output: winPrint を検知しました。サーバー監視＆自動Excel展開ワーカーを開始します。")
             self._start_winprint_capture()
-            return
+            return False
 
         # 画面内に Output / 出力 / 99. / From / To 等のレポート条件画面パターンがあるか判定
         is_report_input = (
@@ -2805,6 +2896,8 @@ class TerminalApp(ctk.CTk):
             self._is_waiting_query = True
             self._query_wait_start_time = time.time()
             self.set_status("⏳ サーバーの応答を待機中... (クエリ処理中)", "waiting")
+
+        return False
 
     def _send(self, data):
         if not data or not self.is_connected or self.session is None:
@@ -2880,7 +2973,9 @@ class TerminalApp(ctk.CTk):
 
     def send_key(self, key):
         if key == "F1":
-            self._handle_f1_action()
+            if self._handle_f1_action():
+                self.focus_terminal()
+                return
         elif key == "F4":
             if getattr(self, "_is_waiting_query", False):
                 log_info("ツールバー/メニューからの F4 送信によりクエリ待機を解除しました")
