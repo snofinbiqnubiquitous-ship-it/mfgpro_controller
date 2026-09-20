@@ -2,6 +2,7 @@
 
 import codecs
 import queue
+import re
 import socket
 import threading
 
@@ -105,6 +106,8 @@ class TerminalSession:
         self.outgoing = queue.Queue(maxsize=256)
         self.last_cursor = None
         self.ssh = None
+        self.is_capturing_printer = False
+        self.printer_buffer = bytearray()
 
     def start(self):
         threading.Thread(target=self._run, daemon=True, name="qad-ssh").start()
@@ -211,7 +214,47 @@ class TerminalSession:
                 if not chunk:  # EOF, including orderly remote disconnect.
                     self.feed(b"", final=True)
                     break
-                self.feed(chunk)
+
+                # 32printer (VT100プリンタパススルー / 32prn) ストリームの検知とハンドリング
+                if not self.is_capturing_printer:
+                    marker_pos = -1
+                    if b"\x1b[5i" in chunk:
+                        marker_pos = chunk.find(b"\x1b[5i")
+                    elif b"begin 0 32PRINTER" in chunk:
+                        marker_pos = chunk.find(b"begin 0 32PRINTER")
+
+                    if marker_pos != -1:
+                        self.is_capturing_printer = True
+                        self.printer_buffer.clear()
+                        if marker_pos > 0:
+                            self.feed(chunk[:marker_pos])
+                        self.printer_buffer.extend(chunk[marker_pos:])
+                    else:
+                        self.feed(chunk)
+                else:
+                    self.printer_buffer.extend(chunk)
+
+                if self.is_capturing_printer:
+                    # 終了マーカーの検知 (\x1b[4i または \nend)
+                    if b"\x1b[4i" in self.printer_buffer:
+                        end_idx = self.printer_buffer.find(b"\x1b[4i") + 4
+                        captured = bytes(self.printer_buffer[:end_idx])
+                        trailing = bytes(self.printer_buffer[end_idx:])
+                        self.is_capturing_printer = False
+                        self.printer_buffer.clear()
+                        self.events.put((self, "32printer_data", captured))
+                        if trailing:
+                            self.feed(trailing)
+                    elif re.search(rb'\nend(\r|\n)', self.printer_buffer):
+                        m = re.search(rb'\nend(\r|\n)', self.printer_buffer)
+                        end_idx = m.end()
+                        captured = bytes(self.printer_buffer[:end_idx])
+                        trailing = bytes(self.printer_buffer[end_idx:])
+                        self.is_capturing_printer = False
+                        self.printer_buffer.clear()
+                        self.events.put((self, "32printer_data", captured))
+                        if trailing:
+                            self.feed(trailing)
         except Exception as exc:
             if not self.stop_event.is_set():
                 error = str(exc)

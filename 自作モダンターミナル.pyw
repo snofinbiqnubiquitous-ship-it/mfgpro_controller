@@ -1,6 +1,8 @@
 import base64
+import codecs
 import csv
 import datetime
+import gzip
 import json
 import os
 import paramiko
@@ -147,6 +149,24 @@ INVENTORY_GAS_URL = "https://script.google.com/a/macros/ap.averydennison.com/s/A
 COMPLAINT_GAS_URL = "https://script.google.com/a/macros/ap.averydennison.com/s/AKfycbyEwl3D8kjtbkk34V_9aJGrlgt39B480O_W3zCI6JiSC4glpS4XNj6JSC4ZiyMNKA/exec"
 CONFIG_INI_DIR = os.path.join(os.path.expanduser("~"), "Documents", "QAD_Tools")
 CONFIG_INI_PATH = os.path.join(CONFIG_INI_DIR, "config.ini")
+
+def decode_32prn_stream(stream_bytes: bytes) -> str:
+    """32prnストリーム(uuencode + gzip)からテキストを高速解凍・復元"""
+    b_start = stream_bytes.find(b"begin 0 32PRINTER")
+    if b_start == -1:
+        raise ValueError("32prn ヘッダー (begin 0 32PRINTER) が見つかりませんでした。")
+
+    end_match = re.search(rb'\nend(\r|\n|$)', stream_bytes[b_start:])
+    if not end_match:
+        raise ValueError("32prn フッター (end) が見つかりませんでした。")
+
+    b_end = b_start + end_match.end()
+    uu_data = stream_bytes[b_start:b_end]
+
+    uu_clean = uu_data.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    compressed = codecs.decode(uu_clean, 'uu')
+    raw_bytes = gzip.decompress(compressed)
+    return raw_bytes.decode('cp932', errors='replace')
 
 def clean_printer_data(text: str) -> str:
     """ANSIエスケープシーケンスおよびNULL文字を除去"""
@@ -1717,12 +1737,12 @@ class TerminalApp(ctk.CTk):
         )
         self.home_btn.grid(row=0, column=2, padx=(4, 4), pady=4)
 
-        # 右側「📄 winPrint」ボタン（ワンクリックでOutput欄にwinPrintを入力）
+        # 右側「🖨️ 32printer」ボタン（ワンクリックでOutput欄に32prnを入力）
         self.winprint_btn = ctk.CTkButton(
-            self.shortcut_bar, text="📄 winPrint", width=86, height=28,
+            self.shortcut_bar, text="🖨️ 32printer", width=96, height=28,
             fg_color="#1E7E34", hover_color="#155724", text_color="#FFFFFF",
             font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
-            corner_radius=6, command=self.input_winprint
+            corner_radius=6, command=self.input_32printer
         )
         self.winprint_btn.grid(row=0, column=3, padx=(4, 4), pady=4)
 
@@ -2169,11 +2189,11 @@ class TerminalApp(ctk.CTk):
                 time.sleep(0.35)
 
                 # -------------------------------------------------------------
-                # Step 5: winPrint を指定して Excel 出力する
+                # Step 5: 32prn を指定して Excel 出力する
                 # -------------------------------------------------------------
-                self.set_status("📄 Step 5/5: Output に 'winPrint' を設定し、レポート集計・Excel展開を開始...", "working")
-                log_info("OrderBooking: input_winprint を起動して自動実行・サーバー監視・Excel展開を開始")
-                self.after(0, self.input_winprint)
+                self.set_status("🖨️ Step 5/5: Output に '32prn' を設定し、ストリーム受信・Excel展開を開始...", "working")
+                log_info("OrderBooking: input_32printer を起動して自動実行・ストリーム直接受信・Excel展開を開始")
+                self.after(0, self.input_32printer)
 
             except Exception as e:
                 log_error(f"OrderBooking 自動実行エラー: {e}", exc_info=True)
@@ -2251,16 +2271,12 @@ class TerminalApp(ctk.CTk):
         threading.Thread(target=_thread_target, daemon=True, name="inventory-gas-worker").start()
 
     def _run_inventory_gas_transmission_worker(self, host, port, user, pwd):
-        """在庫レポート抽出＆GAS送信のバックグラウンドワーカー"""
+        """在庫レポート抽出＆GAS送信のバックグラウンドワーカー (32prn 高速ストリーム版)"""
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
             self.set_status("🔌 [1/5] QADサーバーに接続中...", "working")
             ssh.connect(host, port=port, username=user, password=pwd, timeout=15)
-
-            # 以前の winPrint の残骸を削除
-            ssh.exec_command(f"rm -f /home/{user}/winPrint")
-            time.sleep(1)
 
             transport = ssh.get_transport()
             if transport:
@@ -2270,65 +2286,91 @@ class TerminalApp(ctk.CTk):
             shell.settimeout(10.0)
 
             self.set_status("📋 [2/5] QADメニュー(99.3.6.1)へ移動中...", "working")
-            time.sleep(4)
+            time.sleep(2)
             _clear_shell_buffer(shell)
 
             shell.send("2\r")
-            time.sleep(3)
+            _wait_shell_text(shell, "Selection:", timeout=10)
             _clear_shell_buffer(shell)
 
             shell.send("1\r")
-            time.sleep(6)
-            _clear_shell_buffer(shell)
+            login_start = time.time()
+            while time.time() - login_start < 15:
+                if shell.recv_ready():
+                    peek = shell.recv(4096)
+                    if b"Press space bar" in peek or b"Pausing" in peek:
+                        shell.send(" ")
+                    if b"Please select a function" in peek:
+                        break
+                time.sleep(0.1)
 
+            _clear_shell_buffer(shell)
             shell.send("99.3.6.1\r")
-            time.sleep(4)
+            time.sleep(3)
             _clear_shell_buffer(shell)
 
             self.set_status("⌨️ [3/5] 条件 '1FGI' を入力中...", "working")
             for _ in range(8):
                 shell.send("\r")
-                time.sleep(0.3)
+                time.sleep(0.2)
 
             shell.send("1FGI\r")
-            time.sleep(0.5)
+            time.sleep(0.3)
             shell.send("1FGI\r")
-            time.sleep(0.5)
+            time.sleep(0.3)
             _clear_shell_buffer(shell)
 
             # F1キー(1回目): Output欄へ
             shell.send("\x1bOP")
-            time.sleep(3)
+            time.sleep(2)
             _clear_shell_buffer(shell)
 
-            # Output欄に winPrint を入力
-            shell.send("winPrint\r")
+            # Output欄に 32prn を入力
+            shell.send("32prn\r")
             time.sleep(1)
 
             # F1キー(2回目): 抽出実行
             shell.send("\x1bOP")
-            time.sleep(1)
+            time.sleep(0.8)
             shell.send("\x1bOP")
-            time.sleep(1)
+            time.sleep(0.8)
             shell.send("\x06")
 
-            self.set_status("⏳ [4/5] サーバー内でファイル出力中(winPrint)...", "working")
+            self.set_status("⏳ [4/5] 32prn 圧縮ストリームを受信中...", "working")
 
-            sftp = ssh.open_sftp()
-            remote_path = f"/home/{user}/winPrint"
-            local_temp = os.path.join(tempfile.gettempdir(), f"inventory_winPrint_{int(time.time())}.txt")
+            query_start = time.time()
+            stream_buffer = bytearray()
+            capturing = False
+            finished = False
+            MAX_WAIT = 300  # 最大5分待機
 
-            def _update_progress(msg):
-                self.set_status(f"⏳ [4/5] {msg}", "working")
+            while time.time() - query_start < MAX_WAIT:
+                if shell.recv_ready():
+                    chunk = shell.recv(65535)
+                    if chunk:
+                        stream_buffer.extend(chunk)
 
-            wait_and_download_winprint(sftp, remote_path, local_temp, max_wait=600, status_callback=_update_progress)
-            sftp.close()
+                        if b"begin 0 32PRINTER" in stream_buffer and not capturing:
+                            capturing = True
+                            self.set_status("📥 [4/5] 圧縮データを受信中...", "working")
 
-            self.set_status("📥 [5/5] レポートデータを解析中...", "working")
-            with open(local_temp, 'rb') as f:
-                raw_bytes = f.read()
+                        if capturing:
+                            if re.search(rb'\nend(\r|\n|\x1b)', stream_buffer) or b"\x1b[4i" in stream_buffer:
+                                finished = True
+                                break
 
-            raw_text = raw_bytes.decode('cp932', errors='replace')
+                time.sleep(0.05)
+                elapsed = int(time.time() - query_start)
+                if elapsed % 4 == 0 and elapsed > 0 and not capturing:
+                    self.set_status(f"⏳ [4/5] サーバーでクエリ実行中... ({elapsed}秒経過)", "working")
+
+            if not finished:
+                raise TimeoutError("32prn ストリームの受信がタイムアウトしました。")
+
+            elapsed_sec = time.time() - query_start
+            self.set_status(f"📥 [5/5] 高速インメモリ解凍中 ({len(stream_buffer)/1024:.0f} KB / {elapsed_sec:.1f}秒)...", "working")
+
+            raw_text = decode_32prn_stream(stream_buffer)
             final_text = clean_printer_data(raw_text)
             rows = parse_report_to_rows(final_text)
 
@@ -2411,10 +2453,6 @@ class TerminalApp(ctk.CTk):
             _update_ui_status("🔌 [1/6] サーバーに接続中...")
             ssh.connect(host, port=port, username=user, password=pwd, timeout=15)
 
-            # 以前の winPrint の残骸を削除
-            ssh.exec_command(f"rm -f /home/{user}/winPrint")
-            time.sleep(1)
-
             transport = ssh.get_transport()
             if transport:
                 transport.set_keepalive(30)
@@ -2480,8 +2518,8 @@ class TerminalApp(ctk.CTk):
             time.sleep(2.0)
             _clear_shell_buffer(shell)
 
-            # Output 欄に winPrint を入力
-            shell.send("winPrint\r")
+            # Output 欄に 32prn (高速gzipストリーム) を入力
+            shell.send("32prn\r")
             time.sleep(1.0)
 
             _update_ui_status("🚀 [4/6] レポート実行開始...")
@@ -2489,21 +2527,41 @@ class TerminalApp(ctk.CTk):
             time.sleep(1.0)
             shell.send("\x06")
 
-            sftp = ssh.open_sftp()
-            remote_path = f"/home/{user}/winPrint"
-            local_temp = os.path.join(tempfile.gettempdir(), f"complaint_winPrint_{int(time.time())}.txt")
+            # --- 32prn 圧縮ストリーム直接受信 ---
+            _update_ui_status("⏳ [4/6] 32prn 圧縮ストリームを受信中...")
+            query_start = time.time()
+            stream_buffer = bytearray()
+            capturing = False
+            finished = False
+            MAX_WAIT = 300  # 最大5分待機
 
-            def _progress_cb(msg):
-                _update_ui_status(f"⏳ [4/6] {msg}")
+            while time.time() - query_start < MAX_WAIT:
+                if shell.recv_ready():
+                    chunk = shell.recv(65535)
+                    if chunk:
+                        stream_buffer.extend(chunk)
 
-            last_size = wait_and_download_winprint(sftp, remote_path, local_temp, max_wait=600, status_callback=_progress_cb)
-            sftp.close()
+                        if b"begin 0 32PRINTER" in stream_buffer and not capturing:
+                            capturing = True
+                            _update_ui_status("📥 [4/6] 圧縮データを受信中...")
 
-            _update_ui_status(f"📥 [5/6] データ解析中 ({last_size/1024:.0f} KB)...")
-            with open(local_temp, 'rb') as f:
-                raw_bytes = f.read()
+                        if capturing:
+                            if re.search(rb'\nend(\r|\n|\x1b)', stream_buffer) or b"\x1b[4i" in stream_buffer:
+                                finished = True
+                                break
 
-            raw_text = raw_bytes.decode('cp932', errors='replace')
+                time.sleep(0.05)
+                elapsed = int(time.time() - query_start)
+                if elapsed % 4 == 0 and elapsed > 0 and not capturing:
+                    _update_ui_status(f"⏳ [4/6] サーバーでクエリ実行中... ({elapsed}秒経過)")
+
+            if not finished:
+                raise TimeoutError("32prn ストリームの受信がタイムアウトしました。")
+
+            elapsed_sec = time.time() - query_start
+            _update_ui_status(f"📥 [5/6] データ解析中 ({len(stream_buffer)/1024:.0f} KB / {elapsed_sec:.1f}秒)...")
+
+            raw_text = decode_32prn_stream(stream_buffer)
             final_text = clean_printer_data(raw_text)
             data_list = parse_report_to_rows(final_text)
 
@@ -2886,14 +2944,15 @@ class TerminalApp(ctk.CTk):
             self._show_input_error("ログイン後の自動移動を無効化しました")
 
     def toggle_auto_winprint_on_f1(self):
-        """Output欄でF1押下時に自動でwinPrintを実行する機能の有効/無効切替"""
+        """Output欄でF1押下時に自動で32printerを実行する機能の有効/無効切替"""
         val = bool(self.auto_winprint_f1_var.get())
         self.config["auto_winprint_on_f1"] = val
+        self.config["auto_32printer_on_f1"] = val
         save_config(self.config)
         if val:
-            self._show_input_error("Output欄でF1押下時に自動でwinPrint実行を有効化しました")
+            self._show_input_error("Output欄でF1押下時に自動で32printer実行を有効化しました")
         else:
-            self._show_input_error("Output欄での自動winPrintを無効化しました（通常F1送信）")
+            self._show_input_error("Output欄での自動32printerを無効化しました（通常F1送信）")
 
     def _check_is_report_output(self):
         """現在の画面が QAD レポート出力（local 出力結果）であるかを高精度に判定"""
@@ -3085,18 +3144,18 @@ class TerminalApp(ctk.CTk):
 
         threading.Thread(target=_worker, daemon=True, name="auto-excel-capture").start()
 
-    def input_winprint(self):
-        """Output欄に 'winPrint' を入力し、決定＋実行キーシーケンス（F1x2 + Ctrl+F）を送信して抽出を開始"""
+    def input_32printer(self):
+        """Output欄に '32prn' を入力し、決定＋実行キーシーケンス（F1x2 + Ctrl+F）を送信して抽出を開始"""
         if not self.is_connected:
             self.set_status("❌ 未接続です", "error", clear_delay=3)
             return
-        log_info("input_winprint: Output欄に winPrint を入力し、実績キーシーケンスで実行します")
-        self.set_status("⏳ Output: winPrint を指示し、レポート実行を開始中...", "waiting")
+        log_info("input_32printer: Output欄に 32prn を入力し、実績キーシーケンスで実行します")
+        self.set_status("⏳ Output: 32prn を指示し、レポート実行を開始中...", "waiting")
 
         def _runner():
             try:
-                # 1. winPrint と Enter を送信
-                self._send("winPrint\r")
+                # 1. 32prn と Enter を送信
+                self._send("32prn\r")
                 time.sleep(1.0)
                 # 2. F1キー（1回目）を送信
                 self._send("\x1bOP")
@@ -3109,121 +3168,52 @@ class TerminalApp(ctk.CTk):
                 time.sleep(1.0)
                 # 5. Program Information 画面（Press space bar to continue）を閉じるため Space を自動送信
                 self._send(" ")
-                log_info("input_winprint: キーシーケンス送信完了 (winPrint\\r -> F1 -> F1 -> Ctrl+F -> Space)")
-                # 6. サーバー監視ワーカーを起動
-                self._start_winprint_capture()
+                log_info("input_32printer: キーシーケンス送信完了 (32prn\\r -> F1 -> F1 -> Ctrl+F -> Space)")
             except Exception as e:
-                log_error(f"input_winprint エラー: {e}", exc_info=True)
+                log_error(f"input_32printer エラー: {e}", exc_info=True)
 
-        threading.Thread(target=_runner, daemon=True, name="winprint-key-sequence").start()
+        threading.Thread(target=_runner, daemon=True, name="32printer-key-sequence").start()
+
+    def input_winprint(self):
+        """互換用エイリアス"""
+        self.input_32printer()
 
     def _start_winprint_capture(self):
-        """サーバー上の winPrint ファイルを監視し、生成完了後にローカルへダウンロードしてExcel展開＆サーバーファイル削除"""
-        if getattr(self, "_is_capturing_winprint", False):
-            return
-        self._is_capturing_winprint = True
-        self._is_waiting_query = False
+        """互換用エイリアス（32printerストリームで自動処理されるため何もしない）"""
+        pass
+
+    def _handle_32printer_data(self, captured_bytes: bytes):
+        """32printer からの圧縮データストリームを受信し、自動で解凍＆Excel展開"""
+        log_info(f"=== 32printer データストリーム受信完了 ({len(captured_bytes):,} bytes) ===")
+        self.set_status(f"📥 32printer 圧縮データ受信完了 ({len(captured_bytes)/1024:.1f} KB) → 解凍中...", "working")
 
         def _worker():
-            log_info("=== winPrint サーバー監視ワーカー起動 (実績ベース独立SFTP) ===")
-            self.set_status("⏳ サーバー内でレポート集計中 (winPrint)...", "waiting")
-
-            user = getattr(self.session, "username", None) or self.config.get("user", "takehik")
-            remote_path = f"/home/{user}/winPrint"
-
-            ssh = None
-            sftp = None
             try:
-                # メインの対話型セッションと干渉しないよう、独立した SSH/SFTP セッションを開く
-                ssh = paramiko.SSHClient()
-                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                host = self.config.get("host", "mfg03")
-                port = int(self.config.get("port", 22))
-                b64 = self.config.get("pass_b64", "")
-                pwd = base64.b64decode(b64).decode("utf-8") if b64 else ""
-
-                ssh.connect(host, port=port, username=user, password=pwd, timeout=10)
-                sftp = ssh.open_sftp()
-
-                # 監視ループ (最大10分待機)
-                MAX_WAIT = 600
-                last_size = -1
-                stable_count = 0
-                wait_time = 0.0
-
-                while wait_time < MAX_WAIT and not self.closing:
-                    try:
-                        stat = sftp.stat(remote_path)
-                        current_size = stat.st_size
-                        if current_size > 0:
-                            if current_size == last_size:
-                                stable_count += 1
-                                if stable_count >= 4:  # 2秒間サイズ変化なしで完了とみなす
-                                    log_info(f"winPrint 生成完了を検知 (サイズ: {current_size} バイト)")
-                                    break
-                            else:
-                                stable_count = 0
-                                last_size = current_size
-                                self.set_status(f"⏳ サーバーからデータ書き込み中: {current_size / 1024:.1f} KB...", "waiting")
-                        else:
-                            # 0バイトの仮ファイルが存在（Progressが集計処理中）
-                            self.set_status(f"⏳ サーバー内でレポート集計中 (Progress処理中: {int(wait_time)}秒)...", "waiting")
-                    except IOError:
-                        self.set_status(f"⏳ サーバーの応答を待機中... (クエリ処理中: {int(wait_time)}秒)", "waiting")
-                    time.sleep(0.5)
-                    wait_time += 0.5
-
-                if wait_time >= MAX_WAIT or last_size <= 0:
-                    log_warning(f"winPrint ファイル生成タイムアウト ({wait_time}秒)")
-                    self.set_status("❌ サーバー側でのレポート生成がタイムアウトしました", "error", clear_delay=6)
-                    return
-
-                # 巨大ファイルをメモリ直読みでハングさせないよう、ローカルのtempフォルダに安全ダウンロード
-                self.set_status(f"📋 サーバー出力完了 ({last_size / 1024 / 1024:.2f} MB) → 高速ダウンロード中...", "working")
-                local_temp = os.path.join(tempfile.gettempdir(), "winPrint_download.txt")
-                sftp.get(remote_path, local_temp)
-                log_info(f"winPrint ローカル一時ファイルへのダウンロード完了: {local_temp}")
-
-                # 【最重要】読み込み直後にサーバー上の仮ファイルを即座に安全削除！
-                try:
-                    sftp.remove(remote_path)
-                    log_info(f"サーバー上の仮ファイル {remote_path} を安全に削除しました")
-                except Exception as rm_e:
-                    log_warning(f"仮ファイル削除エラー (無視可能): {rm_e}")
-
-                # 一時ファイルから読み込み＆クレンジング
-                with open(local_temp, 'rb') as f:
-                    raw_bytes = f.read()
-
-                raw_text = raw_bytes.decode('cp932', errors='replace')
+                raw_text = decode_32prn_stream(captured_bytes)
                 final_text = clean_printer_data(raw_text)
-                log_info(f"winPrint クレンジング完了 (文字数: {len(final_text)})")
-                self.set_status("📋 レポートデータを解析中...", "working")
+                log_info(f"32printer 解凍完了 (文字数: {len(final_text):,})")
 
-                # 実績のある parse_report_to_rows でパース
+                self.set_status("📋 レポートデータを解析中...", "working")
                 rows = parse_report_to_rows(final_text)
                 if not rows or (len(rows) == 1 and not any(rows[0])):
-                    log_info("parse_report_to_rows でパースできなかったため parse_report_text_to_table で再試行")
                     rows = parse_report_text_to_table(final_text, deduplicate=False)
 
                 if not rows or (len(rows) == 1 and not any(rows[0])):
-                    log_warning("winPrint のパース失敗")
+                    log_warning("32printer データのパース失敗")
                     self.set_status("❌ レポートデータの解析に失敗しました", "error", clear_delay=5)
                     return
 
                 row_count = len(rows) - 1
-                log_info(f"winPrint パース成功 (列数={len(rows[0])}, データ行数={row_count})")
-                self.set_status(f"🚀 Excelを新規作成し、全 {row_count} 件を文字列形式で展開中...", "working")
+                log_info(f"32printer パース成功 (列数={len(rows[0])}, データ行数={row_count:,})")
+                self.set_status(f"🚀 Excelを新規作成し、全 {row_count:,} 件を展開中...", "working")
 
-                # タイトル決定
                 screen_txt = self._get_current_screen_text()
                 match = re.search(r'\b(\d+\.\d+(?:\.\d+)*)\b', screen_txt)
                 title = f"QAD_{match.group(1)}" if match else "QAD_Report"
 
-                # 新規Excelに全セル文字列書式(@)で一括展開
                 success, msg = paste_to_new_excel(rows, title=title)
                 if success:
-                    self.set_status(f"✅ winPrint出力を検知し、{msg}", "success", clear_delay=8)
+                    self.set_status(f"✅ 32printer出力を検知し、{msg}", "success", clear_delay=8)
                 else:
                     self.set_status(f"❌ {msg}", "error", clear_delay=6)
 
@@ -3233,33 +3223,15 @@ class TerminalApp(ctk.CTk):
                     cur_screen = self._get_current_screen_text()
                     cur_screen_lower = cur_screen.lower() if cur_screen else ""
                     if "press space" in cur_screen_lower or "program information" in cur_screen_lower:
-                        log_info("winPrint完了後: Program Information画面を検知したため、自動でSpaceを送信して復帰します")
                         self._send(" ")
-                except Exception as sp_e:
-                    log_warning(f"Space自動送信エラー: {sp_e}")
+                except Exception:
+                    pass
 
             except Exception as e:
-                log_error(f"winPrint 自動連携エラー: {e}", exc_info=True)
-                self.set_status(f"❌ winPrint処理エラー: {e}", "error", clear_delay=6)
-            finally:
-                # 万一仮ファイルが残っていた場合の安全消去 & セッションクローズ
-                if sftp:
-                    try:
-                        sftp.remove(remote_path)
-                    except Exception:
-                        pass
-                    try:
-                        sftp.close()
-                    except Exception:
-                        pass
-                if ssh:
-                    try:
-                        ssh.close()
-                    except Exception:
-                        pass
-                self._is_capturing_winprint = False
+                log_error(f"32printer 処理例外: {e}", exc_info=True)
+                self.set_status(f"❌ 32printer 処理エラー: {e}", "error", clear_delay=6)
 
-        threading.Thread(target=_worker, daemon=True, name="winprint-worker").start()
+        threading.Thread(target=_worker, daemon=True, name="32printer-excel-worker").start()
 
 
 
@@ -3461,6 +3433,9 @@ class TerminalApp(ctk.CTk):
                 # ログイン後に自動でMain Menuへ移動
                 if self.config.get("auto_login_main_menu", True):
                     threading.Thread(target=self._auto_navigate_to_main_menu, daemon=True, name="auto-main-menu").start()
+            elif event == "32printer_data":
+                # error 変数に captured バイト列が格納されている
+                self._handle_32printer_data(error)
             elif event == "closed":
                 if self.is_connected:
                     self._update_screen()
@@ -3904,25 +3879,26 @@ class TerminalApp(ctk.CTk):
         return False
 
     def _handle_f1_action(self):
-        """F1キー押下時に画面状態をチェックし、Output欄であればwinPrint実行、またはレポート実行クエリ待機ステータスを設定"""
+        """F1キー押下時に画面状態をチェックし、Output欄であれば32printer実行、またはレポート実行クエリ待機ステータスを設定"""
         if not self.is_connected:
             return False
         if self.is_main_menu() or self.is_menu_screen():
             return False
 
-        # Output欄でのF1押下時に自動でwinPrintを実行する設定が有効な場合
-        if self.config.get("auto_winprint_on_f1", True) and self._is_cursor_at_output_field():
-            log_info("Output欄での F1 押下を検知しました。自動で winPrint を設定して実行します。")
-            self.input_winprint()
+        # Output欄でのF1押下時に自動で32printerを実行する設定が有効な場合
+        auto_32prn = self.config.get("auto_32printer_on_f1", self.config.get("auto_winprint_on_f1", True))
+        if auto_32prn and self._is_cursor_at_output_field():
+            log_info("Output欄での F1 押下を検知しました。自動で 32prn を設定して実行します。")
+            self.input_32printer()
             return True
 
         cur_text = self._get_current_screen_text()
         lower = cur_text.lower() if cur_text else ""
 
-        # winPrint 出力の指定がある場合は、サーバー仮ファイル監視＆自動Excel展開ワーカーを起動
-        if "winprint" in lower:
-            log_info("Output: winPrint を検知しました。サーバー監視＆自動Excel展開ワーカーを開始します。")
-            self._start_winprint_capture()
+        # 32prn 出力の指定がある場合
+        if "32prn" in lower or "winprint" in lower:
+            log_info("Output: 32prn を検知しました。ストリーム受信待機に入ります。")
+            self.set_status("⏳ Output: 32prn 圧縮ストリームを待機中...", "waiting")
             return False
 
         # 画面内に Output / 出力 / 99. / From / To 等のレポート条件画面パターンがあるか判定
