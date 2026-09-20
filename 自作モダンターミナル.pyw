@@ -1123,10 +1123,11 @@ class TerminalApp(ctk.CTk):
         self.edit_menu.add_command(label="コピー (選択範囲または画面)", accelerator="Ctrl+C", command=self.copy_selection_or_screen)
         self.edit_menu.add_command(label="貼り付け", accelerator="Ctrl+V", command=self.paste_from_clipboard)
         self.edit_menu.add_command(label="すべて選択", accelerator="Ctrl+A", command=self.select_all_text)
+        self.edit_menu.add_command(label="📅 今日の日付を入力 (mm/dd/yy)", accelerator="Ctrl+D", command=self.insert_today_date)
         self.edit_menu.add_separator()
         self.windows_shortcuts_var = tk.BooleanVar(value=bool(self.config.get("enable_windows_shortcuts", True)))
         self.edit_menu.add_checkbutton(
-            label="Windows標準ショートカットを有効化 (Ctrl+C / Ctrl+V / Ctrl+A)",
+            label="Windows標準ショートカットを有効化 (Ctrl+C / Ctrl+V / Ctrl+A / Ctrl+D)",
             variable=self.windows_shortcuts_var,
             command=self.toggle_windows_shortcuts,
         )
@@ -1251,6 +1252,10 @@ class TerminalApp(ctk.CTk):
         self.textbox.bind("<FocusOut>", lambda event: self.textbox.configure(border_color=self.terminal_colors["border"]))
         self.textbox.bind("<Control-Shift-C>", self.copy_screen_text)
         self.textbox.bind("<Control-Shift-c>", self.copy_screen_text)
+        self.textbox.bind("<Control-d>", self.insert_today_date)
+        self.textbox.bind("<Control-D>", self.insert_today_date)
+        self.textbox._textbox.bind("<Control-d>", self.insert_today_date)
+        self.textbox._textbox.bind("<Control-D>", self.insert_today_date)
         self.textbox.bind("<<Paste>>", self._on_paste_event)
         self.textbox.bind("<<Cut>>", lambda event: "break")
         self.textbox._textbox.bind("<<Paste>>", self._on_paste_event)
@@ -1823,6 +1828,31 @@ class TerminalApp(ctk.CTk):
 
         self._send(text)
         self._show_input_error(f"クリップボードの内容を貼り付けました 📋 ({len(text)}文字)")
+        return "break"
+
+    def insert_today_date(self, event=None):
+        """今日の日付を 'mm/dd/yy' 形式でサーバーへ送信（入力欄への直接入力・貼り付け）"""
+        if not self.is_connected or self.session is None:
+            self._show_input_error("未接続のため日付を入力できません")
+            return "break"
+
+        # クエリ待機中やレポート取得中の場合は誤送信を防止
+        if (
+            getattr(self, "_is_waiting_query", False)
+            or getattr(self, "_is_capturing_winprint", False)
+            or getattr(self, "_is_capturing_report", False)
+        ):
+            return "break"
+
+        # テキスト選択状態があれば解除
+        try:
+            self.textbox._textbox.tag_remove("sel", "1.0", "end")
+        except Exception:
+            pass
+
+        today_str = datetime.date.today().strftime("%m/%d/%y")
+        self._send(today_str)
+        self._show_input_error(f"今日の日付 '{today_str}' を入力しました 📅")
         return "break"
 
     def select_all_text(self, event=None):
@@ -2797,6 +2827,10 @@ class TerminalApp(ctk.CTk):
             if is_ctrl and not is_shift and keysym_lower == "a":
                 return self.select_all_text(event)
 
+            # Ctrl+D: 今日の日付を mm/dd/yy 書式で貼り付け（サーバーへ送信）
+            if is_ctrl and not is_shift and keysym_lower == "d":
+                return self.insert_today_date(event)
+
             # Ctrl+E: 画面のデータをCSV化してExcelで開く
             if is_ctrl and not is_shift and keysym_lower == "e":
                 return self.export_to_excel(event)
@@ -3406,7 +3440,13 @@ class TerminalApp(ctk.CTk):
             "【画面サイズ・余白調整】\n"
             "・画面サイズに合わせて文字が自動的に最大化され、上下左右中央に綺麗にフィットします（文字切れ防止対応済み）。\n"
             "・「表示」メニューから手動での文字拡大・縮小も行えます。\n\n"
-            "【キー操作】\n"
+            "【キー操作・ショートカット】\n"
+            "・Ctrl+C: 選択範囲（または画面全体）のコピー\n"
+            "・Ctrl+V: クリップボードの内容を貼り付け\n"
+            "・Ctrl+A: 画面全体の文字を選択\n"
+            "・Ctrl+D: 今日の日付を mm/dd/yy 書式で直接貼り付け・入力\n"
+            "・Ctrl+E: 画面のデータをCSV化してExcelで開く\n"
+            "・Ctrl+H: HOME画面（メインメニュー）に戻る\n"
             "・右側ツールバーおよび「キー送信」メニューから各ファンクションキー（F1〜F4）やEnter等を送信できます。\n"
             "・ターミナル内のTabキーはQADに送信され、Ctrl+Shift+Tabで上部ボタンへフォーカス移動できます。",
             parent=self,

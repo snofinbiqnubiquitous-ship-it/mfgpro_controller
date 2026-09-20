@@ -10,6 +10,7 @@
   "block_server_shortcuts": true,
   "auto_excel_export": true,
   "auto_login_main_menu": true,
+  "auto_winprint_on_f1": true,
   "shortcuts": [
     {
       "name": "在庫スナップショット",
@@ -30,6 +31,10 @@
     {
       "name": "Sales",
       "code": "99.7.5.11"
+    },
+    {
+      "name": "OrderBooking",
+      "code": "99.7.6.20"
     }
   ]
 }
