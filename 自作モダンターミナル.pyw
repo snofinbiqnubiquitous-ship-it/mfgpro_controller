@@ -1158,10 +1158,11 @@ class LoginConfigDialog(ctk.CTkToplevel):
 class ShortcutDialog(ctk.CTkToplevel):
     """メニュー番号へ直接移動するショートカットを追加・再編集するダイアログ"""
 
-    def __init__(self, parent, on_save_callback, initial_name="", initial_code="", is_edit=False):
+    def __init__(self, parent, on_save_callback, initial_name="", initial_code="", is_edit=False, on_delete_callback=None):
         super().__init__(parent)
         self.parent = parent
         self.on_save_callback = on_save_callback
+        self.on_delete_callback = on_delete_callback
         self.initial_name = initial_name
         self.initial_code = initial_code
         self.is_edit = is_edit
@@ -1207,18 +1208,38 @@ class ShortcutDialog(ctk.CTkToplevel):
         # ボタン
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
         btn_frame.pack(fill="x", padx=12, pady=(16, 6))
-        btn_frame.grid_columnconfigure((0, 1), weight=1)
 
-        cancel_btn = ctk.CTkButton(btn_frame, text="キャンセル", fg_color="#94A3B8", hover_color="#64748B",
-                                   command=self.destroy)
-        cancel_btn.grid(row=0, column=0, padx=6, sticky="ew")
+        if self.is_edit and self.on_delete_callback:
+            btn_frame.grid_columnconfigure((0, 1, 2), weight=1)
+            del_btn = ctk.CTkButton(btn_frame, text="削除", fg_color="#DC2626", hover_color="#B91C1C",
+                                    command=self._on_delete)
+            del_btn.grid(row=0, column=0, padx=4, sticky="ew")
 
-        save_btn_text = "更新する" if self.is_edit else "追加する"
-        save_btn = ctk.CTkButton(btn_frame, text=save_btn_text, fg_color="#356BC4", hover_color="#285BAF",
-                                 command=self._on_save)
-        save_btn.grid(row=0, column=1, padx=6, sticky="ew")
+            cancel_btn = ctk.CTkButton(btn_frame, text="キャンセル", fg_color="#94A3B8", hover_color="#64748B",
+                                       command=self.destroy)
+            cancel_btn.grid(row=0, column=1, padx=4, sticky="ew")
+
+            save_btn = ctk.CTkButton(btn_frame, text="更新する", fg_color="#356BC4", hover_color="#285BAF",
+                                     command=self._on_save)
+            save_btn.grid(row=0, column=2, padx=4, sticky="ew")
+        else:
+            btn_frame.grid_columnconfigure((0, 1), weight=1)
+            cancel_btn = ctk.CTkButton(btn_frame, text="キャンセル", fg_color="#94A3B8", hover_color="#64748B",
+                                       command=self.destroy)
+            cancel_btn.grid(row=0, column=0, padx=6, sticky="ew")
+
+            save_btn_text = "更新する" if self.is_edit else "追加する"
+            save_btn = ctk.CTkButton(btn_frame, text=save_btn_text, fg_color="#356BC4", hover_color="#285BAF",
+                                     command=self._on_save)
+            save_btn.grid(row=0, column=1, padx=6, sticky="ew")
 
         self.name_entry.focus_set()
+
+    def _on_delete(self):
+        if messagebox.askyesno("削除確認", f"ショートカット「{self.initial_name}」を削除しますか？", parent=self):
+            if self.on_delete_callback:
+                self.on_delete_callback()
+            self.destroy()
 
     def _on_save(self):
         name = self.name_entry.get().strip()
@@ -1530,33 +1551,7 @@ class TerminalApp(ctk.CTk):
         self.edit_menu.add_command(label="📋 画面全体をコピー", accelerator="Ctrl+Shift+C", command=self.copy_screen_text)
         menubar.add_cascade(label="編集", menu=self.edit_menu)
 
-        # 3. キー送信メニュー
-        self.key_menu = tk.Menu(menubar, tearoff=False)
-        self.key_menu.add_command(label="🏠 HOME画面に戻る (メインメニュー)", accelerator="Ctrl+H", command=self.go_home_screen)
-        self.key_menu.add_separator()
-        for index, (_, buttons) in enumerate(TOOLBAR_GROUPS):
-            if index:
-                self.key_menu.add_separator()
-            for label, key in buttons:
-                self.key_menu.add_command(label=label, command=lambda k=key: self.send_key(k))
-        self.key_menu.add_separator()
-        self.key_menu.add_command(label="⚡ OrderBooking 自動実行 (99.7.6.20 抽出 ➔ Excel)", command=self.run_order_booking_automation)
-        self.key_menu.add_command(label="📄 Output に 'winPrint' を入力 (高速ファイル出力)", command=self.input_winprint)
-        self.auto_winprint_f1_var = tk.BooleanVar(value=bool(self.config.get("auto_winprint_on_f1", True)))
-        self.key_menu.add_checkbutton(
-            label="⚡ Output欄でF1押下時に自動でwinPrint実行",
-            variable=self.auto_winprint_f1_var,
-            command=self.toggle_auto_winprint_on_f1,
-        )
-        menubar.add_cascade(label="キー送信", menu=self.key_menu)
-
-        # 4. データ送信メニュー
-        self.data_menu = tk.Menu(menubar, tearoff=False)
-        self.data_menu.add_command(label="📦 在庫レポートGAS送信 (99.3.6.1)", command=self.run_inventory_gas_transmission)
-        self.data_menu.add_command(label="📑 Complaint送信 (99.3.21.4)...", command=self.open_complaint_dialog)
-        menubar.add_cascade(label="データ送信", menu=self.data_menu)
-
-        # 5. 表示メニュー
+        # 3. 表示メニュー
         view = tk.Menu(menubar, tearoff=False)
         view.add_command(label="文字を大きく", command=lambda: self.change_font_size(1))
         view.add_command(label="文字を小さく", command=lambda: self.change_font_size(-1))
@@ -1864,10 +1859,9 @@ class TerminalApp(ctk.CTk):
             self.jump_to_menu(code_str)
 
     def _show_shortcut_context_menu(self, event, idx, name, code):
-        """ショートカットボタンの右クリックコンテキストメニュー（再編集／削除）"""
+        """ショートカットボタンの右クリックコンテキストメニュー（編集のみ）"""
         menu = tk.Menu(self, tearoff=False)
-        menu.add_command(label=f"✏️ 「{name}」を編集...", command=lambda: self.open_edit_shortcut_dialog(idx))
-        menu.add_command(label=f"🗑️ 「{name}」を削除", command=lambda: self._delete_shortcut(idx))
+        menu.add_command(label="編集", command=lambda: self.open_edit_shortcut_dialog(idx))
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
@@ -1885,7 +1879,8 @@ class TerminalApp(ctk.CTk):
                 on_save_callback=lambda new_name, new_code: self._on_shortcut_updated(idx, new_name, new_code),
                 initial_name=name,
                 initial_code=code,
-                is_edit=True
+                is_edit=True,
+                on_delete_callback=lambda: self._delete_shortcut(idx)
             )
 
     def _on_shortcut_updated(self, idx, name, code):
@@ -3336,10 +3331,6 @@ class TerminalApp(ctk.CTk):
             self.winprint_btn.configure(state=state)
         for button in getattr(self, "shortcut_buttons", []):
             button.configure(state=state)
-
-        for index in range(self.key_menu.index("end") + 1):
-            if self.key_menu.type(index) == "command":
-                self.key_menu.entryconfigure(index, state=state)
 
         if hasattr(self, "_update_data_transmission_buttons_state"):
             self._update_data_transmission_buttons_state()
