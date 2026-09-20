@@ -1595,13 +1595,24 @@ class TerminalApp(ctk.CTk):
 
     def run_order_booking_automation(self):
         """OrderBooking (99.7.6.20) の一括自動実行マクロ
+        改行（改セル）を含む一括貼り付け方式により、フィールド位置ズレなく確実に設定・実行します。
+
         シーケンス:
         1. HOME画面（メインメニュー）に戻る
-        2. 99.7.6.20 の画面に移動する
-        3. Prod line の値、その隣の値（From/To）を "1fgi" にする
-        4. Due Date の値を、今日の日付で "MM/dd/yy" で入力する
-        5. F1 を押して Output の入力欄に移動する
-        6. winPrint を指定して Excel 出力する（サーバー監視＆重複行除外＆Excel自動展開）
+        2. 99.7.6.20 の画面に移動する（Sales Order From にカーソルが初期配置されるのを待機）
+        3. 一括入力バッチ（改行を含む複数行文字列）を送信:
+           - Sales Order (From/To) x 2スキップ (\r\r)
+           - Order Date (From/To) x 2スキップ (\r\r)
+           - Item Number (From/To) x 2スキップ (\r\r)
+           - Prod Line (From) に "1fgi" 入力 (\r)
+           - Prod Line (To) に "1fgi" 入力 (\r)
+           - Site (From/To) x 2スキップ (\r\r)
+           - Sold-To (From/To) x 2スキップ (\r\r)
+           - Channel (From/To) x 2スキップ (\r\r)
+           - Customer PO Number (From/To) x 2スキップ (\r\r)
+           - Due Date (From) に本日の日付 (MM/dd/yy) を入力
+        4. F1 を押して Output 欄にジャンプ
+        5. winPrint を入力して実行、サーバー監視＆重複行除外＆Excel自動展開
         """
         if not self.is_connected or not self.session:
             self._show_input_error("サーバーに接続されていません")
@@ -1611,7 +1622,7 @@ class TerminalApp(ctk.CTk):
             self._show_input_error("現在別のレポート処理が実行中です。完了までお待ちください。")
             return
 
-        log_info("=== OrderBooking 自動実行マクロ開始 ===")
+        log_info("=== OrderBooking 自動実行マクロ開始（改セル一括貼り付け方式） ===")
         self.set_status("🚀 OrderBooking 自動実行を開始します...", "working")
 
         def _worker():
@@ -1619,7 +1630,7 @@ class TerminalApp(ctk.CTk):
                 # -------------------------------------------------------------
                 # Step 1: HOME画面（メインメニュー）に戻る
                 # -------------------------------------------------------------
-                self.set_status("🏠 Step 1/6: HOME画面（メインメニュー）へ復帰中...", "working")
+                self.set_status("🏠 Step 1/5: HOME画面（メインメニュー）へ復帰中...", "working")
                 if not self.is_main_menu():
                     for step in range(4):
                         if self.is_main_menu():
@@ -1638,134 +1649,77 @@ class TerminalApp(ctk.CTk):
                 else:
                     log_warning("OrderBooking: メインメニューへの復帰確認が取れませんでしたが、続行を試みます")
 
-                time.sleep(0.25)
+                time.sleep(0.3)
 
                 # -------------------------------------------------------------
                 # Step 2: 99.7.6.20 の画面に移動する
                 # -------------------------------------------------------------
-                self.set_status("📋 Step 2/6: 99.7.6.20 (OrderBooking) へ移動中...", "working")
+                self.set_status("📋 Step 2/5: 99.7.6.20 画面へ移動中...", "working")
                 log_info("OrderBooking: '99.7.6.20\\r' を送信します")
                 self.session.send("99.7.6.20\r")
 
-                # 画面遷移待機（99.7.6.20 または 条件入力画面が現れるのを待機、最大3.5秒）
+                # 画面が 99.7.6.20 の条件入力画面（Sales Order Detail Report）に遷移するのを待機
                 start_nav = time.time()
-                while time.time() - start_nav < 3.5:
+                nav_ok = False
+                while time.time() - start_nav < 4.0:
                     time.sleep(0.1)
                     txt = self._get_current_screen_text().lower()
-                    if "99.7.6.20" in txt or "prod" in txt or "due" in txt or "order" in txt or "line" in txt:
+                    if "99.7.6.20" in txt or "sales order detail report" in txt or "sales order:" in txt:
+                        nav_ok = True
                         break
-                time.sleep(0.4)
 
-                # -------------------------------------------------------------
-                # Step 3: Prod line の値、その隣の値を "1fgi" にする
-                # -------------------------------------------------------------
-                self.set_status("✏️ Step 3/6: Prod line を '1fgi' に設定中...", "working")
-
-                # 画面上の行から 'Prod line' の行を探索（描画完了までリトライ）
-                prod_row = None
-                for _ in range(15):
-                    for r in range(ROWS):
-                        lt = self._get_line_text(r)
-                        if re.search(r'prod(?:\s*line)?|製品ライン', lt, re.IGNORECASE):
-                            prod_row = r
-                            break
-                    if prod_row is not None:
-                        break
-                    time.sleep(0.1)
-
-                cur_pos = getattr(self, "_current_cursor", None)
-                cur_row = cur_pos[0] if cur_pos else 0
-
-                # もし Prod line の行が特定できたらそこへカーソル移動
-                if prod_row is not None and cur_row != prod_row:
-                    row_diff = prod_row - cur_row
-                    if row_diff > 0:
-                        self.session.send(KEY_SEQUENCES["Down"] * row_diff)
-                    elif row_diff < 0:
-                        self.session.send(KEY_SEQUENCES["Up"] * abs(row_diff))
-                    time.sleep(0.2)
-
-                # 左側の列（From欄）へ移動させるため、Back-Tab (\x15) を送信
-                self.session.send("\x15")
-                time.sleep(0.1)
-
-                # 1つ目の値（From欄）に "1fgi" を入力
-                log_info("OrderBooking: Prod line (From) に '1fgi' を入力")
-                self.session.send("1fgi")
-                time.sleep(0.15)
-
-                # その隣（To欄）へ移動 (Tab)
-                log_info("OrderBooking: その隣の欄へ移動 (Tab)")
-                self.session.send("\t")
-                time.sleep(0.15)
-
-                # 2つ目の値（To欄）に "1fgi" を入力
-                log_info("OrderBooking: Prod line (To) に '1fgi' を入力")
-                self.session.send("1fgi")
-                time.sleep(0.15)
-
-                # -------------------------------------------------------------
-                # Step 4: Due Date の値を、今日の日付で "MM/dd/yy" で入力する
-                # -------------------------------------------------------------
-                self.set_status("📅 Step 4/6: Due Date を今日の日付に設定中...", "working")
-
-                # 画面上の行から 'Due Date' の行を探索
-                due_row = None
-                for _ in range(10):
-                    for r in range(ROWS):
-                        lt = self._get_line_text(r)
-                        if re.search(r'due(?:\s*date)?|納期|期日', lt, re.IGNORECASE):
-                            due_row = r
-                            break
-                    if due_row is not None:
-                        break
-                    time.sleep(0.1)
-
-                cur_pos = getattr(self, "_current_cursor", None)
-                cur_row = cur_pos[0] if cur_pos else (prod_row if prod_row is not None else 0)
-
-                if due_row is not None:
-                    row_diff = due_row - cur_row
-                    if row_diff > 0:
-                        self.session.send(KEY_SEQUENCES["Down"] * row_diff)
-                    elif row_diff < 0:
-                        self.session.send(KEY_SEQUENCES["Up"] * abs(row_diff))
-                    time.sleep(0.2)
+                if nav_ok:
+                    log_info("OrderBooking: 99.7.6.20 条件入力画面の表示を確認しました")
                 else:
-                    # 特定できない場合は1行下へ
-                    self.session.send(KEY_SEQUENCES["Down"])
-                    time.sleep(0.2)
+                    log_warning("OrderBooking: 画面判定タイムアウト。入力処理を試行します")
 
-                # 左側の列（From欄）へ戻す
-                self.session.send("\x15")
-                time.sleep(0.1)
+                # カーソルが最初の入力欄（Sales Order From）に安定着弾するまで待機
+                time.sleep(0.5)
 
-                # 今日の日付 (MM/dd/yy) を入力
+                # -------------------------------------------------------------
+                # Step 3: 改行（改セル）を含む複数行一括入力
+                # -------------------------------------------------------------
+                self.set_status("✏️ Step 3/5: Prod Line('1fgi') & Due Date(今日) を一括入力中...", "working")
                 today_str = datetime.date.today().strftime("%m/%d/%y")
-                log_info(f"OrderBooking: Due Date に '{today_str}' を入力")
-                self.session.send(today_str)
-                time.sleep(0.25)
+                log_info(f"OrderBooking: 本日の日付 = '{today_str}'")
+
+                # 1. Sales Order (From/To) ~ Item Number (From/To) をスキップ (計6回 Enter)
+                # 2. Prod Line (From) に "1fgi"、Prod Line (To) に "1fgi"
+                # 3. Site (From/To) ~ Customer PO Number (From/To) をスキップ (計8回 Enter)
+                # 4. Due Date (From) に今日の日付 (MM/dd/yy) を入力
+
+                # ブロック1: Prod Line までのスキップと Prod Line 入力
+                part1 = "\r" * 6 + "1fgi\r" + "1fgi\r"
+                log_info("OrderBooking: Part 1 (Sales Order ~ Prod Line) 送信")
+                self.session.send(part1)
+                time.sleep(0.2)
+
+                # ブロック2: Site ~ Customer PO Number のスキップと Due Date 入力
+                part2 = "\r" * 8 + today_str
+                log_info(f"OrderBooking: Part 2 (Site ~ Due Date: {today_str}) 送信")
+                self.session.send(part2)
+                time.sleep(0.35)
 
                 # -------------------------------------------------------------
-                # Step 5: F1 を押して Output の入力欄に移動する
+                # Step 4: F1 を押して Output の入力欄に移動する
                 # -------------------------------------------------------------
-                self.set_status("⚡ Step 5/6: F1 を押して Output 欄へジャンプ中...", "working")
+                self.set_status("⚡ Step 4/5: F1 を押して Output 欄へジャンプ中...", "working")
                 log_info("OrderBooking: F1 を送信して Output 欄へジャンプ")
                 self.session.send(KEY_SEQUENCES["F1"])
 
-                # Output 欄に着弾するのを待機（最大2.0秒）
+                # Output 欄に着弾するのを待機（最大2.5秒）
                 start_out_wait = time.time()
-                while time.time() - start_out_wait < 2.0:
+                while time.time() - start_out_wait < 2.5:
                     time.sleep(0.1)
                     if self._is_cursor_at_output_field():
                         log_info("OrderBooking: Output 欄への着弾を確認しました")
                         break
-                time.sleep(0.3)
+                time.sleep(0.35)
 
                 # -------------------------------------------------------------
-                # Step 6: winPrint を指定して Excel 出力する
+                # Step 5: winPrint を指定して Excel 出力する
                 # -------------------------------------------------------------
-                self.set_status("📄 Step 6/6: Output に 'winPrint' を設定し、レポート集計・Excel展開を開始...", "working")
+                self.set_status("📄 Step 5/5: Output に 'winPrint' を設定し、レポート集計・Excel展開を開始...", "working")
                 log_info("OrderBooking: input_winprint を起動して自動実行・サーバー監視・Excel展開を開始")
                 self.after(0, self.input_winprint)
 
