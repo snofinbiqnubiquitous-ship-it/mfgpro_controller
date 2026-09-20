@@ -11,8 +11,17 @@ import sys
 import tempfile
 import threading
 import time
+import subprocess
+import configparser
 import logging
 from logging.handlers import RotatingFileHandler
+from dateutil import parser as date_parser
+from dateutil.relativedelta import relativedelta
+try:
+    from ctkdateentry import CTkDateEntry
+    HAS_CTK_DATE_ENTRY = True
+except ImportError:
+    HAS_CTK_DATE_ENTRY = False
 
 # --- デバッグログ設定 (terminal_debug.log) ---
 LOG_FILE = Path(__file__).resolve().parent / "terminal_debug.log"
@@ -131,6 +140,202 @@ def save_config(cfg):
             json.dump(cfg, f, ensure_ascii=False, indent=2)
     except Exception as exc:
         print(f"設定保存エラー: {exc}", file=sys.stderr)
+
+
+# --- GAS連携用設定・共通処理 ---
+INVENTORY_GAS_URL = "https://script.google.com/a/macros/ap.averydennison.com/s/AKfycbwS6dZ9umUKP71NGieiW_tDffygGtAFHKOAxyAo7cWDe3T_xMxlISSdmXoNlK6TaENfkA/exec"
+COMPLAINT_GAS_URL = "https://script.google.com/a/macros/ap.averydennison.com/s/AKfycbyEwl3D8kjtbkk34V_9aJGrlgt39B480O_W3zCI6JiSC4glpS4XNj6JSC4ZiyMNKA/exec"
+CONFIG_INI_DIR = os.path.join(os.path.expanduser("~"), "Documents", "QAD_Tools")
+CONFIG_INI_PATH = os.path.join(CONFIG_INI_DIR, "config.ini")
+
+def clean_printer_data(text: str) -> str:
+    """ANSIエスケープシーケンスおよびNULL文字を除去"""
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    cleaned = ansi_escape.sub('', text)
+    return cleaned.replace('\x00', '')
+
+def convert_date_format(date_str: str) -> str:
+    """mm/dd/yy を YYYY/MM/DD に変換"""
+    try:
+        dt = datetime.datetime.strptime(date_str, "%m/%d/%y")
+        return dt.strftime("%Y/%m/%d")
+    except ValueError:
+        return date_str
+
+def parse_report_to_rows(input_text: str) -> list:
+    """QADレポートテキスト（winPrint等）から破線(---)ヘッダーを基準に列データを二次元配列として抽出"""
+    lines = input_text.splitlines()
+    slices = []
+    parsing_data = False
+    all_rows = []
+
+    for i, line in enumerate(lines):
+        if "End of Report" in line:
+            break
+        if ".p" in line.lower() or line.lstrip().startswith("Page:") or "Date:" in line or line.lstrip().startswith("Item Number"):
+            continue
+
+        if line.lstrip().startswith("---") and "--- " in line:
+            if not slices:
+                header_line = lines[i - 1]
+                parts = line.split()
+                current_idx = line.find(parts[0])
+                for j, p in enumerate(parts):
+                    start = line.find(p, current_idx)
+                    if j < len(parts) - 1:
+                        next_start = line.find(parts[j + 1], start + len(p))
+                        end = next_start
+                    else:
+                        end = 9999
+                    slices.append((start, end))
+                    current_idx = start + len(p)
+
+                b_header = header_line.encode('cp932', errors='replace')
+                headers = [b_header[s:e].decode('cp932', errors='ignore').strip() for s, e in slices]
+                all_rows.append(headers)
+            parsing_data = True
+            continue
+
+        if parsing_data:
+            if not line.strip():
+                continue
+            row = []
+            b_line = line.encode('cp932', errors='replace')
+            for s, e in slices:
+                if s < len(b_line):
+                    val = b_line[s:e].decode('cp932', errors='ignore').strip()
+                else:
+                    val = ""
+                if len(val) == 8 and val[2] == '/' and val[5] == '/':
+                    val = convert_date_format(val)
+                row.append(val)
+            if any(row):
+                all_rows.append(row)
+
+    return all_rows
+
+def send_to_gas_via_browser(rows_or_list: list, gas_url: str, title: str = "Google Sheets へ送信中"):
+    """JSONデータをbase64化し、一時HTMLからブラウザ経由でGASへPOST送信する"""
+    json_str = json.dumps(rows_or_list, ensure_ascii=False)
+    b64_data = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+    data_size_kb = len(b64_data) / 1024
+
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{title}</title>
+    <script>
+        function updateStatus(msg, color) {{
+            const el = document.getElementById('statusMsg');
+            if (el) {{
+                el.innerHTML = msg;
+                el.style.color = color;
+            }}
+        }}
+
+        function send() {{
+            updateStatus("🚀 ステップ1: ブラウザがデータを受け取りました。GASへ送信を開始します...", "#2563EB");
+            document.getElementById('postForm').submit();
+            
+            setTimeout(function() {{
+                updateStatus("✅ ステップ2: GASへのデータ転送要求が完了しました。<br>※このタブは数秒後に自動的に閉じます。", "#059669");
+            }}, 1000);
+            
+            setTimeout(function() {{
+                window.opener = null;
+                window.open('', '_self');
+                window.close();
+            }}, 4000);
+        }}
+    </script>
+</head>
+<body onload="send()">
+    <div style="font-family: sans-serif; padding: 30px; text-align: center;">
+        <h2>{title}</h2>
+        <p>データ行数: {len(rows_or_list)-1 if len(rows_or_list) > 1 else len(rows_or_list)} 行 / データサイズ: {data_size_kb:.1f} KB</p>
+        <h3 id="statusMsg" style="color: #D97706;">⏳ 初期化中...</h3>
+        <p>エラーが発生した場合は、この画面のまま止まります。成功すれば自動で閉じます。</p>
+    </div>
+    <iframe name="hidden_iframe" style="display:none;"></iframe>
+    <form id="postForm" method="POST" action="{gas_url}" target="hidden_iframe">
+        <input type="hidden" name="data" value="{b64_data}">
+    </form>
+</body>
+</html>"""
+
+    temp_dir = tempfile.gettempdir()
+    path = os.path.join(temp_dir, f"gas_submit_{int(time.time())}.html")
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+
+    try:
+        subprocess.Popen(f'start chrome "{path}"', shell=True)
+    except Exception:
+        try:
+            subprocess.Popen(f'start msedge "{path}"', shell=True)
+        except Exception:
+            try:
+                os.startfile(path)
+            except Exception as _open_e:
+                log_error(f"ブラウザ起動エラー: {_open_e}")
+
+def wait_and_download_winprint(sftp, remote_path: str, local_temp: str, max_wait: int = 600, status_callback=None) -> int:
+    """サーバー側でのファイル出力完了を監視し、ローカルにダウンロードする"""
+    last_size = -1
+    stable_count = 0
+    wait_time = 0.0
+    start_time = time.time()
+
+    while wait_time < max_wait:
+        try:
+            stat = sftp.stat(remote_path)
+            current_size = stat.st_size
+            if current_size > 0:
+                if current_size == last_size:
+                    stable_count += 1
+                    if stable_count >= 4:  # 2秒間サイズ変化なしで出力完了と判定
+                        break
+                else:
+                    stable_count = 0
+                    last_size = current_size
+        except IOError:
+            pass
+
+        time.sleep(0.5)
+        wait_time += 0.5
+        if status_callback and int(wait_time) % 4 == 0 and wait_time == int(wait_time):
+            elapsed = int(time.time() - start_time)
+            status_callback(f"サーバーでクエリ実行中... ({elapsed}秒経過)")
+
+    if wait_time >= max_wait or last_size <= 0:
+        raise TimeoutError(f"サーバー側でのレポート生成がタイムアウトしました ({int(max_wait / 60)}分)。")
+
+    sftp.get(remote_path, local_temp)
+    return last_size
+
+def _clear_shell_buffer(shell):
+    """Paramikoシェルバッファを空にする"""
+    while shell.recv_ready():
+        shell.recv(65535)
+        time.sleep(0.05)
+
+def _wait_shell_text(shell, target_text: str, timeout: float = 12.0, raise_error: bool = True) -> bool:
+    """指定文字列がシェル出力に含まれるまで待機"""
+    end_time = time.time() + timeout
+    buffer = ""
+    while time.time() < end_time:
+        if shell.recv_ready():
+            chunk_bytes = shell.recv(65535)
+            chunk = chunk_bytes.decode('cp932', errors='ignore')
+            buffer += chunk
+            clean_buf = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', buffer).replace('\x00', '')
+            if target_text in clean_buf:
+                return True
+        time.sleep(0.1)
+    if raise_error:
+        raise TimeoutError(f"画面遷移タイムアウト: '{target_text}' が表示されませんでした。")
+    return False
 
 
 class InputField:
@@ -1019,6 +1224,164 @@ class AddShortcutDialog(ctk.CTkToplevel):
         self.destroy()
 
 
+class ComplaintDialog(ctk.CTkToplevel):
+    """99.3.21.4 から Complaint データを抽出して GAS へ転送する条件入力ダイアログ"""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        self.title("Complaint 抽出＆GAS転送")
+        self.geometry("440x480")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+
+        parent.update_idletasks()
+        x = parent.winfo_x() + (parent.winfo_width() - 440) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - 480) // 2
+        self.geometry(f"+{max(0, x)}+{max(0, y)}")
+
+        self._build_ui()
+
+    def _build_ui(self):
+        frame = ctk.CTkFrame(self, corner_radius=12)
+        frame.pack(fill="both", expand=True, padx=16, pady=16)
+
+        ctk.CTkLabel(
+            frame, text="📝 Complaint 抽出＆GAS転送 (99.3.21.4)",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(pady=(6, 14))
+
+        # 1. Item code
+        ctk.CTkLabel(frame, text="Item code (必須):", anchor="w").pack(fill="x", padx=16, pady=(0, 2))
+        self.item_entry = ctk.CTkEntry(frame, width=380, placeholder_text="例: BW0100D")
+        self.item_entry.pack(fill="x", padx=16, pady=(0, 10))
+
+        # 日付初期値の算出
+        today = datetime.date.today()
+        six_months_ago = today - relativedelta(months=6)
+
+        # 2. Start date
+        ctk.CTkLabel(frame, text="Start date (YYYY/MM/DD):", anchor="w").pack(fill="x", padx=16, pady=(0, 2))
+        if HAS_CTK_DATE_ENTRY:
+            self.start_cal = CTkDateEntry(frame, width=380)
+            self.start_cal.variable.set(six_months_ago.strftime("%Y/%m/%d"))
+            self.start_cal.variable.trace_add("write", lambda *args: self._format_date_var(self.start_cal.variable))
+            self.start_cal.pack(fill="x", padx=16, pady=(0, 10))
+            self._start_is_date_entry = True
+        else:
+            self.start_cal = ctk.CTkEntry(frame, width=380)
+            self.start_cal.insert(0, six_months_ago.strftime("%Y/%m/%d"))
+            self.start_cal.pack(fill="x", padx=16, pady=(0, 10))
+            self._start_is_date_entry = False
+
+        # 3. End date
+        ctk.CTkLabel(frame, text="End date (YYYY/MM/DD):", anchor="w").pack(fill="x", padx=16, pady=(0, 2))
+        if HAS_CTK_DATE_ENTRY:
+            self.end_cal = CTkDateEntry(frame, width=380)
+            self.end_cal.variable.set(today.strftime("%Y/%m/%d"))
+            self.end_cal.variable.trace_add("write", lambda *args: self._format_date_var(self.end_cal.variable))
+            self.end_cal.pack(fill="x", padx=16, pady=(0, 10))
+            self._end_is_date_entry = True
+        else:
+            self.end_cal = ctk.CTkEntry(frame, width=380)
+            self.end_cal.insert(0, today.strftime("%Y/%m/%d"))
+            self.end_cal.pack(fill="x", padx=16, pady=(0, 10))
+            self._end_is_date_entry = False
+
+        # 4. Cheese lot / Nlot
+        ctk.CTkLabel(frame, text="Cheese lot / Nlot (空白可):", anchor="w").pack(fill="x", padx=16, pady=(0, 2))
+        self.lot_entry = ctk.CTkEntry(frame, width=380, placeholder_text="空白可")
+        self.lot_entry.pack(fill="x", padx=16, pady=(0, 12))
+
+        # ステータス表示ラベル
+        self.status_label = ctk.CTkLabel(
+            frame, text="", text_color="#D97706",
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        self.status_label.pack(fill="x", padx=16, pady=(0, 8))
+
+        # ボタン
+        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=16, pady=(4, 6))
+        btn_frame.grid_columnconfigure((0, 1), weight=1)
+
+        self.cancel_btn = ctk.CTkButton(
+            btn_frame, text="キャンセル", fg_color="#94A3B8", hover_color="#64748B",
+            command=self.destroy
+        )
+        self.cancel_btn.grid(row=0, column=0, padx=6, sticky="ew")
+
+        self.submit_btn = ctk.CTkButton(
+            btn_frame, text="OK (抽出＆GAS転送)", fg_color="#4F46E5", hover_color="#4338CA",
+            font=ctk.CTkFont(weight="bold"), command=self.on_submit
+        )
+        self.submit_btn.grid(row=0, column=1, padx=6, sticky="ew")
+
+        self.item_entry.focus_set()
+
+    def _format_date_var(self, var):
+        if not var:
+            return
+        val = var.get()
+        if not val or re.match(r'^\d{4}[/-]\d{2}[/-]\d{2}$', val):
+            return
+        try:
+            dt = date_parser.parse(val)
+            new_val = dt.strftime("%Y/%m/%d")
+            if new_val != val:
+                var.set(new_val)
+        except Exception:
+            pass
+
+    def get_start_date_str(self) -> str:
+        if self._start_is_date_entry:
+            return self.start_cal.variable.get().strip()
+        return self.start_cal.get().strip()
+
+    def get_end_date_str(self) -> str:
+        if self._end_is_date_entry:
+            return self.end_cal.variable.get().strip()
+        return self.end_cal.get().strip()
+
+    def update_dialog_status(self, text: str, color: str = "#D97706"):
+        self.after(0, lambda: self.status_label.configure(text=text, text_color=color))
+
+    def on_submit(self):
+        item_num = self.item_entry.get().strip()
+        item_lot = self.lot_entry.get().strip()
+
+        if not item_num:
+            messagebox.showwarning("入力エラー", "Item code は必須項目です。", parent=self)
+            self.item_entry.focus_set()
+            return
+
+        start_val = self.get_start_date_str()
+        end_val = self.get_end_date_str()
+
+        try:
+            start_day_server = date_parser.parse(start_val).strftime("%m/%d/%y")
+        except Exception:
+            start_day_server = start_val
+
+        try:
+            end_day_server = date_parser.parse(end_val).strftime("%m/%d/%y")
+        except Exception:
+            end_day_server = end_val
+
+        self.submit_btn.configure(state="disabled")
+        self.cancel_btn.configure(state="disabled")
+        self.status_label.configure(text="🚀 サーバーと通信中... (データ抽出中)", text_color="#D97706")
+
+        self.parent.run_complaint_gas_transmission(
+            item_num=item_num,
+            start_day=start_day_server,
+            end_day=end_day_server,
+            item_lot=item_lot,
+            dialog_ref=self
+        )
+
+
 class TerminalApp(ctk.CTk):
     def __init__(self):
         self.config = load_config()
@@ -1043,6 +1406,7 @@ class TerminalApp(ctk.CTk):
         self.grid_rowconfigure(1, weight=1)
         self.grid_rowconfigure(2, weight=0)
         self.grid_rowconfigure(3, weight=0)
+        self.grid_rowconfigure(4, weight=0)
 
         self.session = None
         self.events = queue.Queue()
@@ -1059,6 +1423,7 @@ class TerminalApp(ctk.CTk):
         self._is_capturing_winprint = False
         self._last_report_capture_time = 0.0
         self._is_waiting_query = False
+        self._is_gas_transmitting = False
 
         self._query_wait_start_time = 0.0
         self._current_status_type = "info"
@@ -1074,6 +1439,7 @@ class TerminalApp(ctk.CTk):
         self._build_header()
         self._build_terminal()
         self._build_shortcut_bar()
+        self._build_data_transmission_bar()
         self._build_statusbar()
         self._set_state("未接続")
         self._show_message("")
@@ -1170,8 +1536,13 @@ class TerminalApp(ctk.CTk):
         )
         menubar.add_cascade(label="キー送信", menu=self.key_menu)
 
+        # 4. データ送信メニュー
+        self.data_menu = tk.Menu(menubar, tearoff=False)
+        self.data_menu.add_command(label="📦 在庫レポートGAS送信 (99.3.6.1)", command=self.run_inventory_gas_transmission)
+        self.data_menu.add_command(label="📑 Complaint送信 (99.3.21.4)...", command=self.open_complaint_dialog)
+        menubar.add_cascade(label="データ送信", menu=self.data_menu)
 
-        # 4. 表示メニュー
+        # 5. 表示メニュー
         view = tk.Menu(menubar, tearoff=False)
         view.add_command(label="文字を大きく", command=lambda: self.change_font_size(1))
         view.add_command(label="文字を小さく", command=lambda: self.change_font_size(-1))
@@ -1357,6 +1728,52 @@ class TerminalApp(ctk.CTk):
 
         self._refresh_shortcut_buttons()
 
+    def _build_data_transmission_bar(self):
+        """クイックメニュー直下のデータ送信（GAS転送）バーを構築"""
+        self.data_transmission_bar = ctk.CTkFrame(
+            self, height=44, fg_color=self.ui_colors["panel"],
+            corner_radius=10, border_width=1, border_color=self.ui_colors["border"]
+        )
+        self.data_transmission_bar.grid(row=3, column=0, padx=8, pady=(0, 6), sticky="ew")
+        self.data_transmission_bar.grid_columnconfigure(1, weight=1)
+
+        # 左端ラベル
+        lbl = ctk.CTkLabel(
+            self.data_transmission_bar, text="📤 データ送信:",
+            font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
+            text_color=self.ui_colors["muted"]
+        )
+        lbl.grid(row=0, column=0, padx=(12, 6), pady=4)
+
+        # ボタン配置フレーム
+        btn_frame = ctk.CTkFrame(self.data_transmission_bar, fg_color="transparent")
+        btn_frame.grid(row=0, column=1, sticky="w", padx=4, pady=2)
+
+        # ボタン1: 📦 在庫レポートGAS送信 (99.3.6.1)
+        self.inventory_gas_btn = ctk.CTkButton(
+            btn_frame, text="📦 在庫レポートGAS送信 (99.3.6.1)", height=28,
+            fg_color="#059669", hover_color="#047857", text_color="#FFFFFF",
+            font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
+            corner_radius=6, command=self.run_inventory_gas_transmission
+        )
+        self.inventory_gas_btn.pack(side="left", padx=4, pady=2)
+
+        # ボタン2: 📑 Complaint送信 (99.3.21.4)
+        self.complaint_gas_btn = ctk.CTkButton(
+            btn_frame, text="📑 Complaint送信 (99.3.21.4)", height=28,
+            fg_color="#4F46E5", hover_color="#4338CA", text_color="#FFFFFF",
+            font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
+            corner_radius=6, command=self.open_complaint_dialog
+        )
+        self.complaint_gas_btn.pack(side="left", padx=4, pady=2)
+
+    def _update_data_transmission_buttons_state(self):
+        """データ送信ボタンの有効/無効状態を更新"""
+        if not hasattr(self, "inventory_gas_btn") or not hasattr(self, "complaint_gas_btn"):
+            return
+        state = "disabled" if self._is_gas_transmitting else "normal"
+        self.inventory_gas_btn.configure(state=state)
+        self.complaint_gas_btn.configure(state=state)
 
     def _build_statusbar(self):
         """最下段の常時表示ステータスバーを構築（処理中の進捗・クエリ待機・Excel展開を可視化）"""
@@ -1364,7 +1781,7 @@ class TerminalApp(ctk.CTk):
             self, height=28, fg_color=self.ui_colors["panel"],
             corner_radius=6, border_width=1, border_color=self.ui_colors["border"]
         )
-        self.statusbar.grid(row=3, column=0, padx=8, pady=(0, 6), sticky="ew")
+        self.statusbar.grid(row=4, column=0, padx=8, pady=(0, 6), sticky="ew")
         self.statusbar.grid_columnconfigure(0, weight=1)
 
         self.bottom_status_label = ctk.CTkLabel(
@@ -1729,6 +2146,374 @@ class TerminalApp(ctk.CTk):
 
         import threading
         threading.Thread(target=_worker, daemon=True, name="order-booking-macro").start()
+
+    # =========================================================================
+    # --- GASデータ送信機能 (在庫レポート 99.3.6.1 & Complaint 99.3.21.4) ---
+    # =========================================================================
+
+    def _get_qad_credentials(self):
+        """QAD接続に必要な (host, port, user, pwd) を取得する"""
+        host = self.config.get("host", "mfg03")
+        port = int(self.config.get("port", 22))
+        user = self.config.get("user", "")
+        pwd = ""
+        b64 = self.config.get("pass_b64", "")
+        if b64:
+            try:
+                pwd = base64.b64decode(b64.encode("ascii")).decode("utf-8", errors="replace")
+            except Exception:
+                pass
+
+        # 設定値が不完全な場合は config.ini (Documents\QAD_Tools\config.ini) をフォールバック確認
+        if not user or not pwd:
+            if os.path.exists(CONFIG_INI_PATH):
+                try:
+                    ini_config = configparser.ConfigParser()
+                    ini_config.read(CONFIG_INI_PATH, encoding='utf-8')
+                    if 'server' in ini_config:
+                        sec = ini_config['server']
+                        user = user or sec.get('user', '')
+                        pwd = pwd or sec.get('password', '')
+                        host = sec.get('host', host)
+                        port = int(sec.get('port', str(port)))
+                except Exception as _ini_e:
+                    log_warning(f"config.ini 読み込み警告: {_ini_e}")
+
+        return host, port, user, pwd
+
+    def run_inventory_gas_transmission(self):
+        """在庫レポート (99.3.6.1 - 1FGI) を抽出して GAS へ自動転送"""
+        if self._is_gas_transmitting:
+            messagebox.showwarning("データ送信実行中", "現在データ送信処理が実行中です。完了するまでお待ちください。", parent=self)
+            return
+
+        host, port, user, pwd = self._get_qad_credentials()
+        if not user or not pwd:
+            messagebox.showerror(
+                "ログイン情報未設定",
+                "QADのログイン情報が設定されていません。\nメニューの「ログイン情報」からユーザーIDとパスワードを設定してください。",
+                parent=self
+            )
+            return
+
+        # 実行確認
+        ok = messagebox.askyesno(
+            "在庫レポートGAS送信",
+            "QAD (99.3.6.1 - 1FGI) から最新在庫レポートを抽出し、\nGoogleスプレッドシートへ自動転送します。\n\n実行しますか？",
+            parent=self
+        )
+        if not ok:
+            return
+
+        self._is_gas_transmitting = True
+        self._update_data_transmission_buttons_state()
+        self.set_status("🚀 在庫レポート抽出＆GAS送信を開始します...", "working")
+        log_info(f"在庫レポートGAS送信開始: ユーザー={user}, ホスト={host}")
+
+        def _thread_target():
+            self._run_inventory_gas_transmission_worker(host, port, user, pwd)
+
+        threading.Thread(target=_thread_target, daemon=True, name="inventory-gas-worker").start()
+
+    def _run_inventory_gas_transmission_worker(self, host, port, user, pwd):
+        """在庫レポート抽出＆GAS送信のバックグラウンドワーカー"""
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            self.set_status("🔌 [1/5] QADサーバーに接続中...", "working")
+            ssh.connect(host, port=port, username=user, password=pwd, timeout=15)
+
+            # 以前の winPrint の残骸を削除
+            ssh.exec_command(f"rm -f /home/{user}/winPrint")
+            time.sleep(1)
+
+            transport = ssh.get_transport()
+            if transport:
+                transport.set_keepalive(30)
+
+            shell = ssh.invoke_shell(term='vt100', width=256, height=60)
+            shell.settimeout(10.0)
+
+            self.set_status("📋 [2/5] QADメニュー(99.3.6.1)へ移動中...", "working")
+            time.sleep(4)
+            _clear_shell_buffer(shell)
+
+            shell.send("2\r")
+            time.sleep(3)
+            _clear_shell_buffer(shell)
+
+            shell.send("1\r")
+            time.sleep(6)
+            _clear_shell_buffer(shell)
+
+            shell.send("99.3.6.1\r")
+            time.sleep(4)
+            _clear_shell_buffer(shell)
+
+            self.set_status("⌨️ [3/5] 条件 '1FGI' を入力中...", "working")
+            for _ in range(8):
+                shell.send("\r")
+                time.sleep(0.3)
+
+            shell.send("1FGI\r")
+            time.sleep(0.5)
+            shell.send("1FGI\r")
+            time.sleep(0.5)
+            _clear_shell_buffer(shell)
+
+            # F1キー(1回目): Output欄へ
+            shell.send("\x1bOP")
+            time.sleep(3)
+            _clear_shell_buffer(shell)
+
+            # Output欄に winPrint を入力
+            shell.send("winPrint\r")
+            time.sleep(1)
+
+            # F1キー(2回目): 抽出実行
+            shell.send("\x1bOP")
+            time.sleep(1)
+            shell.send("\x1bOP")
+            time.sleep(1)
+            shell.send("\x06")
+
+            self.set_status("⏳ [4/5] サーバー内でファイル出力中(winPrint)...", "working")
+
+            sftp = ssh.open_sftp()
+            remote_path = f"/home/{user}/winPrint"
+            local_temp = os.path.join(tempfile.gettempdir(), f"inventory_winPrint_{int(time.time())}.txt")
+
+            def _update_progress(msg):
+                self.set_status(f"⏳ [4/5] {msg}", "working")
+
+            wait_and_download_winprint(sftp, remote_path, local_temp, max_wait=600, status_callback=_update_progress)
+            sftp.close()
+
+            self.set_status("📥 [5/5] レポートデータを解析中...", "working")
+            with open(local_temp, 'rb') as f:
+                raw_bytes = f.read()
+
+            raw_text = raw_bytes.decode('cp932', errors='replace')
+            final_text = clean_printer_data(raw_text)
+            rows = parse_report_to_rows(final_text)
+
+            row_count = len(rows) - 1
+            if row_count <= 0:
+                raise ValueError("抽出結果が0件でした。条件に一致するデータが存在しないか、レポート解析に失敗しました。")
+
+            self.set_status(f"🚀 ブラウザを起動しGASへ送信中 ({row_count:,}件)...", "working")
+            send_to_gas_via_browser(rows, INVENTORY_GAS_URL, title="Google Sheets 自動転送 (在庫レポート 1FGI)")
+
+            self.after(0, lambda: self._on_inventory_gas_success(row_count))
+
+        except Exception as exc:
+            log_error(f"在庫レポートGAS送信エラー: {exc}", exc_info=True)
+            err_msg = str(exc)
+            self.after(0, lambda: self._on_inventory_gas_error(err_msg))
+        finally:
+            self._is_gas_transmitting = False
+            try:
+                ssh.close()
+            except Exception:
+                pass
+            self.after(0, self._update_data_transmission_buttons_state)
+
+    def _on_inventory_gas_success(self, row_count: int):
+        self.set_status(f"✅ 在庫レポートをGASへ転送しました ({row_count:,}件)", "success", clear_delay=8)
+        messagebox.showinfo(
+            "GAS送信完了",
+            f"在庫レポート (1FGI) の抽出とGoogle Sheetsへの転送要求が完了しました！\n\n送信データ件数: {row_count:,} 件",
+            parent=self
+        )
+
+    def _on_inventory_gas_error(self, err_msg: str):
+        self.set_status(f"❌ 在庫レポートGAS送信エラー: {err_msg}", "error", clear_delay=10)
+        messagebox.showerror("エラー", f"在庫レポートの処理中にエラーが発生しました:\n\n{err_msg}", parent=self)
+
+    def open_complaint_dialog(self):
+        """Complaint送信の条件入力ダイアログを開く"""
+        if self._is_gas_transmitting:
+            messagebox.showwarning("データ送信実行中", "現在データ送信処理が実行中です。完了するまでお待ちください。", parent=self)
+            return
+        ComplaintDialog(self)
+
+    def run_complaint_gas_transmission(self, item_num: str, start_day: str, end_day: str, item_lot: str, dialog_ref=None):
+        """Complaint (99.3.21.4) を抽出して GAS へ自動転送"""
+        host, port, user, pwd = self._get_qad_credentials()
+        if not user or not pwd:
+            if dialog_ref:
+                dialog_ref.submit_btn.configure(state="normal")
+                dialog_ref.cancel_btn.configure(state="normal")
+                dialog_ref.update_dialog_status("❌ ログイン情報が未設定です", color="#DC2626")
+            messagebox.showerror(
+                "ログイン情報未設定",
+                "QADのログイン情報が設定されていません。\nメニューの「ログイン情報」からユーザーIDとパスワードを設定してください。",
+                parent=dialog_ref or self
+            )
+            return
+
+        self._is_gas_transmitting = True
+        self._update_data_transmission_buttons_state()
+        self.set_status(f"🚀 Complaint 抽出＆GAS送信を開始します (Item: {item_num})...", "working")
+        log_info(f"Complaint送信開始: item={item_num}, start={start_day}, end={end_day}, lot={item_lot}")
+
+        def _thread_target():
+            self._run_complaint_gas_transmission_worker(host, port, user, pwd, item_num, start_day, end_day, item_lot, dialog_ref)
+
+        threading.Thread(target=_thread_target, daemon=True, name="complaint-gas-worker").start()
+
+    def _run_complaint_gas_transmission_worker(self, host, port, user, pwd, item_num, start_day, end_day, item_lot, dialog_ref):
+        """Complaint抽出＆GAS送信のバックグラウンドワーカー"""
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        def _update_ui_status(msg):
+            self.set_status(msg, "working")
+            if dialog_ref:
+                dialog_ref.update_dialog_status(msg, color="#D97706")
+
+        try:
+            _update_ui_status("🔌 [1/6] サーバーに接続中...")
+            ssh.connect(host, port=port, username=user, password=pwd, timeout=15)
+
+            # 以前の winPrint の残骸を削除
+            ssh.exec_command(f"rm -f /home/{user}/winPrint")
+            time.sleep(1)
+
+            transport = ssh.get_transport()
+            if transport:
+                transport.set_keepalive(30)
+
+            shell = ssh.invoke_shell(term='vt100', width=132, height=24)
+            shell.settimeout(10.0)
+
+            _update_ui_status("📋 [2/6] QADメニューを移動中...")
+            time.sleep(2)
+            _clear_shell_buffer(shell)
+
+            shell.send("2\r")
+            _wait_shell_text(shell, "Roll Japan Production", timeout=12)
+            _clear_shell_buffer(shell)
+
+            shell.send("1\r")
+            try:
+                _wait_shell_text(shell, "space bar to continue", timeout=8)
+                shell.send(" ")
+            except Exception:
+                pass
+
+            _wait_shell_text(shell, "Please select a function", timeout=15)
+            _clear_shell_buffer(shell)
+
+            shell.send("99.3.21.4\r")
+            _wait_shell_text(shell, "Item Number", timeout=15)
+            _clear_shell_buffer(shell)
+
+            _update_ui_status("⌨️ [3/6] 抽出条件を入力中...")
+            shell.send(item_num + "\r")
+            time.sleep(1.0)
+            shell.send(item_num + "\r")
+            time.sleep(1.0)
+
+            shell.send("\r\r")
+            time.sleep(1.0)
+
+            shell.send(start_day + "\r")
+            time.sleep(1.0)
+            shell.send(end_day + "\r")
+            time.sleep(1.0)
+
+            shell.send("1FGI\r")
+            time.sleep(1.0)
+            shell.send("1FGI\r")
+            time.sleep(1.0)
+
+            shell.send("\r\r\r\r")
+            time.sleep(1.0)
+
+            if item_lot:
+                shell.send(item_lot + "\r")
+                time.sleep(1.0)
+                shell.send(item_lot + "\r")
+                time.sleep(1.0)
+            else:
+                shell.send("\r\r")
+                time.sleep(1.0)
+
+            # Output欄まで残り11フィールド
+            shell.send("\r" * 11)
+            time.sleep(2.0)
+            _clear_shell_buffer(shell)
+
+            # Output 欄に winPrint を入力
+            shell.send("winPrint\r")
+            time.sleep(1.0)
+
+            _update_ui_status("🚀 [4/6] レポート実行開始...")
+            shell.send("\x1bOP")
+            time.sleep(1.0)
+            shell.send("\x06")
+
+            sftp = ssh.open_sftp()
+            remote_path = f"/home/{user}/winPrint"
+            local_temp = os.path.join(tempfile.gettempdir(), f"complaint_winPrint_{int(time.time())}.txt")
+
+            def _progress_cb(msg):
+                _update_ui_status(f"⏳ [4/6] {msg}")
+
+            last_size = wait_and_download_winprint(sftp, remote_path, local_temp, max_wait=600, status_callback=_progress_cb)
+            sftp.close()
+
+            _update_ui_status(f"📥 [5/6] データ解析中 ({last_size/1024:.0f} KB)...")
+            with open(local_temp, 'rb') as f:
+                raw_bytes = f.read()
+
+            raw_text = raw_bytes.decode('cp932', errors='replace')
+            final_text = clean_printer_data(raw_text)
+            data_list = parse_report_to_rows(final_text)
+
+            if len(data_list) <= 1:
+                raise ValueError("処理は完了しましたが、指定された条件に一致するデータがありませんでした。")
+
+            row_count = len(data_list) - 1
+            _update_ui_status(f"📤 [6/6] GASへ {row_count:,}件 を送信中...")
+            send_to_gas_via_browser(data_list, COMPLAINT_GAS_URL, title="Google Sheets 自動転送 (Complaint)")
+
+            self.after(0, lambda: self._on_complaint_gas_success(row_count, dialog_ref))
+
+        except Exception as exc:
+            log_error(f"Complaint送信エラー: {exc}", exc_info=True)
+            err_msg = str(exc)
+            self.after(0, lambda: self._on_complaint_gas_error(err_msg, dialog_ref))
+        finally:
+            self._is_gas_transmitting = False
+            try:
+                ssh.close()
+            except Exception:
+                pass
+            self.after(0, self._update_data_transmission_buttons_state)
+
+    def _on_complaint_gas_success(self, row_count: int, dialog_ref=None):
+        self.set_status(f"✅ ComplaintデータをGASへ転送しました ({row_count:,}件)", "success", clear_delay=8)
+        if dialog_ref:
+            dialog_ref.submit_btn.configure(state="normal")
+            dialog_ref.cancel_btn.configure(state="normal")
+            dialog_ref.update_dialog_status(f"✅ GASにデータ転送が完了しました ({row_count:,}件)", color="#16A34A")
+        messagebox.showinfo(
+            "GAS送信完了",
+            f"Complaint (99.3.21.4) データの抽出とGoogle Sheetsへの転送要求が完了しました！\n\n送信データ件数: {row_count:,} 件",
+            parent=dialog_ref or self
+        )
+        if dialog_ref:
+            dialog_ref.destroy()
+
+    def _on_complaint_gas_error(self, err_msg: str, dialog_ref=None):
+        self.set_status(f"❌ Complaint送信エラー: {err_msg}", "error", clear_delay=10)
+        if dialog_ref:
+            dialog_ref.submit_btn.configure(state="normal")
+            dialog_ref.cancel_btn.configure(state="normal")
+            dialog_ref.update_dialog_status("❌ エラーが発生しました", color="#DC2626")
+        messagebox.showerror("エラー", f"Complaint送信の処理中にエラーが発生しました:\n\n{err_msg}", parent=dialog_ref or self)
 
     def jump_to_menu(self, code):
         """指定されたメニュー番号へ直接ジャンプ（メイン画面ならF4を押さず直接入力、業務画面ならF4で戻って入力）"""
@@ -2515,6 +3300,9 @@ class TerminalApp(ctk.CTk):
         for index in range(self.key_menu.index("end") + 1):
             if self.key_menu.type(index) == "command":
                 self.key_menu.entryconfigure(index, state=state)
+
+        if hasattr(self, "_update_data_transmission_buttons_state"):
+            self._update_data_transmission_buttons_state()
 
     def _show_message(self, message):
         self.textbox.configure(state="normal")
