@@ -5,7 +5,6 @@ import datetime
 import gzip
 import json
 import os
-import paramiko
 from pathlib import Path
 import queue
 import re
@@ -19,14 +18,6 @@ import logging
 from logging.handlers import RotatingFileHandler
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dateutil import parser as date_parser
-from dateutil.relativedelta import relativedelta
-from PIL import Image, ImageDraw, ImageTk
-try:
-    from ctkdateentry import CTkDateEntry
-    HAS_CTK_DATE_ENTRY = True
-except ImportError:
-    HAS_CTK_DATE_ENTRY = False
 
 # ---------------------------------------------------------------------------
 # プロジェクト本体ディレクトリ（PROJECT_ROOT）の動的探索・解決
@@ -92,11 +83,16 @@ if __name__ == "__main__":
         os.execv(str(local_python), [str(local_python), str(target_script), *sys.argv[1:]])
 
 import tkinter as tk
-from tkinter import colorchooser, messagebox
+from tkinter import colorchooser, filedialog, messagebox
 
 try:
+    import paramiko
+    from dateutil import parser as date_parser
+    from dateutil.relativedelta import relativedelta
+    from PIL import Image, ImageDraw, ImageTk
     import customtkinter as ctk
     from terminal_core import COLS, ROWS, KEY_SEQUENCES, TOOLBAR_GROUPS, TerminalSession, key_sequence
+    from order_entry import OrderEntryPanel, DoubleControlTap, read_choice_csv, show_order_output
 except ImportError as exc:
     if __name__ != "__main__":
         raise
@@ -111,6 +107,12 @@ except ImportError as exc:
     )
     root.destroy()
     raise SystemExit(1)
+
+try:
+    from ctkdateentry import CTkDateEntry
+    HAS_CTK_DATE_ENTRY = True
+except ImportError:
+    HAS_CTK_DATE_ENTRY = False
 
 
 # --- 設定管理 (terminal_config.json) ---
@@ -2144,6 +2146,15 @@ class TerminalApp(ctk.CTk):
         # 入力受付カーソルの白点滅タイマー管理
         self._cursor_blink_job = None
 
+        self.order_panel = None
+        self.order_output = None
+        self.last_order_submission = None
+        self.order_panel_visible = tk.BooleanVar(self, value=False)
+        self._order_control_tap = DoubleControlTap()
+        self._order_bindtag = f"OrderEntryShortcut_{id(self)}"
+        self._order_original_width = None
+        self._order_expanded_width = None
+
         self._build_menu()
         self._build_tab_bar()
         self._build_terminal_container()
@@ -2163,6 +2174,7 @@ class TerminalApp(ctk.CTk):
 
         # 初期タブを作成
         self.create_new_tab("Main", auto_connect=False)
+        self._install_order_shortcut()
 
         self._set_state("未接続")
         self._show_message("")
@@ -2254,6 +2266,15 @@ class TerminalApp(ctk.CTk):
         view.add_command(label="📤 データ送信ボタン名の設定...", command=self.open_data_transmission_setting_dialog)
         view.add_separator()
         view.add_command(label="ターミナルにフォーカス", command=self.focus_terminal)
+        view.add_separator()
+        view.add_checkbutton(label="注文入力", accelerator="Ctrl × 2",
+                             variable=self.order_panel_visible, command=self._sync_order_panel)
+        order_csv_menu = tk.Menu(view, tearoff=False)
+        order_csv_menu.add_command(label="顧客名CSVを読み込む…",
+                                   command=lambda: self.import_order_choices("customer_name"))
+        order_csv_menu.add_command(label="納品先CSVを読み込む…",
+                                   command=lambda: self.import_order_choices("ship_to"))
+        view.add_cascade(label="注文入力の候補CSV", menu=order_csv_menu)
         menubar.add_cascade(label="表示", menu=view)
 
         # 5. カラーパレットメニュー（独立メニュー）
@@ -2338,6 +2359,116 @@ class TerminalApp(ctk.CTk):
         self.terminal_container.grid(row=1, column=0, padx=8, pady=(0, 4), sticky="nsew")
         self.terminal_container.grid_columnconfigure(0, weight=1)
         self.terminal_container.grid_rowconfigure(0, weight=1)
+
+    def _install_order_shortcut(self):
+        # A leading bindtag sees Ctrl before Text's existing "break" bindings.
+        self.bind_class(self._order_bindtag, "<KeyPress>", self._on_order_key_press)
+        self.bind_class(self._order_bindtag, "<KeyRelease>", self._on_order_key_release)
+        self.bind_class(self._order_bindtag, "<FocusOut>", lambda event: self._order_control_tap.reset())
+        self.bind_class(self._order_bindtag, "<ButtonPress>", lambda event: self._order_control_tap.reset())
+        self.bind("<Map>", self._on_order_widget_map, add="+")
+        self._attach_order_bindtag(self)
+
+    def _attach_order_bindtag(self, widget):
+        if not hasattr(widget, "winfo_toplevel") or widget.winfo_toplevel() is not self:
+            return
+        tags = widget.bindtags()
+        if self._order_bindtag not in tags:
+            widget.bindtags((self._order_bindtag, *tags))
+        for child in widget.winfo_children():
+            self._attach_order_bindtag(child)
+
+    def _on_order_widget_map(self, event):
+        self._attach_order_bindtag(event.widget)
+
+    def _on_order_key_press(self, event):
+        self._order_control_tap.press(event.keysym, time.monotonic(), event.state)
+        if event.keysym in DoubleControlTap.CONTROL_KEYS:
+            return "break"
+
+    def _on_order_key_release(self, event):
+        if self._order_control_tap.release(event.keysym, time.monotonic()):
+            self.toggle_order_panel()
+        if event.keysym in DoubleControlTap.CONTROL_KEYS:
+            return "break"
+
+    def toggle_order_panel(self):
+        self.order_panel_visible.set(not self.order_panel_visible.get())
+        self._sync_order_panel()
+
+    def _sync_order_panel(self):
+        if self.order_panel_visible.get():
+            if self.order_panel is None:
+                self.order_panel = OrderEntryPanel(
+                    self, self.ui_colors, self.ui_font_family,
+                    on_submit=self._process_order_submission, on_close=self.toggle_order_panel,
+                )
+                self._attach_order_bindtag(self.order_panel)
+            for field in ("customer_name", "ship_to"):
+                path = self.config.get(f"order_{field}_csv")
+                if path:
+                    try:
+                        self.order_panel.set_choices(field, read_choice_csv(path, field))
+                    except (OSError, UnicodeError, ValueError, csv.Error) as exc:
+                        self.set_status(f"注文候補CSVを読み込めません：{exc}", "error")
+            self.order_panel.grid(row=0, column=1, rowspan=5, padx=(4, 8), pady=8, sticky="nsew")
+            self.grid_columnconfigure(1, minsize=602)
+            if self._order_original_width is None and self.state() == "normal":
+                self._order_original_width = self.winfo_width()
+                available = self.winfo_screenwidth() - max(0, self.winfo_x()) - 20
+                width = max(self.winfo_width(), min(self.winfo_width() + 602, available))
+                self._order_expanded_width = width
+                self.geometry(f"{width}x{self.winfo_height()}")
+            self.order_panel.focus_first()
+        else:
+            if self.order_panel is not None:
+                self.order_panel.close_popups()
+                self.order_panel.grid_remove()
+            self.grid_columnconfigure(1, minsize=0)
+            if (self._order_original_width is not None and self.state() == "normal"
+                    and self.winfo_width() == self._order_expanded_width):
+                self.geometry(f"{self._order_original_width}x{self.winfo_height()}")
+            self._order_original_width = self._order_expanded_width = None
+            self.focus_terminal()
+
+    def import_order_choices(self, field):
+        label = "顧客名" if field == "customer_name" else "納品先"
+        path = filedialog.askopenfilename(parent=self, title=f"{label}CSVを読み込む",
+                                          filetypes=[("CSV", "*.csv"), ("すべてのファイル", "*.*")])
+        if not path:
+            return
+        try:
+            values = read_choice_csv(path, field)
+        except (OSError, UnicodeError, ValueError, csv.Error) as exc:
+            messagebox.showerror("CSV読み込みエラー", str(exc), parent=self)
+            return
+        self.config[f"order_{field}_csv"] = path
+        save_config(self.config)
+        if self.order_panel is not None:
+            self.order_panel.set_choices(field, values)
+        self.set_status(f"{label}の候補を{len(values)}件読み込みました。", "info", clear_delay=4)
+
+    def _process_order_submission(self, payload):
+        """今後の所定ロジック接続箇所。現在は注文内容をローカル画面に出力。"""
+        self.last_order_submission = payload
+        if self.order_output is not None and self.order_output.winfo_exists():
+            self.order_output.destroy()
+        self.order_output = show_order_output(self, payload, self.ui_colors, self.ui_font_family)
+        self.set_status("注文内容を画面に出力しました。", "info", clear_delay=4)
+
+    def _route_order_edit(self, virtual_event):
+        """The Edit menu operates on the order field that currently has focus."""
+        if self.order_panel is None or not self.order_panel_visible.get():
+            return False
+        focused = self.focus_get()
+        ancestor = focused
+        while ancestor is not None:
+            if ancestor is self.order_panel:
+                if isinstance(focused, (tk.Entry, tk.Text)):
+                    focused.event_generate(virtual_event)
+                return True
+            ancestor = getattr(ancestor, "master", None)
+        return False
 
     def _get_chrome_tab_image(self, width: int, height: int, is_active: bool, is_first: bool = False):
         """Pillow 4倍スーパーサンプリングによる最高品位の滑らかなChromeタブ背景を生成（キャッシュ付き）"""
@@ -4257,6 +4388,8 @@ class TerminalApp(ctk.CTk):
             self.set_status(f"❌ {msg}", "error", clear_delay=6)
 
     def copy_selection_or_screen(self, event=None):
+        if self._route_order_edit("<<Copy>>"):
+            return "break"
         """テキスト選択範囲があれば選択部分を、なければ画面全体をコピー"""
         selected_text = ""
         try:
@@ -4279,6 +4412,8 @@ class TerminalApp(ctk.CTk):
 
     def paste_from_clipboard(self, event=None):
         """クリップボードから文字列を取得し、サーバーへキー入力として安全に送信"""
+        if self._route_order_edit("<<Paste>>"):
+            return "break"
         if not self.is_connected or self.session is None:
             self._show_input_error("未接続のため貼り付けできません")
             return "break"
@@ -4338,6 +4473,8 @@ class TerminalApp(ctk.CTk):
 
     def select_all_text(self, event=None):
         """ターミナル画面のテキスト全体を選択状態にする"""
+        if self._route_order_edit("<<SelectAll>>"):
+            return "break"
         try:
             self.textbox.tag_add("sel", "1.0", "end-1c")
             self.textbox.focus_set()
@@ -5849,6 +5986,10 @@ class TerminalApp(ctk.CTk):
 
     def on_close(self):
         self.closing = True
+        if self.order_panel is not None:
+            self.order_panel.close_popups()
+        for sequence in ("<KeyPress>", "<KeyRelease>", "<FocusOut>", "<ButtonPress>"):
+            self.unbind_class(self._order_bindtag, sequence)
         if getattr(self, "_cursor_blink_job", None) is not None:
             try:
                 self.after_cancel(self._cursor_blink_job)

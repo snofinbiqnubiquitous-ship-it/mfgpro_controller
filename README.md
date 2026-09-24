@@ -19,8 +19,41 @@ python "自作モダンターミナル.pyw"
 .\.venv\Scripts\pythonw.exe "自作モダンターミナル.pyw"
 ```
 
-`自作モダンターミナル.pyw` と `terminal_core.py` は同じフォルダに置いてください。
-社内サーバーへの接続には会社のVPN接続が必要です。起動しただけではSSH接続しません。
+`自作モダンターミナル.pyw`、`terminal_core.py`、`order_entry.py` は同じフォルダに置いてください。
+社内サーバーへの接続には会社のVPN接続が必要です。現在のアプリは起動後に自動接続します。
+
+## 注文入力
+
+- Ctrlを単独で2回押すと、右側に注文入力パネルを表示／非表示にできます。「表示 → 注文入力」からも開閉できます。
+- Ctrlの長押しやCtrl+Cなどの組み合わせでは切り替わりません。閉じても入力内容はアプリ終了まで保持します。
+- 上部に顧客名・納品先・Required date・due date・Purchase Order・Remarks・SO commentを入力します。
+- 日付はカレンダーから選択します。表示例は `2026/9/24 (木)`。初期値は当日です。
+- 明細は製品名・巾・長さ・本数・価格の5列、最大5行。未使用行は空白にします。
+- 顧客名・納品先と1行以上の明細が必要です。本数は正の整数、巾・長さは正の数、価格は0以上で入力します。
+- RemarksとSO commentの初期値は空白です。Purchase Orderとコメント類は任意入力です。
+
+「表示 → 注文入力の候補CSV」から、顧客名と納品先のCSVをそれぞれ選択できます。
+ファイルパスを設定に保存し、次回パネルを開いた時も読み込みます。UTF-8（BOMあり／なし）とCP932（Shift_JIS）に対応します。
+1列だけのCSVは見出しなしでも使用可能です。複数列の場合は先頭行に `顧客名`／`納品先` を指定してください。
+同じCSVに両方の列を置き、それぞれのメニューで同じファイルを指定することもできます。空白と重複は除外します。
+CSV未設定時も、ドロップダウンに直接入力できます。顧客と納品先の連動絞り込みは行いません。
+
+### 送信ロジックの接続箇所
+
+「送信」は入力チェック後、現在は注文内容をローカルの別画面に出力します。QADやGASには送信しません。
+後で定めるロジックは `.pyw` の `TerminalApp._process_order_submission(payload)` に実装してください。
+受け渡し内容は `customer_name`, `ship_to`, `required_date`, `due_date`, `purchase_order`, `remarks`, `so_comment`, `items`。
+日付はISO形式、`items` は `product_name`, `width`, `length`, `quantity`, `price` を持つ配列です。
+巾・長さ・価格は小数精度を維持した文字列、本数は整数です。入力値はログやファイルには保存しません。
+
+### ローカル確認
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py"
+.\.venv\Scripts\python.exe tests\check_order_ui.py
+```
+
+GUI確認スクリプトは自動接続とSSH生成、設定書き込みを止めた状態で実行します。
 
 ## 画面と操作
 

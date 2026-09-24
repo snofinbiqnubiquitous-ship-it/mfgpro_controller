@@ -1,3 +1,5 @@
 customtkinter==5.2.2
 paramiko==3.5.1
 pyte==0.8.2
+Pillow>=10,<13
+python-dateutil>=2.9,<3
