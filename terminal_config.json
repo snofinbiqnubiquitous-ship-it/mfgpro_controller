@@ -42,5 +42,8 @@
     "inventory": "📦 在庫レポートGAS送信 (99.3.6.1)",
     "complaint": "📑 Complaint送信 (99.3.21.4)",
     "parallel": "⚡ 受注残＆売上 並行送信 (99.7.6.20 & 99.7.5.11)"
+  },
+  "shortcut_assignments": {
+    "order.panel.toggle": "Alt+1"
   }
 }

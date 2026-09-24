@@ -92,7 +92,11 @@ try:
     from PIL import Image, ImageDraw, ImageTk
     import customtkinter as ctk
     from terminal_core import COLS, ROWS, KEY_SEQUENCES, TOOLBAR_GROUPS, TerminalSession, key_sequence
-    from order_entry import OrderEntryPanel, DoubleControlTap, read_choice_csv, show_order_output
+    from order_entry import (
+        OrderEntryPanel, DoubleControlTap, ShortcutSettingsDialog,
+        normalize_shortcut, shortcut_from_key_event, read_customer_ship_to_csv,
+        show_order_output,
+    )
 except ImportError as exc:
     if __name__ != "__main__":
         raise
@@ -172,6 +176,8 @@ def load_config():
         cfg["auto_login_main_menu"] = True
     if "auto_winprint_on_f1" not in cfg:
         cfg["auto_winprint_on_f1"] = True
+    if not isinstance(cfg.get("shortcut_assignments"), dict):
+        cfg["shortcut_assignments"] = {}
     return cfg
 
 
@@ -2152,6 +2158,11 @@ class TerminalApp(ctk.CTk):
         self.order_panel_visible = tk.BooleanVar(self, value=False)
         self._order_control_tap = DoubleControlTap()
         self._order_bindtag = f"OrderEntryShortcut_{id(self)}"
+        self.shortcut_assignments = self.config["shortcut_assignments"]
+        self.shortcut_dialog = None
+        self.shortcut_capture_entry = None
+        self._shortcut_order_menu_index = None
+        self.shortcut_menu = None
         self._order_original_width = None
         self._order_expanded_width = None
 
@@ -2270,12 +2281,21 @@ class TerminalApp(ctk.CTk):
         view.add_checkbutton(label="注文入力", accelerator="Ctrl × 2",
                              variable=self.order_panel_visible, command=self._sync_order_panel)
         order_csv_menu = tk.Menu(view, tearoff=False)
-        order_csv_menu.add_command(label="顧客名CSVを読み込む…",
-                                   command=lambda: self.import_order_choices("customer_name"))
-        order_csv_menu.add_command(label="納品先CSVを読み込む…",
-                                   command=lambda: self.import_order_choices("ship_to"))
+        order_csv_menu.add_command(label="顧客・納品先CSVを読み込む…",
+                                   command=self.import_order_choices)
         view.add_cascade(label="注文入力の候補CSV", menu=order_csv_menu)
         menubar.add_cascade(label="表示", menu=view)
+
+        self.shortcut_menu = tk.Menu(menubar, tearoff=False)
+        self.shortcut_menu.add_command(label="ショートカット変更...", command=self.open_shortcut_settings)
+        self.shortcut_menu.add_separator()
+        self._shortcut_order_menu_index = self.shortcut_menu.index("end") + 1
+        self.shortcut_menu.add_command(
+            label="注文入力",
+            accelerator=self.shortcut_assignments.get("order.panel.toggle", ""),
+            command=self.toggle_order_panel,
+        )
+        menubar.add_cascade(label="ショートカット", menu=self.shortcut_menu)
 
         # 5. カラーパレットメニュー（独立メニュー）
         self.palette_menu = tk.Menu(menubar, tearoff=False)
@@ -2370,7 +2390,10 @@ class TerminalApp(ctk.CTk):
         self._attach_order_bindtag(self)
 
     def _attach_order_bindtag(self, widget):
-        if not hasattr(widget, "winfo_toplevel") or widget.winfo_toplevel() is not self:
+        if not hasattr(widget, "winfo_toplevel"):
+            return
+        top = widget.winfo_toplevel()
+        if top is not self and top is not self.shortcut_dialog:
             return
         tags = widget.bindtags()
         if self._order_bindtag not in tags:
@@ -2382,6 +2405,27 @@ class TerminalApp(ctk.CTk):
         self._attach_order_bindtag(event.widget)
 
     def _on_order_key_press(self, event):
+        if self.shortcut_capture_entry is not None:
+            if event.widget is self.shortcut_capture_entry._entry:
+                if event.keysym == "Escape" and not (event.state & (0x4 | 0x8)):
+                    self.shortcut_dialog._select_action(self.shortcut_dialog.action_picker.get())
+                    self.shortcut_capture_entry = None
+                    return "break"
+                if event.keysym not in DoubleControlTap.CONTROL_KEYS:
+                    return self.shortcut_dialog.capture(event)
+                self._order_control_tap.reset()
+                return "break"
+            if event.widget.winfo_toplevel() is self.shortcut_dialog:
+                return None
+
+        shortcut = shortcut_from_key_event(event)
+        if shortcut is not None:
+            action_id = next((key for key, value in self.shortcut_assignments.items()
+                              if value == shortcut), None)
+            if action_id:
+                self._order_control_tap.reset()
+                self._run_shortcut_action(action_id)
+                return "break"
         self._order_control_tap.press(event.keysym, time.monotonic(), event.state)
         if event.keysym in DoubleControlTap.CONTROL_KEYS:
             return "break"
@@ -2396,6 +2440,138 @@ class TerminalApp(ctk.CTk):
         self.order_panel_visible.set(not self.order_panel_visible.get())
         self._sync_order_panel()
 
+    def _shortcut_actions(self):
+        actions = {
+            "order.panel.toggle": ("注文入力", self.toggle_order_panel),
+            "order.panel.submit": ("注文入力を送信", self._shortcut_submit_order),
+            "order.panel.close": ("注文入力を閉じる", self._shortcut_close_order),
+            "order.csv.choices": ("顧客・納品先CSVを選択", self.import_order_choices),
+            "order.date.required": ("Required dateを選択", lambda: self._shortcut_open_order_date("required_date")),
+            "order.date.due": ("due dateを選択", lambda: self._shortcut_open_order_date("due_date")),
+        }
+        ordinal = {}
+
+        def visit(parent, window_name):
+            try:
+                children = parent.winfo_children()
+            except (tk.TclError, AttributeError):
+                return
+            for widget in children:
+                try:
+                    if isinstance(widget, ctk.CTkToplevel) and widget is self.shortcut_dialog:
+                        continue
+                    if isinstance(widget, ActionButton):
+                        label = widget.cget("text")
+                        action_id = f"button:{widget._w}"
+                        if label and action_id not in actions:
+                            key = (window_name, str(label).strip())
+                            ordinal[key] = ordinal.get(key, 0) + 1
+                            suffix = f" #{ordinal[key]}" if ordinal[key] > 1 else ""
+                            actions[action_id] = (f"{window_name} › {str(label).strip()}{suffix}",
+                                                  lambda target=widget: self._invoke_shortcut_button(target))
+                        continue
+                    if isinstance(widget, ctk.CTkButton) or isinstance(widget, tk.Button):
+                        label = str(widget.cget("text")).strip()
+                        action_id = f"button:{widget._w}"
+                        if label and action_id not in actions:
+                            key = (window_name, label)
+                            ordinal[key] = ordinal.get(key, 0) + 1
+                            suffix = f" #{ordinal[key]}" if ordinal[key] > 1 else ""
+                            actions[action_id] = (f"{window_name} › {label}{suffix}",
+                                                  lambda target=widget: self._invoke_shortcut_button(target))
+                        continue
+                    visit(widget, window_name)
+                except (tk.TclError, AttributeError):
+                    continue
+
+        visit(self, self.title())
+        if self.order_panel is not None:
+            visit(self.order_panel, "注文入力")
+        return actions
+
+    def open_shortcut_settings(self):
+        if self.shortcut_dialog is not None and self.shortcut_dialog.winfo_exists():
+            self.shortcut_dialog.lift()
+            return
+        self.shortcut_dialog = ShortcutSettingsDialog(
+            self, self._shortcut_actions(), dict(self.shortcut_assignments),
+            self.ui_colors, self.ui_font_family,
+            self._save_shortcut_assignment, self._set_shortcut_capture,
+        )
+        self._attach_order_bindtag(self.shortcut_dialog)
+        self.shortcut_dialog.grab_set()
+
+    def _set_shortcut_capture(self, entry):
+        self.shortcut_capture_entry = entry
+        if entry is not None:
+            entry.focus_set()
+
+    def _save_shortcut_assignment(self, action_id, shortcut):
+        if action_id not in self._shortcut_actions():
+            if self.shortcut_dialog:
+                self.shortcut_dialog.error_label.configure(text="対象の操作を確認できません。")
+            return False
+        try:
+            shortcut = normalize_shortcut(shortcut) if shortcut else ""
+        except ValueError as exc:
+            if self.shortcut_dialog:
+                self.shortcut_dialog.error_label.configure(text=str(exc))
+            return False
+        if shortcut:
+            conflict = next((key for key, value in self.shortcut_assignments.items()
+                             if key != action_id and value == shortcut), None)
+            if conflict:
+                conflict_label = self._shortcut_actions().get(conflict, (conflict, None))[0]
+                if self.shortcut_dialog:
+                    self.shortcut_dialog.error_label.configure(
+                        text=f"「{conflict_label}」に割り当て済みです。別のキーを選んでください。")
+                return False
+            self.shortcut_assignments[action_id] = shortcut
+        else:
+            self.shortcut_assignments.pop(action_id, None)
+        self.config["shortcut_assignments"] = self.shortcut_assignments
+        save_config(self.config)
+        if self.shortcut_menu is not None and self._shortcut_order_menu_index is not None:
+            self.shortcut_menu.entryconfigure(
+                self._shortcut_order_menu_index,
+                accelerator=self.shortcut_assignments.get("order.panel.toggle", ""),
+            )
+        return True
+
+    def _run_shortcut_action(self, action_id):
+        action = self._shortcut_actions().get(action_id)
+        if action is None:
+            self.shortcut_assignments.pop(action_id, None)
+            self.config["shortcut_assignments"] = self.shortcut_assignments
+            save_config(self.config)
+            return
+        action[1]()
+
+    def _invoke_shortcut_button(self, button):
+        try:
+            if not button.winfo_exists() or button.cget("state") == "disabled":
+                return
+            button.invoke()
+        except tk.TclError:
+            return
+
+    def _shortcut_submit_order(self):
+        if not self.order_panel_visible.get() or self.order_panel is None:
+            self.order_panel_visible.set(True)
+            self._sync_order_panel()
+            return
+        self.order_panel.submit()
+
+    def _shortcut_close_order(self):
+        if self.order_panel_visible.get():
+            self.toggle_order_panel()
+
+    def _shortcut_open_order_date(self, field):
+        if not self.order_panel_visible.get():
+            self.order_panel_visible.set(True)
+            self._sync_order_panel()
+        self.order_panel.fields[field].open_calendar()
+
     def _sync_order_panel(self):
         if self.order_panel_visible.get():
             if self.order_panel is None:
@@ -2404,13 +2580,12 @@ class TerminalApp(ctk.CTk):
                     on_submit=self._process_order_submission, on_close=self.toggle_order_panel,
                 )
                 self._attach_order_bindtag(self.order_panel)
-            for field in ("customer_name", "ship_to"):
-                path = self.config.get(f"order_{field}_csv")
-                if path:
-                    try:
-                        self.order_panel.set_choices(field, read_choice_csv(path, field))
-                    except (OSError, UnicodeError, ValueError, csv.Error) as exc:
-                        self.set_status(f"注文候補CSVを読み込めません：{exc}", "error")
+            path = self.config.get("order_choices_csv")
+            if path:
+                try:
+                    self.order_panel.set_customer_ship_tos(read_customer_ship_to_csv(path))
+                except (OSError, UnicodeError, ValueError, csv.Error) as exc:
+                    self.set_status(f"注文候補CSVを読み込めません：{exc}", "error")
             self.order_panel.grid(row=0, column=1, rowspan=5, padx=(4, 8), pady=8, sticky="nsew")
             self.grid_columnconfigure(1, minsize=602)
             if self._order_original_width is None and self.state() == "normal":
@@ -2431,22 +2606,23 @@ class TerminalApp(ctk.CTk):
             self._order_original_width = self._order_expanded_width = None
             self.focus_terminal()
 
-    def import_order_choices(self, field):
-        label = "顧客名" if field == "customer_name" else "納品先"
-        path = filedialog.askopenfilename(parent=self, title=f"{label}CSVを読み込む",
+    def import_order_choices(self):
+        path = filedialog.askopenfilename(parent=self, title="顧客・納品先CSVを読み込む",
                                           filetypes=[("CSV", "*.csv"), ("すべてのファイル", "*.*")])
         if not path:
             return
         try:
-            values = read_choice_csv(path, field)
+            choices = read_customer_ship_to_csv(path)
         except (OSError, UnicodeError, ValueError, csv.Error) as exc:
             messagebox.showerror("CSV読み込みエラー", str(exc), parent=self)
             return
-        self.config[f"order_{field}_csv"] = path
+        self.config["order_choices_csv"] = path
         save_config(self.config)
         if self.order_panel is not None:
-            self.order_panel.set_choices(field, values)
-        self.set_status(f"{label}の候補を{len(values)}件読み込みました。", "info", clear_delay=4)
+            self.order_panel.set_customer_ship_tos(choices)
+        pair_count = sum(len(destinations) for destinations in choices.values())
+        self.set_status(f"顧客{len(choices)}件・納品先{pair_count}件を読み込みました。",
+                        "info", clear_delay=4)
 
     def _process_order_submission(self, payload):
         """今後の所定ロジック接続箇所。現在は注文内容をローカル画面に出力。"""

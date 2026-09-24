@@ -6,6 +6,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 import io
 from pathlib import Path
+import re
 import tkinter as tk
 
 import customtkinter as ctk
@@ -14,6 +15,188 @@ import customtkinter as ctk
 WEEKDAYS = ("月", "火", "水", "木", "金", "土", "日")
 ITEM_FIELDS = ("product_name", "width", "length", "quantity", "price")
 ITEM_LABELS = ("製品名", "巾", "長さ", "本数", "価格")
+SHORTCUT_MODIFIERS = {"ctrl": "Ctrl", "control": "Ctrl", "alt": "Alt", "shift": "Shift"}
+SHORTCUT_RESERVED = {"Alt+F4", "Alt+Tab", "Alt+Esc", "Alt+Space", "Ctrl+Shift+Esc",
+                     "Ctrl+A", "Ctrl+C", "Ctrl+D", "Ctrl+E", "Ctrl+H",
+                     "Ctrl+T", "Ctrl+V", "Ctrl+W", "Ctrl+Tab", "Ctrl+Shift+C",
+                     "Ctrl+Shift+Tab", "Shift+Tab", "Ctrl+PageUp", "Ctrl+PageDown"}
+
+
+def normalize_shortcut(shortcut):
+    """Return a canonical modified key, or reject unsafe/system-reserved keys."""
+    parts = [part.strip() for part in str(shortcut).replace("Control", "Ctrl").split("+")]
+    if not parts or any(not part for part in parts):
+        raise ValueError("Shift、Ctrl、Altのいずれかを含むショートカットを設定してください。")
+    modifiers = []
+    key = None
+    for part in parts:
+        modifier = SHORTCUT_MODIFIERS.get(part.lower())
+        if modifier:
+            if modifier in modifiers:
+                raise ValueError("同じ修飾キーを重複して指定できません。")
+            modifiers.append(modifier)
+        elif key is None:
+            key = part
+        else:
+            raise ValueError("割り当てるキーは1つ指定してください。")
+    if key is None or not modifiers:
+        raise ValueError("Shift、Ctrl、Altのいずれかを含むショートカットを設定してください。")
+    aliases = {"return": "Enter", "kp_enter": "Enter", "spacebar": "Space",
+               "escape": "Esc", "backspace": "Backspace", "delete": "Delete",
+               "prior": "PageUp", "next": "PageDown", "pageup": "PageUp",
+               "pagedown": "PageDown", "left": "Left", "right": "Right",
+               "up": "Up", "down": "Down", "tab": "Tab"}
+    lowered = key.lower()
+    if re.fullmatch(r"f(?:[1-9]|1[0-9]|2[0-4])", lowered):
+        key = lowered.upper()
+    elif len(key) == 1:
+        key = key.upper()
+    else:
+        key = aliases.get(lowered, key)
+    if not re.fullmatch(r"[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4])|Enter|Space|Esc|Backspace|Delete|PageUp|PageDown|Left|Right|Up|Down|Tab", key):
+        raise ValueError("文字、数字、Fキー、矢印キー、Enter、Space、Tabのいずれかを指定してください。")
+    ordered = [modifier for modifier in ("Ctrl", "Alt", "Shift") if modifier in modifiers]
+    result = "+".join((*ordered, key))
+    if result in SHORTCUT_RESERVED:
+        raise ValueError("Windowsまたはターミナルの標準ショートカットは変更できません。")
+    return result
+
+
+def shortcut_from_key_event(event):
+    """Read modifiers from Tk's platform-independent key event state."""
+    state = event.state
+    modifiers = [name for bit, name in ((0x4, "Ctrl"), (0x8, "Alt"), (0x1, "Shift")) if state & bit]
+    if not modifiers:
+        return None
+    aliases = {"return": "Enter", "kp_enter": "Enter", "space": "Space",
+               "escape": "Esc", "backspace": "Backspace", "delete": "Delete",
+               "prior": "PageUp", "next": "PageDown"}
+    key = event.keysym
+    key = aliases.get(key.lower(), key.upper() if len(key) == 1 else key)
+    try:
+        return normalize_shortcut("+".join((*modifiers, key)))
+    except ValueError:
+        return None
+
+
+class ShortcutSettingsDialog(ctk.CTkToplevel):
+    def __init__(self, parent, actions, assignments, colors, font_family, on_save, on_capture):
+        super().__init__(parent)
+        self.actions = actions
+        self.assignments = assignments
+        self.colors = colors
+        self.font_family = font_family
+        self.on_save = on_save
+        self.on_capture = on_capture
+        self.selected_id = None
+        self.geometry("540x250")
+        self.minsize(480, 230)
+        self.resizable(False, False)
+        self.configure(fg_color=colors["panel"])
+        self.transient(parent)
+        self.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(self, text="対象", text_color=colors["text"],
+                     font=(font_family, 12)).grid(row=0, column=0, padx=20, pady=(16, 4), sticky="w")
+        self.action_names = {label: action_id for action_id, (label, _) in actions.items()}
+        self.action_picker = ctk.CTkComboBox(
+            self, values=list(self.action_names), height=34, font=(font_family, 13),
+            dropdown_font=(font_family, 12), fg_color="#FFFFFF", text_color=colors["text"],
+            border_color=colors["border"], button_color=colors["button"],
+            button_hover_color=colors["hover"], corner_radius=7, command=self._select_action,
+        )
+        self.action_picker.grid(row=1, column=0, padx=20, sticky="ew")
+        self.action_picker.bind("<KeyPress>", self._block_picker_typing, add="+")
+        ctk.CTkLabel(self, text="キー", text_color=colors["text"],
+                     font=(font_family, 12)).grid(row=2, column=0, padx=20, pady=(12, 4), sticky="w")
+        row = ctk.CTkFrame(self, fg_color="transparent")
+        row.grid(row=3, column=0, padx=20, sticky="ew")
+        row.grid_columnconfigure(0, weight=1)
+        self.key_entry = ctk.CTkEntry(row, height=36, font=(font_family, 13),
+                                     fg_color="#FFFFFF", text_color=colors["text"],
+                                     border_color=colors["border"], corner_radius=7,
+                                     placeholder_text="未設定")
+        self.key_entry.grid(row=0, column=0, sticky="ew")
+        self.record_button = tk.Button(row, text="キーを記録", command=self._start_recording,
+                                       bg=colors["button"], fg=colors["text"], relief="flat", bd=0,
+                                       font=(font_family, 11), padx=12, pady=7, takefocus=True)
+        self.record_button.grid(row=0, column=1, padx=(8, 0))
+        self.error_label = ctk.CTkLabel(self, text="", text_color=colors["error"],
+                                        font=(font_family, 11), anchor="w")
+        self.error_label.grid(row=4, column=0, padx=20, pady=(5, 0), sticky="ew")
+        self.footer = ctk.CTkFrame(self, fg_color="transparent")
+        self.footer.grid(row=5, column=0, padx=20, pady=(8, 14), sticky="ew")
+        self.clear_button = tk.Button(self.footer, text="解除", command=self._clear,
+                                      bg=colors["panel"], fg=colors["muted"], relief="flat", bd=0,
+                                      font=(font_family, 11), padx=10, pady=7, takefocus=True)
+        self.clear_button.pack(side="left")
+        self.save_button = tk.Button(self.footer, text="設定", command=self._save,
+                                     bg=colors["accent"], fg=colors["on_accent"],
+                                     activebackground=colors["accent_hover"],
+                                     relief="flat", bd=0, font=(font_family, 11),
+                                     padx=18, pady=7, takefocus=True)
+        self.save_button.pack(side="right")
+        if self.action_names:
+            self.action_picker.set(next(iter(self.action_names)))
+            self._select_action(self.action_picker.get())
+        self.update_idletasks()
+        parent_x, parent_y = parent.winfo_rootx(), parent.winfo_rooty()
+        x = max(0, min(parent_x + (parent.winfo_width() - self.winfo_width()) // 2,
+                       self.winfo_screenwidth() - self.winfo_width()))
+        y = max(0, min(parent_y + (parent.winfo_height() - self.winfo_height()) // 2,
+                       self.winfo_screenheight() - self.winfo_height() - 48))
+        self.geometry(f"+{x}+{y}")
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
+
+    def _block_picker_typing(self, event):
+        if event.keysym not in ("Up", "Down", "Return", "KP_Enter", "Escape"):
+            return "break"
+
+    def _select_action(self, label):
+        self.selected_id = self.action_names.get(label)
+        self.key_entry.configure(state="normal")
+        self.key_entry.delete(0, "end")
+        current = self.assignments.get(self.selected_id, "")
+        if current:
+            self.key_entry.insert(0, current)
+        self.key_entry.configure(state="readonly")
+        self.error_label.configure(text="")
+
+    def _start_recording(self):
+        self.key_entry.configure(state="normal")
+        self.key_entry.delete(0, "end")
+        self.key_entry.insert(0, "キー入力待ち")
+        self.error_label.configure(text="")
+        self.on_capture(self.key_entry)
+
+    def capture(self, event):
+        shortcut = shortcut_from_key_event(event)
+        if shortcut is None:
+            self.error_label.configure(text="Shift、Ctrl、Altのいずれかと組み合わせてください。")
+            return "break"
+        self.key_entry.configure(state="normal")
+        self.key_entry.delete(0, "end")
+        self.key_entry.insert(0, shortcut)
+        self.key_entry.configure(state="readonly")
+        self.on_capture(None)
+        return "break"
+
+    def _clear(self):
+        if self.on_save(self.selected_id, ""):
+            self._select_action(self.action_picker.get())
+
+    def _save(self):
+        shortcut = self.key_entry.get().strip()
+        if shortcut == "キー入力待ち":
+            self.error_label.configure(text="保存するキーを押してください。")
+            return
+        if shortcut:
+            try:
+                shortcut = normalize_shortcut(shortcut)
+            except ValueError as exc:
+                self.error_label.configure(text=str(exc))
+                return
+        if self.on_save(self.selected_id, shortcut):
+            self.destroy()
 
 
 def read_choice_csv(path, field):
@@ -40,6 +223,42 @@ def read_choice_csv(path, field):
     if not values:
         raise ValueError(f"CSVの「{aliases[0]}」列に候補がありません。")
     return values
+
+
+def read_customer_ship_to_csv(path):
+    """Read a two-column customer/destination CSV into ordered choices."""
+    raw = Path(path).read_bytes()
+    try:
+        content = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        content = raw.decode("cp932")
+    rows = [row for row in csv.reader(io.StringIO(content, newline=""))
+            if any(cell.strip() for cell in row)]
+    if not rows:
+        raise ValueError("CSVに顧客・納品先の組み合わせがありません。")
+
+    headers = [cell.strip().lower() for cell in rows[0]]
+    customer_aliases = {"顧客", "顧客名", "customer", "customer_name"}
+    ship_to_aliases = {"納品先", "ship_to", "destination"}
+    customer_column = next((i for i, label in enumerate(headers) if label in customer_aliases), None)
+    ship_to_column = next((i for i, label in enumerate(headers) if label in ship_to_aliases), None)
+    has_header = customer_column is not None and ship_to_column is not None
+    if not has_header:
+        customer_column, ship_to_column = 0, 1
+
+    choices = {}
+    for row in rows[1:] if has_header else rows:
+        if len(row) <= max(customer_column, ship_to_column):
+            continue
+        customer, ship_to = row[customer_column].strip(), row[ship_to_column].strip()
+        if not customer or not ship_to:
+            continue
+        destinations = choices.setdefault(customer, [])
+        if ship_to not in destinations:
+            destinations.append(ship_to)
+    if not choices:
+        raise ValueError("顧客名と納品先が両方入力された行がありません。")
+    return choices
 
 
 def format_order_date(value):
@@ -262,6 +481,7 @@ class OrderEntryPanel(ctk.CTkFrame):
         self.fields = {}
         self.item_entries = []
         self.error_field = None
+        self.customer_ship_tos = {}
         top = ctk.CTkFrame(self, fg_color="transparent")
         top.grid(row=0, column=0, padx=16, pady=(10, 0), sticky="ew")
         close = tk.Button(top, text="閉じる", command=on_close, relief="flat", bd=0,
@@ -282,6 +502,7 @@ class OrderEntryPanel(ctk.CTkFrame):
                 button_color=colors["button"], button_hover_color=colors["hover"],
                 dropdown_fg_color=colors["panel"], dropdown_text_color=colors["text"],
                 dropdown_hover_color=colors["hover"], corner_radius=7,
+                command=self._on_customer_selected if key == "customer_name" else None,
             )
             field.set("")
             field.grid(row=1, column=col, padx=4, pady=(0, 10), sticky="ew")
@@ -360,6 +581,24 @@ class OrderEntryPanel(ctk.CTkFrame):
 
     def set_choices(self, field, values):
         self.fields[field].configure(values=values or [""])
+
+    def set_customer_ship_tos(self, choices):
+        self.customer_ship_tos = {str(customer): list(destinations)
+                                  for customer, destinations in choices.items()}
+        customers = list(self.customer_ship_tos)
+        self.fields["customer_name"].configure(values=customers or [""])
+        current = self.fields["customer_name"].get()
+        if current not in self.customer_ship_tos:
+            current = ""
+            self.fields["customer_name"].set("")
+        self._on_customer_selected(current)
+
+    def _on_customer_selected(self, customer):
+        destinations = self.customer_ship_tos.get(customer, [])
+        field = self.fields["ship_to"]
+        field.configure(values=destinations or [""])
+        if field.get() not in destinations:
+            field.set("")
 
     def focus_first(self):
         self.fields["customer_name"].focus_set()
