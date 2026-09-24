@@ -116,6 +116,12 @@ except ImportError as exc:
 # --- 設定管理 (terminal_config.json) ---
 CONFIG_FILE = PROJECT_ROOT / "terminal_config.json"
 
+DEFAULT_DATA_TRANSMISSION_NAMES = {
+    "inventory": "📦 在庫レポートGAS送信 (99.3.6.1)",
+    "complaint": "📑 Complaint送信 (99.3.21.4)",
+    "parallel": "⚡ 受注残＆売上 並行送信 (99.7.6.20 & 99.7.5.11)",
+}
+
 DEFAULT_CONFIG = {
     "host": "mfg03",
     "port": 22,
@@ -134,6 +140,7 @@ DEFAULT_CONFIG = {
         {"name": "在庫移動明細", "code": "99.3.21.4"},
     ],
     "tab_aliases": {},
+    "data_transmission_names": dict(DEFAULT_DATA_TRANSMISSION_NAMES),
 }
 
 
@@ -151,6 +158,8 @@ def load_config():
         cfg["shortcuts"] = list(DEFAULT_CONFIG["shortcuts"])
     if "tab_aliases" not in cfg or not isinstance(cfg["tab_aliases"], dict):
         cfg["tab_aliases"] = dict(DEFAULT_CONFIG.get("tab_aliases", {}))
+    if "data_transmission_names" not in cfg or not isinstance(cfg["data_transmission_names"], dict):
+        cfg["data_transmission_names"] = dict(DEFAULT_DATA_TRANSMISSION_NAMES)
     if "enable_windows_shortcuts" not in cfg:
         cfg["enable_windows_shortcuts"] = True
     if "block_server_shortcuts" not in cfg:
@@ -330,16 +339,57 @@ def send_to_gas_via_browser(rows_or_payload, gas_url: str, title: str = "Google 
     with open(path, 'w', encoding='utf-8') as f:
         f.write(html_content)
 
-    try:
-        subprocess.Popen(f'start chrome "{path}"', shell=True)
-    except Exception:
+    def _launch_in_background(target_path):
+        """ブラウザを既存タブで非アクティブ起動し、作業中ウィンドウのフォーカスを維持する"""
         try:
-            subprocess.Popen(f'start msedge "{path}"', shell=True)
+            import ctypes
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+            prev_hwnd = user32.GetForegroundWindow()
+
+            LSFW_LOCK = 1
+            LSFW_UNLOCK = 2
+            user32.LockSetForegroundWindow(LSFW_LOCK)
+
+            def _focus_keeper(orig_hwnd, duration=1.5):
+                """ブラウザ起動直後にフォアグラウンドを元の作業中ウィンドウに維持・復帰させる"""
+                start = time.time()
+                while time.time() - start < duration:
+                    fg = user32.GetForegroundWindow()
+                    if orig_hwnd and fg != orig_hwnd and fg != 0:
+                        try:
+                            cur_tid = kernel32.GetCurrentThreadId()
+                            fg_tid = user32.GetWindowThreadProcessId(fg, None)
+                            user32.AttachThreadInput(cur_tid, fg_tid, True)
+                            user32.SetForegroundWindow(orig_hwnd)
+                            user32.BringWindowToTop(orig_hwnd)
+                            user32.AttachThreadInput(cur_tid, fg_tid, False)
+                        except Exception:
+                            pass
+                    time.sleep(0.05)
+                try:
+                    user32.LockSetForegroundWindow(LSFW_UNLOCK)
+                except Exception:
+                    pass
+
+            if prev_hwnd and prev_hwnd != 0:
+                threading.Thread(target=_focus_keeper, args=(prev_hwnd,), daemon=True).start()
+        except Exception:
+            pass
+
+        # start /min で非アクティブ（最小化）として既存ブラウザにタブを開かせる
+        try:
+            subprocess.Popen(f'start "" /min chrome "{target_path}"', shell=True)
         except Exception:
             try:
-                os.startfile(path)
-            except Exception as _open_e:
-                log_error(f"ブラウザ起動エラー: {_open_e}")
+                subprocess.Popen(f'start "" /min msedge "{target_path}"', shell=True)
+            except Exception:
+                try:
+                    subprocess.Popen(f'start "" /min "{target_path}"', shell=True)
+                except Exception as _e:
+                    log_error(f"ブラウザ起動エラー: {_e}")
+
+    _launch_in_background(path)
 
 def wait_and_download_winprint(sftp, remote_path: str, local_temp: str, max_wait: int = 600, status_callback=None) -> int:
     """サーバー側でのファイル出力完了を監視し、ローカルにダウンロードする"""
@@ -1669,6 +1719,160 @@ class TabAliasDialog(ctk.CTkToplevel):
             self._refresh_list()
 
 
+class DataTransmissionSettingDialog(ctk.CTkToplevel):
+    """データ送信ボタン名のカスタマイズ設定ダイアログ"""
+    def __init__(self, parent, focus_key: str = "inventory", on_save_callback=None):
+        super().__init__(parent)
+        self.parent = parent
+        self.on_save_callback = on_save_callback
+
+        self.title("データ送信ボタン名の設定")
+        self.geometry("560x400")
+        self.minsize(500, 350)
+        self.configure(fg_color=parent.ui_colors["background"])
+        self.transient(parent)
+        self.grab_set()
+
+        dt_names = parent.config.get("data_transmission_names", {})
+
+        # ヘッダー説明
+        header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        header_frame.pack(fill="x", padx=20, pady=(16, 8))
+        lbl_title = ctk.CTkLabel(
+            header_frame,
+            text="📤 データ送信ボタン名の編集",
+            font=ctk.CTkFont(family=parent.ui_font_family, size=15, weight="bold"),
+            text_color=parent.ui_colors["text"]
+        )
+        lbl_title.pack(anchor="w")
+
+        lbl_desc = ctk.CTkLabel(
+            header_frame,
+            text="ツールバーに表示されるデータ送信ボタンの表示名を自由に変更できます。\n空欄のまま保存した項目は自動的に初期名に戻ります。",
+            font=ctk.CTkFont(family=parent.ui_font_family, size=11),
+            text_color=parent.ui_colors["muted"],
+            justify="left"
+        )
+        lbl_desc.pack(anchor="w", pady=(4, 0))
+
+        # 入力フォームエリア
+        form_frame = ctk.CTkFrame(self, fg_color=parent.ui_colors["panel"], corner_radius=8)
+        form_frame.pack(fill="both", expand=True, padx=20, pady=8)
+
+        self.entries = {}
+        items = [
+            ("inventory", "在庫レポート (99.3.6.1)", DEFAULT_DATA_TRANSMISSION_NAMES["inventory"], "#059669"),
+            ("complaint", "Complaint (99.3.21.4)", DEFAULT_DATA_TRANSMISSION_NAMES["complaint"], "#4F46E5"),
+            ("parallel", "受注残＆売上 並行 (99.7.6.20 & 11)", DEFAULT_DATA_TRANSMISSION_NAMES["parallel"], "#D97706"),
+        ]
+
+        for row_idx, (key, label, default_val, badge_color) in enumerate(items):
+            cur_val = dt_names.get(key, default_val)
+
+            # ラベル行
+            row_label_frame = ctk.CTkFrame(form_frame, fg_color="transparent")
+            row_label_frame.pack(fill="x", padx=16, pady=(12 if row_idx == 0 else 8, 2))
+
+            badge = ctk.CTkLabel(
+                row_label_frame, text="●", text_color=badge_color,
+                font=ctk.CTkFont(family=parent.ui_font_family, size=10)
+            )
+            badge.pack(side="left", padx=(0, 4))
+
+            lbl_item = ctk.CTkLabel(
+                row_label_frame, text=label,
+                font=ctk.CTkFont(family=parent.ui_font_family, size=12, weight="bold"),
+                text_color=parent.ui_colors["text"]
+            )
+            lbl_item.pack(side="left")
+
+            # 入力＋リセットボタン行
+            input_row = ctk.CTkFrame(form_frame, fg_color="transparent")
+            input_row.pack(fill="x", padx=16, pady=(0, 6))
+
+            entry = ctk.CTkEntry(
+                input_row,
+                font=ctk.CTkFont(family=parent.ui_font_family, size=12),
+                height=30
+            )
+            entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+            entry.insert(0, cur_val)
+            self.entries[key] = entry
+
+            btn_rst = ctk.CTkButton(
+                input_row, text="初期名", width=60, height=28,
+                fg_color="transparent", hover_color=parent.ui_colors["hover"],
+                border_width=1, border_color=parent.ui_colors["border"],
+                text_color=parent.ui_colors["text"],
+                font=ctk.CTkFont(family=parent.ui_font_family, size=11),
+                command=lambda e=entry, d=default_val: (e.delete(0, tk.END), e.insert(0, d))
+            )
+            btn_rst.pack(side="right")
+
+            if key == focus_key:
+                entry.focus_set()
+                entry.select_range(0, tk.END)
+
+        # 下部ボタンバー
+        btn_bar = ctk.CTkFrame(self, fg_color="transparent")
+        btn_bar.pack(fill="x", padx=20, pady=(4, 16))
+
+        all_reset_btn = ctk.CTkButton(
+            btn_bar,
+            text="全項目を初期名に戻す",
+            width=140,
+            fg_color="transparent",
+            hover_color=parent.ui_colors["hover"],
+            border_width=1,
+            border_color=parent.ui_colors["border"],
+            text_color=parent.ui_colors["text"],
+            font=ctk.CTkFont(family=parent.ui_font_family, size=12),
+            command=self._reset_all
+        )
+        all_reset_btn.pack(side="left")
+
+        save_btn = ctk.CTkButton(
+            btn_bar,
+            text="保存",
+            width=90,
+            fg_color="#2563EB",
+            hover_color="#1D4ED8",
+            text_color="#FFFFFF",
+            font=ctk.CTkFont(family=parent.ui_font_family, size=12, weight="bold"),
+            command=self._save
+        )
+        save_btn.pack(side="right", padx=(8, 0))
+
+        cancel_btn = ctk.CTkButton(
+            btn_bar,
+            text="キャンセル",
+            width=90,
+            fg_color=parent.ui_colors["button"],
+            hover_color=parent.ui_colors["hover"],
+            text_color=parent.ui_colors["text"],
+            font=ctk.CTkFont(family=parent.ui_font_family, size=12),
+            command=self.destroy
+        )
+        cancel_btn.pack(side="right")
+
+    def _reset_all(self):
+        for k, entry in self.entries.items():
+            def_val = DEFAULT_DATA_TRANSMISSION_NAMES.get(k, "")
+            entry.delete(0, tk.END)
+            entry.insert(0, def_val)
+
+    def _save(self):
+        results = {}
+        for k, entry in self.entries.items():
+            val = entry.get().strip()
+            if not val:
+                val = DEFAULT_DATA_TRANSMISSION_NAMES.get(k, "")
+            results[k] = val
+        if self.on_save_callback:
+            self.on_save_callback(results)
+        self.destroy()
+
+
 class TerminalTab:
     """タブごとに独立したSSHセッション、バッファ、テキストボックスを保持するクラス"""
     def __init__(self, app, tab_id: int, title: str):
@@ -2047,6 +2251,7 @@ class TerminalApp(ctk.CTk):
         view.add_checkbutton(label="画面サイズに自動調整 (Auto Fit)", variable=self.auto_fit_var, command=self.toggle_auto_fit)
         view.add_separator()
         view.add_command(label="🏷️ タブ表示名（エイリアス）の設定...", command=self.open_tab_alias_dialog)
+        view.add_command(label="📤 データ送信ボタン名の設定...", command=self.open_data_transmission_setting_dialog)
         view.add_separator()
         view.add_command(label="ターミナルにフォーカス", command=self.focus_terminal)
         menubar.add_cascade(label="表示", menu=view)
@@ -2649,32 +2854,82 @@ class TerminalApp(ctk.CTk):
         btn_frame = ctk.CTkFrame(self.data_transmission_bar, fg_color="transparent")
         btn_frame.grid(row=0, column=1, sticky="w", padx=4, pady=2)
 
+        # 設定からカスタムボタン名を取得
+        dt_names = self.config.get("data_transmission_names", {})
+        inv_text = dt_names.get("inventory", DEFAULT_DATA_TRANSMISSION_NAMES["inventory"])
+        com_text = dt_names.get("complaint", DEFAULT_DATA_TRANSMISSION_NAMES["complaint"])
+        par_text = dt_names.get("parallel", DEFAULT_DATA_TRANSMISSION_NAMES["parallel"])
+
         # ボタン1: 📦 在庫レポートGAS送信 (99.3.6.1)
         self.inventory_gas_btn = ctk.CTkButton(
-            btn_frame, text="📦 在庫レポートGAS送信 (99.3.6.1)", height=28,
+            btn_frame, text=inv_text, height=28,
             fg_color="#059669", hover_color="#047857", text_color="#FFFFFF",
             font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
             corner_radius=6, command=self.run_inventory_gas_transmission
         )
         self.inventory_gas_btn.pack(side="left", padx=4, pady=2)
+        self.inventory_gas_btn.bind("<Button-3>", lambda e: self._show_data_trans_context_menu(e, "inventory"))
 
         # ボタン2: 📑 Complaint送信 (99.3.21.4)
         self.complaint_gas_btn = ctk.CTkButton(
-            btn_frame, text="📑 Complaint送信 (99.3.21.4)", height=28,
+            btn_frame, text=com_text, height=28,
             fg_color="#4F46E5", hover_color="#4338CA", text_color="#FFFFFF",
             font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
             corner_radius=6, command=self.open_complaint_dialog
         )
         self.complaint_gas_btn.pack(side="left", padx=4, pady=2)
+        self.complaint_gas_btn.bind("<Button-3>", lambda e: self._show_data_trans_context_menu(e, "complaint"))
 
         # ボタン3: ⚡ 受注残＆売上 並行送信 (99.7.6.20 & 99.7.5.11)
         self.parallel_gas_btn = ctk.CTkButton(
-            btn_frame, text="⚡ 受注残＆売上 並行送信 (99.7.6.20 & 99.7.5.11)", height=28,
+            btn_frame, text=par_text, height=28,
             fg_color="#D97706", hover_color="#B45309", text_color="#FFFFFF",
             font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
             corner_radius=6, command=self.run_parallel_gas_transmission
         )
         self.parallel_gas_btn.pack(side="left", padx=4, pady=2)
+        self.parallel_gas_btn.bind("<Button-3>", lambda e: self._show_data_trans_context_menu(e, "parallel"))
+
+    def _show_data_trans_context_menu(self, event, key: str):
+        """データ送信ボタンの右クリックコンテキストメニュー"""
+        menu = tk.Menu(self, tearoff=False)
+        menu.add_command(label="ボタン名を変更...", command=lambda: self.open_data_transmission_setting_dialog(key))
+        menu.add_command(label="初期の名前に戻す", command=lambda: self._reset_single_data_transmission_name(key))
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def open_data_transmission_setting_dialog(self, focus_key: str = "inventory"):
+        """データ送信ボタン名設定ダイアログを開く"""
+        DataTransmissionSettingDialog(self, focus_key=focus_key, on_save_callback=self._on_data_transmission_names_saved)
+
+    def _on_data_transmission_names_saved(self, new_names: dict):
+        """データ送信ボタン名が保存されたときの処理"""
+        self.config["data_transmission_names"] = new_names
+        save_config(self.config)
+        self._refresh_data_transmission_button_texts()
+        self._show_input_error("データ送信ボタン名を更新しました")
+
+    def _reset_single_data_transmission_name(self, key: str):
+        """単一のデータ送信ボタン名を初期値に戻す"""
+        if "data_transmission_names" not in self.config:
+            self.config["data_transmission_names"] = {}
+        default_val = DEFAULT_DATA_TRANSMISSION_NAMES.get(key, "")
+        self.config["data_transmission_names"][key] = default_val
+        save_config(self.config)
+        self._refresh_data_transmission_button_texts()
+        self._show_input_error(f"ボタン名を初期名（{default_val}）に戻しました")
+
+    def _refresh_data_transmission_button_texts(self):
+        """データ送信ボタンのテキストを最新設定に更新"""
+        dt_names = self.config.get("data_transmission_names", {})
+        if hasattr(self, "inventory_gas_btn"):
+            self.inventory_gas_btn.configure(text=dt_names.get("inventory", DEFAULT_DATA_TRANSMISSION_NAMES["inventory"]))
+        if hasattr(self, "complaint_gas_btn"):
+            self.complaint_gas_btn.configure(text=dt_names.get("complaint", DEFAULT_DATA_TRANSMISSION_NAMES["complaint"]))
+        if hasattr(self, "parallel_gas_btn"):
+            self.parallel_gas_btn.configure(text=dt_names.get("parallel", DEFAULT_DATA_TRANSMISSION_NAMES["parallel"]))
 
     def _update_data_transmission_buttons_state(self):
         """データ送信ボタンの有効/無効状態を更新"""
@@ -3179,34 +3434,30 @@ class TerminalApp(ctk.CTk):
 
             _clear_shell_buffer(shell)
             shell.send("99.3.6.1\r")
-            time.sleep(3)
+            time.sleep(1.5)
             _clear_shell_buffer(shell)
 
-            self.set_status("⌨️ [3/5] 条件 '1FGI' を入力中...", "working")
-            for _ in range(8):
-                shell.send("\r")
-                time.sleep(0.2)
-
-            shell.send("1FGI\r")
-            time.sleep(0.3)
-            shell.send("1FGI\r")
+            self.set_status("⚡ [3/5] 条件 '1fgi' を一括貼り付け入力中...", "working")
+            # 改行（改セル）を含む一括貼り付け方式により、高速かつ確実に条件入力
+            batch_input = "\r" * 8 + "1fgi\r" + "1fgi\r"
+            shell.send(batch_input)
             time.sleep(0.3)
             _clear_shell_buffer(shell)
 
-            # F1キー(1回目): Output欄へ
+            # F1キー(1回目): Output欄へジャンプ
             shell.send("\x1bOP")
-            time.sleep(2)
+            time.sleep(0.8)
             _clear_shell_buffer(shell)
 
             # Output欄に 32prn を入力
             shell.send("32prn\r")
-            time.sleep(1)
+            time.sleep(0.5)
 
             # F1キー(2回目): 抽出実行
             shell.send("\x1bOP")
-            time.sleep(0.8)
+            time.sleep(0.5)
             shell.send("\x1bOP")
-            time.sleep(0.8)
+            time.sleep(0.5)
             shell.send("\x06")
 
             self.set_status("⏳ [4/5] 32prn 圧縮ストリームを受信中...", "working")
@@ -3351,49 +3602,29 @@ class TerminalApp(ctk.CTk):
             _wait_shell_text(shell, "Item Number", timeout=15)
             _clear_shell_buffer(shell)
 
-            _update_ui_status("⌨️ [3/6] 抽出条件を入力中...")
-            shell.send(item_num + "\r")
-            time.sleep(1.0)
-            shell.send(item_num + "\r")
-            time.sleep(1.0)
-
-            shell.send("\r\r")
-            time.sleep(1.0)
-
-            shell.send(start_day + "\r")
-            time.sleep(1.0)
-            shell.send(end_day + "\r")
-            time.sleep(1.0)
-
-            shell.send("1FGI\r")
-            time.sleep(1.0)
-            shell.send("1FGI\r")
-            time.sleep(1.0)
-
-            shell.send("\r\r\r\r")
-            time.sleep(1.0)
-
-            if item_lot:
-                shell.send(item_lot + "\r")
-                time.sleep(1.0)
-                shell.send(item_lot + "\r")
-                time.sleep(1.0)
-            else:
-                shell.send("\r\r")
-                time.sleep(1.0)
-
-            # Output欄まで残り11フィールド
-            shell.send("\r" * 11)
-            time.sleep(2.0)
+            _update_ui_status("⚡ [3/6] 条件を一括貼り付け入力中...")
+            # 改行（改セル）を含む一括貼り付け方式により、高速かつ確実に条件入力
+            lot_part = f"{item_lot}\r{item_lot}\r" if item_lot else "\r\r"
+            batch_input = (
+                f"{item_num}\r{item_num}\r"     # 1-2: Item Number (From/To)
+                "\r\r"                           # 3-4: Site (From/To) スキップ
+                f"{start_day}\r{end_day}\r"     # 5-6: Effective Date (From/To)
+                "1fgi\r1fgi\r"                   # 7-8: Prod Line (From/To)
+                "\r\r\r\r"                       # 9-12: Order/Customer スキップ
+                f"{lot_part}"                    # 13-14: Lot (From/To)
+                + ("\r" * 11)                    # 15-25: Output欄までの11フィールドスキップ
+            )
+            shell.send(batch_input)
+            time.sleep(0.3)
             _clear_shell_buffer(shell)
 
             # Output 欄に 32prn (高速gzipストリーム) を入力
             shell.send("32prn\r")
-            time.sleep(1.0)
+            time.sleep(0.5)
 
             _update_ui_status("🚀 [4/6] レポート実行開始...")
             shell.send("\x1bOP")
-            time.sleep(1.0)
+            time.sleep(0.5)
             shell.send("\x06")
 
             # --- 32prn 圧縮ストリーム直接受信 ---

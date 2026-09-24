@@ -13,7 +13,7 @@
   "auto_winprint_on_f1": true,
   "shortcuts": [
     {
-      "name": "在庫スナップショット",
+      "name": "在庫",
       "code": "99.3.6.1"
     },
     {
@@ -36,5 +36,11 @@
       "name": "OrderBooking",
       "code": "99.7.6.20"
     }
-  ]
+  ],
+  "tab_aliases": {},
+  "data_transmission_names": {
+    "inventory": "📦 在庫レポートGAS送信 (99.3.6.1)",
+    "complaint": "📑 Complaint送信 (99.3.21.4)",
+    "parallel": "⚡ 受注残＆売上 並行送信 (99.7.6.20 & 99.7.5.11)"
+  }
 }
