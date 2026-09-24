@@ -66,11 +66,11 @@ def main():
                 csv_path = Path(directory) / "choices.csv"
                 csv_path.write_text("顧客名,納品先\n確認用顧客A,確認用倉庫A\n確認用顧客B,確認用倉庫B\n", encoding="utf-8-sig")
                 with patch.object(module.filedialog, "askopenfilename", return_value=str(csv_path)):
-                    app.import_order_choices("customer_name")
-                    app.import_order_choices("ship_to")
-                assert save_config.call_count == 2
+                    app.import_order_choices()
+                assert save_config.call_count == 1
                 assert panel.fields["customer_name"].cget("values") == ["確認用顧客A", "確認用顧客B"]
-                assert panel.fields["ship_to"].cget("values") == ["確認用倉庫A", "確認用倉庫B"]
+                panel._on_customer_selected("確認用顧客A")
+                assert panel.fields["ship_to"].cget("values") == ["確認用倉庫A"]
                 panel.fields["customer_name"].set("確認用顧客A")
                 panel.fields["ship_to"].set("確認用倉庫A")
                 panel.fields["purchase_order"].insert(0, "PO-2026-001")
@@ -140,7 +140,9 @@ def main():
                 user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
                 user32.GetAncestor.restype = wintypes.HWND
                 hwnd = user32.GetAncestor(app.winfo_id(), 2)
-                ImageGrab.grab(window=hwnd).save(ROOT / ".venv" / "order-entry-preview.png")
+                preview_path = ROOT / ".venv" / "order-entry-preview.png"
+                preview_path.parent.mkdir(parents=True, exist_ok=True)
+                ImageGrab.grab(window=hwnd).save(preview_path)
                 assert not callback_errors, callback_errors
                 print("ORDER_CSV_CALENDAR_SEND_SHORTCUTS_OK; SSH_NOT_USED")
         finally:

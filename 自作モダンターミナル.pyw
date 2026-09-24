@@ -95,7 +95,7 @@ try:
     from order_entry import (
         OrderEntryPanel, DoubleControlTap, ShortcutSettingsDialog,
         normalize_shortcut, shortcut_from_key_event, read_customer_ship_to_csv,
-        show_order_output,
+        read_customer_info_file, CustomerInfoData, show_order_output,
     )
 except ImportError as exc:
     if __name__ != "__main__":
@@ -178,6 +178,10 @@ def load_config():
         cfg["auto_winprint_on_f1"] = True
     if not isinstance(cfg.get("shortcut_assignments"), dict):
         cfg["shortcut_assignments"] = {}
+    else:
+        for action_id in list(cfg["shortcut_assignments"].keys()):
+            if "alt" in str(cfg["shortcut_assignments"][action_id]).lower():
+                cfg["shortcut_assignments"].pop(action_id, None)
     return cfg
 
 
@@ -2170,6 +2174,7 @@ class TerminalApp(ctk.CTk):
         self._build_tab_bar()
         self._build_terminal_container()
         self._build_shortcut_bar()
+        self._build_quick_menu_bar()
         self._build_data_transmission_bar()
         self._build_statusbar()
 
@@ -2407,7 +2412,7 @@ class TerminalApp(ctk.CTk):
     def _on_order_key_press(self, event):
         if self.shortcut_capture_entry is not None:
             if event.widget is self.shortcut_capture_entry._entry:
-                if event.keysym == "Escape" and not (event.state & (0x4 | 0x8)):
+                if event.keysym == "Escape" and not (event.state & (0x4 | 0x1)):
                     self.shortcut_dialog._select_action(self.shortcut_dialog.action_picker.get())
                     self.shortcut_capture_entry = None
                     return "break"
@@ -2575,18 +2580,21 @@ class TerminalApp(ctk.CTk):
     def _sync_order_panel(self):
         if self.order_panel_visible.get():
             if self.order_panel is None:
+                info_path = PROJECT_ROOT / "customerInfo.txt"
+                cust_info = read_customer_info_file(info_path if info_path.is_file() else None)
                 self.order_panel = OrderEntryPanel(
                     self, self.ui_colors, self.ui_font_family,
                     on_submit=self._process_order_submission, on_close=self.toggle_order_panel,
+                    customer_info=cust_info,
                 )
                 self._attach_order_bindtag(self.order_panel)
             path = self.config.get("order_choices_csv")
-            if path:
+            if path and Path(path).is_file():
                 try:
                     self.order_panel.set_customer_ship_tos(read_customer_ship_to_csv(path))
                 except (OSError, UnicodeError, ValueError, csv.Error) as exc:
                     self.set_status(f"注文候補CSVを読み込めません：{exc}", "error")
-            self.order_panel.grid(row=0, column=1, rowspan=5, padx=(4, 8), pady=8, sticky="nsew")
+            self.order_panel.grid(row=0, column=1, rowspan=6, padx=(4, 8), pady=8, sticky="nsew")
             self.grid_columnconfigure(1, minsize=602)
             if self._order_original_width is None and self.state() == "normal":
                 self._order_original_width = self.winfo_width()
@@ -2606,7 +2614,7 @@ class TerminalApp(ctk.CTk):
             self._order_original_width = self._order_expanded_width = None
             self.focus_terminal()
 
-    def import_order_choices(self):
+    def import_order_choices(self, field=None):
         path = filedialog.askopenfilename(parent=self, title="顧客・納品先CSVを読み込む",
                                           filetypes=[("CSV", "*.csv"), ("すべてのファイル", "*.*")])
         if not path:
@@ -3088,7 +3096,7 @@ class TerminalApp(ctk.CTk):
             self._apply_text_tags_to_widget(self.textbox)
 
     def _build_shortcut_bar(self):
-        """最下段のショートカット（直接移動）バーを構築"""
+        """ショートカット（直接移動）バーを構築"""
         self.shortcut_bar = ctk.CTkFrame(
             self, height=44, fg_color=self.ui_colors["panel"],
             corner_radius=10, border_width=1, border_color=self.ui_colors["border"]
@@ -3096,9 +3104,9 @@ class TerminalApp(ctk.CTk):
         self.shortcut_bar.grid(row=2, column=0, padx=8, pady=(0, 6), sticky="ew")
         self.shortcut_bar.grid_columnconfigure(1, weight=1)
 
-        # 左端ラベル
+        # 左端ラベル（クイックメニューから「ショートカット」に変更）
         lbl = ctk.CTkLabel(
-            self.shortcut_bar, text="📌 クイックメニュー:",
+            self.shortcut_bar, text="📌 ショートカット:",
             font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
             text_color=self.ui_colors["muted"]
         )
@@ -3140,13 +3148,45 @@ class TerminalApp(ctk.CTk):
 
         self._refresh_shortcut_buttons()
 
+    def _build_quick_menu_bar(self):
+        """クイックメニューバーを構築（OrderBooking出力などのマクロ・機能を配置）"""
+        self.quick_menu_bar = ctk.CTkFrame(
+            self, height=44, fg_color=self.ui_colors["panel"],
+            corner_radius=10, border_width=1, border_color=self.ui_colors["border"]
+        )
+        self.quick_menu_bar.grid(row=3, column=0, padx=8, pady=(0, 6), sticky="ew")
+        self.quick_menu_bar.grid_columnconfigure(1, weight=1)
+
+        # 左端ラベル
+        lbl = ctk.CTkLabel(
+            self.quick_menu_bar, text="⚡ クイックメニュー:",
+            font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
+            text_color=self.ui_colors["muted"]
+        )
+        lbl.grid(row=0, column=0, padx=(12, 6), pady=4)
+
+        # ボタン配置フレーム
+        btn_frame = ctk.CTkFrame(self.quick_menu_bar, fg_color="transparent")
+        btn_frame.grid(row=0, column=1, sticky="w", padx=4, pady=2)
+
+        # ⚡ OrderBooking出力 (99.7.6.20) ボタン
+        state = "normal" if self.is_connected else "disabled"
+        self.order_booking_btn = ctk.CTkButton(
+            btn_frame, text="⚡ OrderBooking出力 (99.7.6.20)", height=28,
+            fg_color="#2563EB", hover_color="#1D4ED8", text_color="#FFFFFF",
+            font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
+            corner_radius=6, state=state,
+            command=self.run_order_booking_automation
+        )
+        self.order_booking_btn.pack(side="left", padx=4, pady=2)
+
     def _build_data_transmission_bar(self):
-        """クイックメニュー直下のデータ送信（GAS転送）バーを構築"""
+        """データ送信（GAS転送）バーを構築"""
         self.data_transmission_bar = ctk.CTkFrame(
             self, height=44, fg_color=self.ui_colors["panel"],
             corner_radius=10, border_width=1, border_color=self.ui_colors["border"]
         )
-        self.data_transmission_bar.grid(row=3, column=0, padx=8, pady=(0, 6), sticky="ew")
+        self.data_transmission_bar.grid(row=4, column=0, padx=8, pady=(0, 6), sticky="ew")
         self.data_transmission_bar.grid_columnconfigure(1, weight=1)
 
         # 左端ラベル
@@ -3254,7 +3294,7 @@ class TerminalApp(ctk.CTk):
             self, height=28, fg_color=self.ui_colors["panel"],
             corner_radius=6, border_width=1, border_color=self.ui_colors["border"]
         )
-        self.statusbar.grid(row=4, column=0, padx=8, pady=(0, 6), sticky="ew")
+        self.statusbar.grid(row=5, column=0, padx=8, pady=(0, 6), sticky="ew")
         self.statusbar.grid_columnconfigure(0, weight=1)
 
         self.bottom_status_label = ctk.CTkLabel(
@@ -3296,15 +3336,14 @@ class TerminalApp(ctk.CTk):
             name = sc.get("name", "")
             code = sc.get("code", "")
             is_order_booking = (str(code).strip() == "99.7.6.20" or "orderbooking" in name.lower() or "order booking" in name.lower())
-            btn_text = f"⚡ {name} ({code})" if is_order_booking else f"{name} ({code})"
-            btn_fg = "#2563EB" if is_order_booking else self.ui_colors["button"]
-            btn_hover = "#1D4ED8" if is_order_booking else self.ui_colors["hover"]
-            btn_text_color = "#FFFFFF" if is_order_booking else self.ui_colors["text"]
+            if is_order_booking:
+                # OrderBooking出力はクイックメニュー列に移動したため、ショートカット一覧からは除外
+                continue
             btn = ctk.CTkButton(
-                self.shortcut_scroll_frame, text=btn_text, height=28,
-                fg_color=btn_fg, hover_color=btn_hover,
-                text_color=btn_text_color,
-                font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold" if is_order_booking else "normal"),
+                self.shortcut_scroll_frame, text=f"{name} ({code})", height=28,
+                fg_color=self.ui_colors["button"], hover_color=self.ui_colors["hover"],
+                text_color=self.ui_colors["text"],
+                font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="normal"),
                 corner_radius=6, state=state,
                 command=lambda n=name, c=code: self._handle_shortcut_click(n, c)
             )
@@ -5094,6 +5133,8 @@ class TerminalApp(ctk.CTk):
             self.home_btn.configure(state=state)
         if hasattr(self, "winprint_btn"):
             self.winprint_btn.configure(state=state)
+        if hasattr(self, "order_booking_btn"):
+            self.order_booking_btn.configure(state=state)
         for button in getattr(self, "shortcut_buttons", []):
             button.configure(state=state)
 
