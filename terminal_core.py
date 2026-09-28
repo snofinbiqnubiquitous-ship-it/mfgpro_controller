@@ -16,10 +16,16 @@ ENCODING = "cp932"
 COLS, ROWS = 132, 24
 KEY_SEQUENCES = {
     "Return": "\r", "KP_Enter": "\r", "space": " ",
-    "BackSpace": "\b", "Tab": "\t", "Escape": "\x1b",
+    "BackSpace": "\b", "Delete": "\b", "KP_Delete": "\b",
+    "Tab": "\t", "Escape": "\x1b",
     "F1": "\x1bOP", "F2": "\x1bOQ", "F3": "\x1bOR", "F4": "\x1bOS",
+    "F5": "\x1b[15~", "F6": "\x1b[17~", "F7": "\x1b[18~", "F8": "\x1b[19~",
+    "F9": "\x1b[20~", "F10": "\x1b[21~", "F11": "\x1b[23~", "F12": "\x1b[24~",
+    "Clear": "\x1b[19~",
     "Up": "\x1b[A", "Down": "\x1b[B", "Right": "\x1b[C", "Left": "\x1b[D",
     "Ctrl+F": "\x06",
+    "Ctrl+D": "\b",
+    "Ctrl+Z": "\x1a",
 }
 
 # ボタン名とキーの対応。QADの画面ごとに意味が違うキーは機能名を付けない。
@@ -36,8 +42,11 @@ TOOLBAR_GROUPS = (
 
 def key_sequence(keysym, char="", state=0):
     """Keyboard and toolbar use the same VT100 mappings."""
-    if state & 0x4 and keysym.lower() == "f":
-        return KEY_SEQUENCES["Ctrl+F"]
+    if state & 0x4:
+        if keysym.lower() == "f":
+            return KEY_SEQUENCES["Ctrl+F"]
+        if keysym.lower() == "d":
+            return KEY_SEQUENCES.get("Delete", "\b")
     return KEY_SEQUENCES.get(keysym, char)
 
 

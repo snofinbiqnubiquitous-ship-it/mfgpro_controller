@@ -180,13 +180,18 @@ class OrderNavigationTests(unittest.TestCase):
         root.update()
         self.assertIs(root.focus_get(), inner(panel.fields["customer_name"]))
 
+        # Right -> ship_to
+        inner(panel.fields["customer_name"]).event_generate("<Right>")
+        root.update()
+        self.assertIs(root.focus_get(), inner(panel.fields["ship_to"]))
+
         # Down -> required_date
-        inner(panel.fields["customer_name"]).event_generate("<Down>")
+        root.focus_get().event_generate("<Down>")
         root.update()
         self.assertIs(root.focus_get(), inner(panel.fields["required_date"]))
 
-        # Right -> due_date
-        root.focus_get().event_generate("<Right>")
+        # Down -> due_date
+        root.focus_get().event_generate("<Down>")
         root.update()
         self.assertIs(root.focus_get(), inner(panel.fields["due_date"]))
 

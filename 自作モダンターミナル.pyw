@@ -95,7 +95,9 @@ try:
     from order_entry import (
         OrderEntryPanel, DoubleControlTap, ShortcutSettingsDialog,
         normalize_shortcut, shortcut_from_key_event, read_customer_ship_to_csv,
-        read_customer_info_file, CustomerInfoData, show_order_output,
+        read_customer_info_file, read_item_list_file, CustomerInfoData, show_order_output,
+        OrderOutputTerminalWindow, group_order_items, clean_screen_text,
+        SalesOrderAutomationController,
     )
 except ImportError as exc:
     if __name__ != "__main__":
@@ -1943,10 +1945,10 @@ class TerminalTab:
         tb.bind("<Key>", app.on_key_press)
         tb.bind("<Control-Shift-C>", app.copy_screen_text)
         tb.bind("<Control-Shift-c>", app.copy_screen_text)
-        tb.bind("<Control-d>", app.insert_today_date)
-        tb.bind("<Control-D>", app.insert_today_date)
-        tb._textbox.bind("<Control-d>", app.insert_today_date)
-        tb._textbox.bind("<Control-D>", app.insert_today_date)
+        tb.bind("<Control-d>", app._on_ctrl_d)
+        tb.bind("<Control-D>", app._on_ctrl_d)
+        tb._textbox.bind("<Control-d>", app._on_ctrl_d)
+        tb._textbox.bind("<Control-D>", app._on_ctrl_d)
         tb.bind("<<Paste>>", app._on_paste_event)
         tb.bind("<<Cut>>", lambda event: "break")
         tb._textbox.bind("<<Paste>>", app._on_paste_event)
@@ -2158,6 +2160,8 @@ class TerminalApp(ctk.CTk):
 
         self.order_panel = None
         self.order_output = None
+        self.output_terminal_window = None
+        self.order_output_history = []
         self.last_order_submission = None
         self.order_panel_visible = tk.BooleanVar(self, value=False)
         self._order_control_tap = DoubleControlTap()
@@ -2200,6 +2204,8 @@ class TerminalApp(ctk.CTk):
         self.after(100, self._apply_auto_fit)
         # 起動時に自動接続を開始
         self.after(200, self.connect_to_server)
+        # アイドル時間に注文パネルを事前生成し、F2押下時の遅延を完全にゼロ化
+        self.after(300, self._preload_order_panel)
 
     def _get_terminal_colors(self):
         """現在のテーマおよびカスタム色を適用したターミナル表示用カラー辞書を取得"""
@@ -2240,11 +2246,11 @@ class TerminalApp(ctk.CTk):
         self.edit_menu.add_command(label="コピー (選択範囲または画面)", accelerator="Ctrl+C", command=self.copy_selection_or_screen)
         self.edit_menu.add_command(label="貼り付け", accelerator="Ctrl+V", command=self.paste_from_clipboard)
         self.edit_menu.add_command(label="すべて選択", accelerator="Ctrl+A", command=self.select_all_text)
-        self.edit_menu.add_command(label="📅 今日の日付を入力 (mm/dd/yy)", accelerator="Ctrl+D", command=self.insert_today_date)
+        self.edit_menu.add_command(label="📅 今日の日付を入力 (mm/dd/yy)", command=self.insert_today_date)
         self.edit_menu.add_separator()
         self.windows_shortcuts_var = tk.BooleanVar(value=bool(self.config.get("enable_windows_shortcuts", True)))
         self.edit_menu.add_checkbutton(
-            label="Windows標準ショートカットを有効化 (Ctrl+C / Ctrl+V / Ctrl+A / Ctrl+D)",
+            label="Windows標準ショートカットを有効化 (Ctrl+C / Ctrl+V / Ctrl+A)",
             variable=self.windows_shortcuts_var,
             command=self.toggle_windows_shortcuts,
         )
@@ -2302,7 +2308,12 @@ class TerminalApp(ctk.CTk):
         )
         menubar.add_cascade(label="ショートカット", menu=self.shortcut_menu)
 
-        # 5. カラーパレットメニュー（独立メニュー）
+        # 5. update メニュー
+        self.update_menu = tk.Menu(menubar, tearoff=False)
+        self.update_menu.add_command(label="Item list", command=self.run_item_list_update_automation)
+        menubar.add_cascade(label="update", menu=self.update_menu)
+
+        # 6. カラーパレットメニュー（独立メニュー）
         self.palette_menu = tk.Menu(menubar, tearoff=False)
         self.palette_menu.add_command(label="🎨 カラーパレットを開く...", command=self.open_color_palette)
         self.palette_menu.add_separator()
@@ -2422,6 +2433,11 @@ class TerminalApp(ctk.CTk):
                 return "break"
             if event.widget.winfo_toplevel() is self.shortcut_dialog:
                 return None
+
+        if event.keysym == "F3":
+            self._order_control_tap.reset()
+            self.toggle_output_terminal()
+            return "break"
 
         shortcut = shortcut_from_key_event(event)
         if shortcut is not None:
@@ -2577,23 +2593,47 @@ class TerminalApp(ctk.CTk):
             self._sync_order_panel()
         self.order_panel.fields[field].open_calendar()
 
+    def _preload_order_panel(self):
+        """アプリ起動時のアイドル時間に注文パネルを事前生成し、初回F2押下時の遅延を完全にゼロ化"""
+        if self.order_panel is None:
+            try:
+                info_path = PROJECT_ROOT / "customerInfo.txt"
+                cust_info = read_customer_info_file(info_path if info_path.is_file() else None)
+                items_data = read_item_list_file(PROJECT_ROOT)
+                self.order_panel = OrderEntryPanel(
+                    self, self.ui_colors, self.ui_font_family,
+                    on_submit=self._process_order_submission, on_close=self.toggle_order_panel,
+                    customer_info=cust_info, item_list_data=items_data,
+                )
+                self._attach_order_bindtag(self.order_panel)
+                path = self.config.get("order_choices_csv")
+                if path and Path(path).is_file():
+                    try:
+                        self.order_panel.set_customer_ship_tos(read_customer_ship_to_csv(path))
+                    except Exception:
+                        pass
+                self.order_panel.grid_remove()
+            except Exception as e:
+                log_warning(f"OrderPanel プリロード例外: {e}")
+
     def _sync_order_panel(self):
         if self.order_panel_visible.get():
             if self.order_panel is None:
                 info_path = PROJECT_ROOT / "customerInfo.txt"
                 cust_info = read_customer_info_file(info_path if info_path.is_file() else None)
+                items_data = read_item_list_file(PROJECT_ROOT)
                 self.order_panel = OrderEntryPanel(
                     self, self.ui_colors, self.ui_font_family,
                     on_submit=self._process_order_submission, on_close=self.toggle_order_panel,
-                    customer_info=cust_info,
+                    customer_info=cust_info, item_list_data=items_data,
                 )
                 self._attach_order_bindtag(self.order_panel)
-            path = self.config.get("order_choices_csv")
-            if path and Path(path).is_file():
-                try:
-                    self.order_panel.set_customer_ship_tos(read_customer_ship_to_csv(path))
-                except (OSError, UnicodeError, ValueError, csv.Error) as exc:
-                    self.set_status(f"注文候補CSVを読み込めません：{exc}", "error")
+                path = self.config.get("order_choices_csv")
+                if path and Path(path).is_file():
+                    try:
+                        self.order_panel.set_customer_ship_tos(read_customer_ship_to_csv(path))
+                    except (OSError, UnicodeError, ValueError, csv.Error) as exc:
+                        self.set_status(f"注文候補CSVを読み込めません：{exc}", "error")
             self.order_panel.grid(row=0, column=1, rowspan=6, padx=(4, 8), pady=8, sticky="nsew")
             self.grid_columnconfigure(1, minsize=602)
             if self._order_original_width is None and self.state() == "normal":
@@ -2632,13 +2672,121 @@ class TerminalApp(ctk.CTk):
         self.set_status(f"顧客{len(choices)}件・納品先{pair_count}件を読み込みました。",
                         "info", clear_delay=4)
 
+    def toggle_output_terminal(self):
+        """F3キー専用: 送信出力をチェックするシークレット・ターミナル画面を開閉 (トグル)"""
+        if self.output_terminal_window is not None and self.output_terminal_window.winfo_exists():
+            self.output_terminal_window.close()
+            self.output_terminal_window = None
+            self.focus_terminal()
+            return
+
+        items_data = None
+        if self.order_panel is not None:
+            items_data = getattr(self.order_panel, "item_list_data", None)
+
+        self.output_terminal_window = OrderOutputTerminalWindow(
+            parent=self,
+            colors=self.ui_colors,
+            font_family=self.ui_font_family,
+            on_close=self._on_output_terminal_closed,
+        )
+        if self.order_output_history:
+            for payload in self.order_output_history:
+                self.output_terminal_window.append_submission(payload, item_list_data=items_data)
+        else:
+            self.output_terminal_window.show_empty_message()
+        self.output_terminal_window.focus_set()
+
+    def _on_output_terminal_closed(self):
+        self.output_terminal_window = None
+
     def _process_order_submission(self, payload):
-        """今後の所定ロジック接続箇所。現在は注文内容をローカル画面に出力。"""
+        """注文送信出力を記録し、QAD 99.7.1.1 への自動入力を直接実行"""
         self.last_order_submission = payload
-        if self.order_output is not None and self.order_output.winfo_exists():
-            self.order_output.destroy()
-        self.order_output = show_order_output(self, payload, self.ui_colors, self.ui_font_family)
-        self.set_status("注文内容を画面に出力しました。", "info", clear_delay=4)
+        self.order_output_history.append(payload)
+
+        items_data = None
+        if self.order_panel is not None:
+            items_data = getattr(self.order_panel, "item_list_data", None)
+
+        # F3ターミナルが既に開いている場合は履歴を追記
+        if self.output_terminal_window is not None and self.output_terminal_window.winfo_exists():
+            self.output_terminal_window.append_submission(payload, item_list_data=items_data)
+
+        # 送信ボタン押下により、QAD 99.7.1.1 への自動入力を直接実行
+        self.run_sales_order_automation(payload)
+
+    def run_sales_order_automation(self, payload=None):
+        """QAD 99.7.1.1 受注登録（Step 1 〜 Step 6.3.0）の完全自動実行マクロ。
+        画面のプロンプト・ポップアップを待機しながら、キーストロークを確実に送信します。
+        """
+        cur_tab = getattr(self, "active_tab", None)
+        active_session = cur_tab.session if (cur_tab and cur_tab.session) else self.session
+        if not self.is_connected or not active_session:
+            self._show_input_error("サーバーに接続されていません。接続してから実行してください。")
+            return
+
+        if getattr(self, "_is_running_order_automation", False):
+            self._show_input_error("現在受注登録の自動入力が実行中です。完了までお待ちください。")
+            return
+
+        target_payload = payload or self.last_order_submission
+        if not target_payload or not target_payload.get("items"):
+            self._show_input_error("送信対象の注文データ（明細）がありません。サイドバーで注文を入力してください。")
+            return
+
+        # ユーザー確認ダイアログ
+        item_count = len(target_payload.get("items", []))
+        c_name = target_payload.get("customer_name", "未指定")
+        ans = messagebox.askyesno(
+            "QAD受注自動入力を開始",
+            f"顧客: {c_name}\n明細: {item_count}件\n\nQAD 99.7.1.1 への自動入力を開始しますか？\n"
+            "※実行中はキーボードやマウスの操作を行わないでください。",
+            parent=self,
+        )
+        if not ans:
+            return
+
+        self._is_running_order_automation = True
+        log_info("=== QAD 99.7.1.1 受注入力自動化を開始します ===")
+        self.set_status("🚀 QAD 99.7.1.1 受注登録自動化を開始します...", "working")
+
+        def _worker():
+            try:
+                controller = SalesOrderAutomationController(
+                    session=active_session,
+                    get_screen_text=self._get_current_screen_text,
+                    payload=target_payload,
+                    status_callback=lambda msg, st="working", cd=None: self.after(0, lambda: self.set_status(msg, st, cd)),
+                    logger=log_info,
+                )
+                self._current_order_controller = controller
+
+                # 画面状態判定: すでに Step 6 (Sales Order Line) にいる場合は Step 6 のみ実行
+                curr_txt = clean_screen_text(self._get_current_screen_text()).lower()
+                if ("sales order line" in curr_txt or "ln item number" in curr_txt) and "transaction comments" not in curr_txt:
+                    log_info("現在の画面が明細画面 (Step 6) であることを検出。Step 6以降を直接実行します。")
+                    controller.execute_step6(target_payload.get("items", []))
+                else:
+                    log_info("メインメニューまたはヘッダー画面から全工程 (Step 1〜6.3.0) を実行します。")
+                    controller.execute_full_order()
+
+            except InterruptedError:
+                log_warning("受注入力自動化が中断されました。")
+                self.after(0, lambda: self.set_status("⚠️ 受注入力自動化が中断されました", "warning", clear_delay=5))
+            except TimeoutError as te:
+                log_error(f"受注入力自動化タイムアウト: {te}")
+                self.after(0, lambda: self.set_status(f"❌ 画面待機タイムアウト: {te}", "error", clear_delay=8))
+                self.after(0, lambda: self._show_input_error(f"自動入力待機タイムアウト:\n{te}"))
+            except Exception as ex:
+                log_error(f"受注入力自動化エラー: {ex}", exc_info=True)
+                self.after(0, lambda: self.set_status(f"❌ 自動入力エラー: {ex}", "error", clear_delay=8))
+                self.after(0, lambda: self._show_input_error(f"自動入力中にエラーが発生しました:\n{ex}"))
+            finally:
+                self._is_running_order_automation = False
+                self._current_order_controller = None
+
+        threading.Thread(target=_worker, daemon=True, name="sales-order-automation").start()
 
     def _route_order_edit(self, virtual_event):
         """The Edit menu operates on the order field that currently has focus."""
@@ -3102,31 +3250,40 @@ class TerminalApp(ctk.CTk):
             corner_radius=10, border_width=1, border_color=self.ui_colors["border"]
         )
         self.shortcut_bar.grid(row=2, column=0, padx=8, pady=(0, 6), sticky="ew")
-        self.shortcut_bar.grid_columnconfigure(1, weight=1)
+        self.shortcut_bar.grid_columnconfigure(2, weight=1)
 
-        # 左端ラベル（クイックメニューから「ショートカット」に変更）
+        # 左端ラベル
         lbl = ctk.CTkLabel(
             self.shortcut_bar, text="📌 ショートカット:",
             font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
             text_color=self.ui_colors["muted"]
         )
-        lbl.grid(row=0, column=0, padx=(12, 6), pady=4)
+        lbl.grid(row=0, column=0, padx=(12, 4), pady=4)
+
+        # 「＋ 追加」ボタン（「ショートカット」タイトルのすぐ右隣に配置）
+        self.add_shortcut_btn = ctk.CTkButton(
+            self.shortcut_bar, text="＋ 追加", width=64, height=28,
+            fg_color="#356BC4", hover_color="#285BAF", text_color="#FFFFFF",
+            font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
+            corner_radius=6, command=self.open_add_shortcut_dialog
+        )
+        self.add_shortcut_btn.grid(row=0, column=1, padx=(0, 6), pady=4)
 
         # スクロール対応ボタン配置領域（多数登録時も横スクロールで綺麗に収まる）
         self.shortcut_scroll_frame = ctk.CTkScrollableFrame(
             self.shortcut_bar, orientation="horizontal", height=32,
             fg_color="transparent"
         )
-        self.shortcut_scroll_frame.grid(row=0, column=1, sticky="ew", padx=4, pady=2)
+        self.shortcut_scroll_frame.grid(row=0, column=2, sticky="ew", padx=4, pady=2)
 
-        # 「🏠 HOME画面に戻る」ボタン（ワンクリックでQADメインメニューへ安全復帰）
+        # 「HOME」ボタン（ワンクリックでQADメインメニューへ安全復帰）
         self.home_btn = ctk.CTkButton(
-            self.shortcut_bar, text="🏠 HOME画面に戻る", width=130, height=28,
+            self.shortcut_bar, text="HOME", width=64, height=28,
             fg_color="#D97706", hover_color="#B45309", text_color="#FFFFFF",
             font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
             corner_radius=6, command=self.go_home_screen
         )
-        self.home_btn.grid(row=0, column=2, padx=(4, 4), pady=4)
+        self.home_btn.grid(row=0, column=3, padx=(4, 4), pady=4)
 
         # 右側「🖨️ 32printer」ボタン（ワンクリックでOutput欄に32prnを入力）
         self.winprint_btn = ctk.CTkButton(
@@ -3135,16 +3292,7 @@ class TerminalApp(ctk.CTk):
             font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
             corner_radius=6, command=self.input_32printer
         )
-        self.winprint_btn.grid(row=0, column=3, padx=(4, 4), pady=4)
-
-        # 右端「＋ 追加」ボタン
-        self.add_shortcut_btn = ctk.CTkButton(
-            self.shortcut_bar, text="＋ 追加", width=72, height=28,
-            fg_color="#356BC4", hover_color="#285BAF", text_color="#FFFFFF",
-            font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="bold"),
-            corner_radius=6, command=self.open_add_shortcut_dialog
-        )
-        self.add_shortcut_btn.grid(row=0, column=4, padx=(4, 10), pady=4)
+        self.winprint_btn.grid(row=0, column=4, padx=(4, 10), pady=4)
 
         self._refresh_shortcut_buttons()
 
@@ -3340,14 +3488,14 @@ class TerminalApp(ctk.CTk):
                 # OrderBooking出力はクイックメニュー列に移動したため、ショートカット一覧からは除外
                 continue
             btn = ctk.CTkButton(
-                self.shortcut_scroll_frame, text=f"{name} ({code})", height=28,
+                self.shortcut_scroll_frame, text=name, width=0, height=28,
                 fg_color=self.ui_colors["button"], hover_color=self.ui_colors["hover"],
                 text_color=self.ui_colors["text"],
                 font=ctk.CTkFont(family=self.ui_font_family, size=12, weight="normal"),
                 corner_radius=6, state=state,
                 command=lambda n=name, c=code: self._handle_shortcut_click(n, c)
             )
-            btn.pack(side="left", padx=4, pady=2)
+            btn.pack(side="left", padx=3, pady=2)
             # 右クリックで編集・削除メニュー表示
             btn.bind("<Button-3>", lambda event, i=idx, n=name, c=code: self._show_shortcut_context_menu(event, i, n, c))
             self.shortcut_buttons.append(btn)
@@ -3684,6 +3832,180 @@ class TerminalApp(ctk.CTk):
 
         import threading
         threading.Thread(target=_worker, daemon=True, name="order-booking-macro").start()
+
+    def run_item_list_update_automation(self):
+        """Item list (99.1.4.3) 自動更新マクロ
+        シーケンス:
+        1. HOME画面（メインメニュー）へ復帰
+        2. 99.1.4.3 に移動
+        3. F1キーを押下して Output 欄へジャンプ
+        4. Output 欄に '32prn' を入力して F1キーを押下して出力開始
+        5. 32prn ストリームを受信し、A列をKey、C列をValueとしたJSONを作成してローカルフォルダに保存
+        """
+        if not self.is_connected or not self.session:
+            self._show_input_error("サーバーに接続されていません。接続してから実行してください。")
+            return
+
+        if getattr(self, "_is_capturing_winprint", False) or getattr(self, "_is_waiting_query", False):
+            self._show_input_error("現在別のレポート処理が実行中です。完了までお待ちください。")
+            return
+
+        log_info("=== Item list (99.1.4.3) 自動更新マクロ開始 ===")
+        self.set_status("🚀 Item list 更新を開始します...", "working")
+        self._item_list_capture_mode = True
+
+        def _worker():
+            try:
+                # -------------------------------------------------------------
+                # Step 1: HOME画面（メインメニュー）に戻る
+                # -------------------------------------------------------------
+                self.set_status("🏠 Step 1/4: HOME画面（メインメニュー）へ復帰中...", "working")
+                if not self.is_main_menu():
+                    for step in range(4):
+                        if self.is_main_menu():
+                            break
+                        log_info(f"ItemList: HOME画面復帰のため F4 送信 (step {step + 1})")
+                        self.session.send(KEY_SEQUENCES["F4"])
+                        start_wait = time.time()
+                        while time.time() - start_wait < 1.20:
+                            time.sleep(0.05)
+                            if self.is_main_menu():
+                                break
+                        time.sleep(0.15)
+
+                if self.is_main_menu():
+                    log_info("ItemList: メインメニュー復帰完了")
+                else:
+                    log_warning("ItemList: メインメニューへの復帰確認が取れませんでしたが、続行を試みます")
+
+                time.sleep(0.3)
+
+                # -------------------------------------------------------------
+                # Step 2: 99.1.4.3 の画面に移動する
+                # -------------------------------------------------------------
+                self.set_status("📋 Step 2/4: 99.1.4.3 画面へ移動中...", "working")
+                log_info("ItemList: '99.1.4.3\\r' を送信します")
+                self.session.send("99.1.4.3\r")
+
+                # 画面が 99.1.4.3 の画面に遷移するのを待機
+                start_nav = time.time()
+                nav_ok = False
+                while time.time() - start_nav < 4.0:
+                    time.sleep(0.1)
+                    txt = self._get_current_screen_text().lower()
+                    if "99.1.4.3" in txt or "item" in txt:
+                        nav_ok = True
+                        break
+
+                if nav_ok:
+                    log_info("ItemList: 99.1.4.3 条件入力画面の表示を確認しました")
+                else:
+                    log_warning("ItemList: 画面判定タイムアウト。処理を継続します")
+
+                time.sleep(0.5)
+
+                # -------------------------------------------------------------
+                # Step 3: F1 を押して Output 欄へジャンプ
+                # -------------------------------------------------------------
+                self.set_status("⚡ Step 3/4: F1 を押して Output 欄へジャンプ中...", "working")
+                log_info("ItemList: F1 を送信して Output 欄へジャンプ")
+                self.session.send(KEY_SEQUENCES["F1"])
+
+                # Output 欄に着弾するのを待機（最大2.5秒）
+                start_out_wait = time.time()
+                while time.time() - start_out_wait < 2.5:
+                    time.sleep(0.1)
+                    if self._is_cursor_at_output_field():
+                        log_info("ItemList: Output 欄への着弾を確認しました")
+                        break
+                time.sleep(0.35)
+
+                # -------------------------------------------------------------
+                # Step 4: Output 欄に '32prn' を入力して F1 で出力開始
+                # -------------------------------------------------------------
+                self.set_status("🖨️ Step 4/4: Output に '32prn' を設定し、ストリーム受信中...", "working")
+                log_info("ItemList: input_32printer を起動してデータ取得開始")
+                self.after(0, self.input_32printer)
+
+            except Exception as e:
+                self._item_list_capture_mode = False
+                log_error(f"ItemList 自動実行エラー: {e}", exc_info=True)
+                self.set_status(f"❌ ItemList 自動実行エラー: {e}", "error", clear_delay=6)
+
+        import threading
+        threading.Thread(target=_worker, daemon=True, name="item-list-macro").start()
+
+    def _process_item_list_json(self, rows: list):
+        """パースされた行データから1行目(ラベル)を除外し、A列をKey、C列とD列を結合した文字列をValueとしたJSONを作成・保存"""
+        try:
+            self.set_status("📦 Item list JSON を作成中...", "working")
+            if not rows or len(rows) <= 1:
+                log_warning("ItemList: データ行が存在しません")
+                self.set_status("❌ Item list データが空でした", "error", clear_delay=6)
+                return
+
+            items_dict = {}
+            # 1行目はラベル行ですので確実にRemove (rows[0] を除外)
+            header = rows[0]
+            log_info(f"ItemList: ラベル行(スキップ) = {header}")
+
+            for r in rows[1:]:
+                if not r or not any(r):
+                    continue
+                key = str(r[0]).strip()
+                # C列 (index 2: Description1) と D列 (index 3: Description2) を結合
+                c_val = str(r[2]).strip() if len(r) > 2 else ""
+                d_val = str(r[3]).strip() if len(r) > 3 else ""
+                if c_val and d_val:
+                    val = f"{c_val} {d_val}"
+                else:
+                    val = c_val or d_val
+
+                # 区切り線やヘッダー/ラベル文字列、レポート末尾表記の誤検知を除外
+                if not key or key.startswith("---") or key.startswith("===") or key.startswith("***"):
+                    continue
+                k_lower = key.lower()
+                if k_lower in ("item", "item number", "item_number", "品目", "品目番号", "品目コード"):
+                    continue
+                if c_val.lower() in ("description1", "description 1", "description", "品名", "品目名"):
+                    continue
+                if k_lower.startswith("end of report") or k_lower.startswith("report complete") or "end of report" in k_lower:
+                    continue
+
+                items_dict[key] = val
+
+            count = len(items_dict)
+            if count == 0:
+                self.set_status("❌ 有効な品目データが取得できませんでした", "error", clear_delay=6)
+                return
+
+            # この pyw が入っているローカルフォルダに保存
+            out_file = PROJECT_ROOT / "itemList.json"
+            alt_file = PROJECT_ROOT / "item_list.json"
+
+            json_text = json.dumps(items_dict, ensure_ascii=False, indent=2)
+            out_file.write_text(json_text, encoding="utf-8")
+            alt_file.write_text(json_text, encoding="utf-8")
+
+            # 注文入力サイドバーが開いている場合は最新のリストを即時反映
+            if hasattr(self, "order_panel") and self.order_panel is not None:
+                try:
+                    self.order_panel.set_item_list_data(items_dict)
+                except Exception as ex:
+                    log_warning(f"order_panel への item_list 反映スキップ: {ex}")
+
+            log_info(f"ItemList: JSON保存成功 ({count:,} 件) -> {out_file}")
+            self.set_status(f"✅ Item list を更新・ダウンロードしました（全 {count:,} 件）", "success", clear_delay=8)
+            messagebox.showinfo(
+                "Item list 更新完了",
+                f"Item list の取得・保存が完了しました！\n\n件数: {count:,} 件\n保存先:\n{out_file}",
+                parent=self
+            )
+
+        except Exception as e:
+            log_error(f"ItemList JSON生成・保存エラー: {e}", exc_info=True)
+            self.set_status(f"❌ Item list 保存エラー: {e}", "error", clear_delay=6)
+            messagebox.showerror("Item list 保存エラー", f"JSONの保存中にエラーが発生しました:\n{e}", parent=self)
 
     # =========================================================================
     # --- GASデータ送信機能 (在庫レポート 99.3.6.1 & Complaint 99.3.21.4) ---
@@ -4661,6 +4983,23 @@ class TerminalApp(ctk.CTk):
         self._show_input_error(f"クリップボードの内容を貼り付けました 📋 ({len(text)}文字)")
         return "break"
 
+    def _on_ctrl_d(self, event=None):
+        """Ctrl+D押下時、元のターミナルと同様にDeleteキーと同じ入力をサーバーへ送信"""
+        if not self.is_connected or self.session is None:
+            return "break"
+        if (
+            getattr(self, "_is_waiting_query", False)
+            or getattr(self, "_is_capturing_winprint", False)
+            or getattr(self, "_is_capturing_report", False)
+        ):
+            return "break"
+        try:
+            self.textbox._textbox.tag_remove("sel", "1.0", "end")
+        except Exception:
+            pass
+        self._send(key_sequence("Delete"))
+        return "break"
+
     def insert_today_date(self, event=None):
         """今日の日付を 'mm/dd/yy' 形式でサーバーへ送信（入力欄への直接入力・貼り付け）"""
         if not self.is_connected or self.session is None:
@@ -4757,9 +5096,17 @@ class TerminalApp(ctk.CTk):
             self._show_input_error("Output欄での自動32printerを無効化しました（通常F1送信）")
 
     def _check_is_report_output(self):
-        """現在の画面が QAD レポート出力（local 出力結果）であるかを高精度に判定"""
+        """現在の画面が QAD レポート出力（local 出力結果）であるかを高精度に判定。
+        99.7.1.1 などのメンテナンス／受注入力画面は絶対に誤検知させないよう厳格に除外します。
+        """
         # メインメニューや通常メニュー画面は除外
         if self.is_main_menu() or self.is_menu_screen():
+            return False
+
+        # 注文入力サイドバーが表示中、または注文自動入力実行中はレポート自動検知を即時除外
+        if getattr(self, "order_panel_visible", None) and self.order_panel_visible.get():
+            return False
+        if getattr(self, "_is_sales_order_automating", False):
             return False
 
         lines = []
@@ -4777,13 +5124,32 @@ class TerminalApp(ctk.CTk):
         full_text = "\n".join(lines)
         full_lower = full_text.lower()
 
+        # 【超重要】メンテナンス画面・受注入力画面・業務入力画面の完全除外！
+        # 99.7.1.1 (Sales Order Maintenance) や品目・購買・在庫の各メンテナンス画面を100%除外
+        maintenance_keywords = [
+            "maintenance", "99.7.1.1", "99.7.1", "sales order", "purchase order",
+            "sosomt.p", "sordmt.p", "pomt.p", "poodmt.p", "item width(mm)",
+            "sales order line", "sold-to:", "bill-to:", "ship-to:", "order date:",
+            "required date:", "due date:", "rolls width(mm)", "sl run", "exact:yes",
+            "tot qty(m2)", "transaction comments", "print on quote:", "category=",
+            "enter data or press f4", "ln item number", "qty ordered um", "create wo:",
+            "pricing date:", "list price", "tax usage:"
+        ]
+        if any(k in full_lower for k in maintenance_keywords):
+            return False
+
+        # プログラム名が *mt.p (Progress 4GL Maintenance Program) の場合は除外
+        if re.search(r'\b\w*mt\.p\b', full_lower):
+            return False
+
         # 【超重要】条件入力画面（パラメータ入力・Output指定・Batch ID入力）は絶対に除外！
-        # F1 を1回押して Output 欄や Batch ID 欄にカーソルが移動した入力画面を誤検知させない
         is_input_prompt_screen = (
             "output:" in full_lower or "output :" in full_lower
             or "batch id:" in full_lower or "batch id :" in full_lower
             or "enter data or press f4" in full_lower
             or ("from:" in full_lower and "to:" in full_lower)
+            or "f1=go" in full_lower
+            or "f4=end" in full_lower
         )
         if is_input_prompt_screen:
             return False
@@ -4793,15 +5159,27 @@ class TerminalApp(ctk.CTk):
         sep_pattern = re.compile(r'[-─]{2,}\s+[-─]{2,}')
         for idx, line in enumerate(lines):
             clean = line.replace("│", " ").strip()
+            # 枠線ボックスの一部（外枠）は除外
+            if any(c in line for c in ("┌", "┐", "└", "┘", "├", "┤")):
+                continue
+            # 入力テーブルの行（両端が枠線 │ で囲まれた行）は除外
+            stripped = line.strip()
+            if stripped.startswith("│") and stripped.endswith("│"):
+                continue
             if sep_pattern.search(clean) or clean.count("---") >= 2 or (clean.startswith("---") and len(clean) >= 15):
-                if not any(c in line for c in ("┌", "┐", "└", "┘", "├", "┤")):
-                    sep_row_idx = idx
-                    break
+                sep_row_idx = idx
+                break
 
         if sep_row_idx == -1:
             return False
 
-        # 2. プロンプトまたは待機フラグの判定
+        # 2. レポート固有ヘッダー（Page: 1 や Report, Inquiry, Browse 等）の確認
+        is_report_header = (
+            any(h in full_lower for h in ["page:", "page :", "report", "inquiry", "browse", "listing", "register"])
+            or "end of report" in full_lower
+        )
+
+        # 3. プロンプトまたは待機フラグの判定
         has_prompt = (
             any(p in full_lower for p in ["press space", "space to continue", "space bar", "more...", "-- more --", "end of report", "return to exit"])
             or any(p in full_text for p in ["スペース", "ｽﾍﾟｰｽ", "継続", "続行", "終了するには", "レポート終了"])
@@ -4812,16 +5190,16 @@ class TerminalApp(ctk.CTk):
             log_info(f"_check_is_report_output: 一致！ (クエリ待機中 + レポート区切り線行 {sep_row_idx} 検出: {lines[sep_row_idx][:50]})")
             return True
 
-        # プロンプトが検出された場合もTrue
-        if has_prompt:
+        # 継続プロンプトが検出され、かつレポートヘッダーまたは区切り線が存在する場合もTrue
+        if has_prompt and (is_report_header or sep_row_idx != -1):
             log_info(f"_check_is_report_output: 一致！ (区切り線行 {sep_row_idx} + プロンプト検出)")
             return True
 
-        # 区切り線があり、かつ上部にカラムヘッダー、下部にデータ行があればTrue
-        if sep_row_idx >= 1 and sep_row_idx < len(lines) - 1:
-            data_lines = [l for l in lines[sep_row_idx + 1:] if l.strip()]
+        # プロンプトがない通常表示時: レポート固有ヘッダーが確実に存在し、かつ区切り線＋データ行が存在する場合のみTrue
+        if is_report_header and sep_row_idx >= 1 and sep_row_idx < len(lines) - 1:
+            data_lines = [l for l in lines[sep_row_idx + 1:] if l.strip() and not l.strip().startswith("│")]
             if len(data_lines) >= 1:
-                log_info(f"_check_is_report_output: 一致！ (区切り線行 {sep_row_idx} + データ行 {len(data_lines)} 行検出)")
+                log_info(f"_check_is_report_output: 一致！ (レポートヘッダー + 区切り線行 {sep_row_idx} + データ行 {len(data_lines)} 行検出)")
                 return True
 
         return False
@@ -5005,6 +5383,20 @@ class TerminalApp(ctk.CTk):
                     self.set_status("❌ レポートデータの解析に失敗しました", "error", clear_delay=5)
                     return
 
+                # Item list 自動更新モードの場合は Excel 展開を行わず JSON を生成・保存
+                if getattr(self, "_item_list_capture_mode", False):
+                    self._item_list_capture_mode = False
+                    self._process_item_list_json(rows)
+                    try:
+                        time.sleep(1.0)
+                        cur_screen = self._get_current_screen_text()
+                        cur_screen_lower = cur_screen.lower() if cur_screen else ""
+                        if "press space" in cur_screen_lower or "program information" in cur_screen_lower:
+                            self._send(" ")
+                    except Exception:
+                        pass
+                    return
+
                 row_count = len(rows) - 1
                 log_info(f"32printer パース成功 (列数={len(rows[0])}, データ行数={row_count:,})")
                 self.set_status(f"🚀 Excelを新規作成し、全 {row_count:,} 件を展開中...", "working")
@@ -5135,6 +5527,11 @@ class TerminalApp(ctk.CTk):
             self.winprint_btn.configure(state=state)
         if hasattr(self, "order_booking_btn"):
             self.order_booking_btn.configure(state=state)
+        if hasattr(self, "update_menu"):
+            try:
+                self.update_menu.entryconfigure(0, state=state)
+            except Exception:
+                pass
         for button in getattr(self, "shortcut_buttons", []):
             button.configure(state=state)
 
@@ -5567,9 +5964,9 @@ class TerminalApp(ctk.CTk):
             if is_ctrl and not is_shift and keysym_lower == "a":
                 return self.select_all_text(event)
 
-            # Ctrl+D: 今日の日付を mm/dd/yy 書式で貼り付け（サーバーへ送信）
+            # Ctrl+D: 元のターミナルと同様に Delete キーと同じ入力をサーバーへ送信
             if is_ctrl and not is_shift and keysym_lower == "d":
-                return self.insert_today_date(event)
+                return self._on_ctrl_d(event)
 
             # Ctrl+E: 画面のデータをCSV化してExcelで開く
             if is_ctrl and not is_shift and keysym_lower == "e":
@@ -5579,6 +5976,11 @@ class TerminalApp(ctk.CTk):
             if is_ctrl and not is_shift and keysym_lower == "h":
                 self.go_home_screen()
                 return "break"
+
+        # F3: シークレット注文出力チェックターミナルの表示切替
+        if event.keysym == "F3":
+            self.toggle_output_terminal()
+            return "break"
 
         # 2. サーバー側ショートカットの制御（F1/F4以外のCtrl系および不要ファンクションキーを無効化）
         if self.config.get("block_server_shortcuts", True):

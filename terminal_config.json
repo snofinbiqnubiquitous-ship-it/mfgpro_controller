@@ -31,6 +31,10 @@
     {
       "name": "Sales",
       "code": "99.7.5.11"
+    },
+    {
+      "name": "item master",
+      "code": "99.1.4.3"
     }
   ],
   "tab_aliases": {},
