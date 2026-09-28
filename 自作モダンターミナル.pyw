@@ -2705,14 +2705,6 @@ class TerminalApp(ctk.CTk):
         self.last_order_submission = payload
         self.order_output_history.append(payload)
 
-        items_data = None
-        if self.order_panel is not None:
-            items_data = getattr(self.order_panel, "item_list_data", None)
-
-        # F3ターミナルが既に開いている場合は履歴を追記
-        if self.output_terminal_window is not None and self.output_terminal_window.winfo_exists():
-            self.output_terminal_window.append_submission(payload, item_list_data=items_data)
-
         # 送信ボタン押下により、QAD 99.7.1.1 への自動入力を直接実行
         self.run_sales_order_automation(payload)
 
@@ -2735,18 +2727,6 @@ class TerminalApp(ctk.CTk):
             self._show_input_error("送信対象の注文データ（明細）がありません。サイドバーで注文を入力してください。")
             return
 
-        # ユーザー確認ダイアログ
-        item_count = len(target_payload.get("items", []))
-        c_name = target_payload.get("customer_name", "未指定")
-        ans = messagebox.askyesno(
-            "QAD受注自動入力を開始",
-            f"顧客: {c_name}\n明細: {item_count}件\n\nQAD 99.7.1.1 への自動入力を開始しますか？\n"
-            "※実行中はキーボードやマウスの操作を行わないでください。",
-            parent=self,
-        )
-        if not ans:
-            return
-
         self._is_running_order_automation = True
         log_info("=== QAD 99.7.1.1 受注入力自動化を開始します ===")
         self.set_status("🚀 QAD 99.7.1.1 受注登録自動化を開始します...", "working")
@@ -2766,10 +2746,19 @@ class TerminalApp(ctk.CTk):
                 curr_txt = clean_screen_text(self._get_current_screen_text()).lower()
                 if ("sales order line" in curr_txt or "ln item number" in curr_txt) and "transaction comments" not in curr_txt:
                     log_info("現在の画面が明細画面 (Step 6) であることを検出。Step 6以降を直接実行します。")
-                    controller.execute_step6(target_payload.get("items", []))
+                    order_id = controller.execute_step6(target_payload.get("items", []))
                 else:
                     log_info("メインメニューまたはヘッダー画面から全工程 (Step 1〜6.3.0) を実行します。")
-                    controller.execute_full_order()
+                    order_id = controller.execute_full_order()
+
+                # 完了時に取得した Order ID をダイアログで表示
+                final_order_id = order_id or getattr(controller, "order_id", None) or "取得完了"
+                log_info(f"受注登録完了通知: Order ID = {final_order_id}")
+                self.after(0, lambda: messagebox.showinfo(
+                    "受注登録完了",
+                    f"QAD 99.7.1.1 への受注登録が完了しました。\n\n受注番号 (Order ID): {final_order_id}",
+                    parent=self,
+                ))
 
             except InterruptedError:
                 log_warning("受注入力自動化が中断されました。")

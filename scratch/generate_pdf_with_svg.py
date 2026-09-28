@@ -80,23 +80,23 @@ def generate_flowchart_svg():
   <line x1="360" y1="218" x2="360" y2="244" stroke="#0284C7" stroke-width="2.5" marker-end="url(#arrow)" />
   <text x="375" y="234" fill="#059669" font-size="10" font-weight="bold">Sold-To 欄 (Row 3, Col 29) 着地検知</text>
 
-  <!-- STEP 2: ヘッダー一括貼り付け -->
+  <!-- STEP 2: ヘッダー項目入力 -->
   <g transform="translate(40, 248)">
     <rect width="640" height="114" rx="8" fill="url(#bgStep)" stroke="#CBD5E1" stroke-width="1.5" filter="url(#shadow)" />
     <rect x="0" y="0" width="8" height="114" rx="4" fill="#0284C7" />
     <rect x="18" y="12" width="60" height="20" rx="4" fill="#0284C7" />
     <text x="48" y="26" text-anchor="middle" fill="#FFFFFF" font-size="10" font-weight="bold">STEP 2</text>
-    <text x="86" y="27" fill="#0F172A" font-size="13" font-weight="bold">受注ヘッダー一括貼り付け (改行結合 10行)</text>
+    <text x="86" y="27" fill="#0F172A" font-size="13" font-weight="bold">受注ヘッダー項目入力 (全11項目 順次入力)</text>
     
-    <text x="22" y="52" fill="#1E293B" font-size="11" font-weight="bold">• 一括ペースト:</text>
-    <text x="110" y="52" fill="#334155" font-size="11">Sold-To ➔ <tspan fill="#DC2626" font-weight="bold">Bill-To (同値)</tspan> ➔ Ship-To ➔ Order Date ➔ Req Date ➔ Due Date ➔ PO ➔ 備考</text>
+    <text x="22" y="52" fill="#1E293B" font-size="11" font-weight="bold">• 順次入力:</text>
+    <text x="96" y="52" fill="#334155" font-size="10.5">Sold-To ➔ <tspan fill="#DC2626" font-weight="bold">Bill-To (同値)</tspan> ➔ Ship-To ➔ 日付・PO・備考 (全11項目)</text>
     
     <text x="22" y="74" fill="#1E293B" font-size="11" font-weight="bold">• キー送信:</text>
-    <text x="110" y="74" fill="#D97706" font-size="11" font-weight="bold">&lt;F1&gt;</text>
-    <text x="145" y="74" fill="#334155" font-size="11">(ヘッダー確定) ➔ 画面下に 'Press space bar' が出た場合は &lt;Space&gt; 送信</text>
+    <text x="96" y="74" fill="#D97706" font-size="11" font-weight="bold">&lt;F1&gt;</text>
+    <text x="135" y="74" fill="#334155" font-size="10.5">(ヘッダー確定) ➔ 画面下に 'Press space bar' が出た場合は &lt;Space&gt; 送信</text>
 
     <text x="22" y="96" fill="#1E293B" font-size="11" font-weight="bold">• 画面待機:</text>
-    <text x="110" y="96" fill="#0284C7" font-size="11">"Tax Usage:" ポップアップ枠の出現を検知</text>
+    <text x="96" y="96" fill="#0284C7" font-size="11">"Tax Usage:" ポップアップ枠の出現を検知</text>
   </g>
 
   <!-- 矢印 3 -->
@@ -469,15 +469,21 @@ def build_full_html():
     </tr>
     <tr>
       <td>Line 09</td>
-      <td><strong>Purchase Order</strong></td>
-      <td><code>purchase_order</code></td>
-      <td>注文番号 / 発注番号（例: "test2"）</td>
+      <td><strong>Pricing Date</strong></td>
+      <td><code>""</code> (空行)</td>
+      <td><strong>【必須】Enterでスキップ</strong></td>
     </tr>
     <tr>
       <td>Line 10</td>
+      <td><strong>Purchase Order</strong></td>
+      <td><code>purchase_order</code></td>
+      <td>注文番号 / 発注番号（例: "test"）</td>
+    </tr>
+    <tr>
+      <td>Line 11</td>
       <td><strong>Remarks</strong></td>
       <td><code>remarks</code></td>
-      <td>備考テキスト（例: "test2"）</td>
+      <td>備考テキスト（例: "test"）</td>
     </tr>
   </tbody>
 </table>

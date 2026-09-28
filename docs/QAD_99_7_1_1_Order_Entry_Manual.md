@@ -51,8 +51,8 @@ flowchart TD
         S1_AutoNumber --> S1_WaitSoldTo{"Sold-To 欄 (Row 3, Col 29) 着地を検知"}
     end
 
-    subgraph Step2 ["STEP 2: 受注ヘッダー一括貼り付け"]
-        S1_WaitSoldTo --> S2_Paste["Sold-To から 10行改行結合テキストを一括ペースト<br/>(Line 1:Sold-To / Line 2:Bill-To(同値) / Line 3:Ship-To<br/>Line 4:当日日付 / Line 5:要求納期 / Line 7:回答納期<br/>Line 9:注文番号(PO) / Line 10:備考)"]
+    subgraph Step2 ["STEP 2: 受注ヘッダー項目入力"]
+        S1_WaitSoldTo --> S2_Paste["Sold-To から 11項目を順次入力<br/>(Line 01:Sold-To / Line 02:Bill-To(同値) / Line 03:Ship-To<br/>Line 04:受注日 / Line 05:要求納期 / Line 06:Promise(空)<br/>Line 07:回答納期 / Line 08:Perform(空) / Line 09:Pricing Date(空)<br/>Line 10:注文番号(PO) / Line 11:備考)"]
         S2_Paste --> S2_SendF1["ヘッダー確定 <F1> を送信"]
         S2_SendF1 --> S2_CheckSpace{"画面下に 'Press space bar to continue' がある？"}
         S2_CheckSpace -- "Yes (Category警告等)" --> S2_SendSpace["<Space> を送信して続行"]:::warnBox
@@ -173,25 +173,30 @@ flowchart TD
 
 ---
 
-### STEP 2: 受注ヘッダー一括貼り付け（Sold-To から一括送信）
-- **目的**: Sold-To から Enter 遷移する全10項目を、改行結合したバッファで一括ペーストし、高速・安全に入力する。
-- **貼り付けバッファ構成（全10行）**:
+### STEP 2: 受注ヘッダー項目入力（Sold-To から順次入力）
+- **目的**: Sold-To から Enter 遷移する全11項目を、実機検証済みの確実なタイミングで順次入力し、文字落ちやCategoryプロンプトラグを完全防止する。
+- **入力項目構成（全11項目）**:
   ```text
-  Line 01: Sold-To (顧客コード: 例 20000900)
-  Line 02: Bill-To (※Sold-Toと同値を自動セット: 例 20000900)
-  Line 03: Ship-To (納品先コード: 例 20000911)
-  Line 04: Order Date (受注日 MM/dd/yy: 例 09/29/26)
+  Line 01: Sold-To (顧客コード: 例 20000600)
+  Line 02: Bill-To (※Sold-Toと同値を自動セット: 例 20000600)
+  Line 03: Ship-To (納品先コード: 例 20000601)
+  Line 04: Order Date (受注日: Enterでスキップ)
   Line 05: Required Date (要求納期 MM/dd/yy: 例 09/30/26)
   Line 06: Promise Date (空行: Enterでスキップ)
   Line 07: Due Date (回答納期 MM/dd/yy: 例 10/01/26)
   Line 08: Perform Date (空行: Enterでスキップ)
-  Line 09: Purchase Order (注文番号 PO: 例 test2)
-  Line 10: Remarks (備考: 例 test2)
+  Line 09: Pricing Date (空行: Enterでスキップ ★必須)
+  Line 10: Purchase Order (注文番号 PO: 例 test)
+  Line 11: Remarks (備考: 例 test)
   ```
 - **操作シーケンス**:
-  1. Sold-To 欄に上記10行テキストを一括ペースト（`paste_stream`）。
-  2. ヘッダー確定キー **`<F1>`** を送信。
-  3. **同期待ち受け条件**:
+  1. Sold-To 欄に顧客コードを入力し Enter。
+  2. 画面下に `'Category=... Press space bar to continue.'` が出現した場合は、**`<Space>`** を送信して警告解除。
+  3. Bill-To 欄に顧客コード（Sold-Toと同値）を入力し Enter。
+  4. Ship-To 欄に納品先コードを入力し Enter。
+  5. 日付項目・PO・備考を順次入力し、Enterで各フィールドへ遷移。
+  6. ヘッダー確定キー **`<F1>`** を送信。
+  7. **同期待ち受け条件**:
      - 画面最下行に `'Category=... Press space bar to continue.'` が出現した場合は、**`<Space>`** を送信して続行。
      - 次画面（`Tax Usage:` ポップアップ枠）の出現を検知。
 

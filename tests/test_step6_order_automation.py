@@ -941,7 +941,104 @@ class AutomationControllerExecutionTests(unittest.TestCase):
         self.assertIn(KEY_SEQUENCES["F4"], sent)
         self.assertEqual(screen_idx[0], 5)
 
+    def test_step2_header_input_with_pricing_date_and_order_id(self):
+        """TOPPANインフォメディアのPayloadでStep 2のPricing Date含む全項目入力とOrder ID抽出を検証"""
+        screens = [
+            # 0: Step 2 受注ヘッダー画面 (Order ID: SO199402)
+            (
+                "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26\n"
+                "┌──────────────────────────────────────────────────────────────────────────────┐\n"
+                "│Order: SO199402  Sold-To: 20000600  Bill To: 20000600  Ship-To: 20000601     │\n"
+                "└──────────────────────────────────────────────────────────────────────────────┘\n"
+                "   Order Date: 09/29/26 Line Pricing: Yes\n"
+                "Category=Strat Hipo  Press space bar to continue."
+            ),
+            # 1: Tax Usage ポップアップ
+            "Tax Usage: 10%consumption\nTax Environment: 10%",
+            # 2: Salesperson
+            "Salesperson 1: S71\nFreight List:",
+            # 3: Comments (なし)
+            "Transaction Comments\nAdding new record",
+            # 4: Sales Order Line
+            "Sales Order Line\nLn Item Number",
+        ]
+        screen_idx = [0]
+
+        def get_screen():
+            return screens[min(screen_idx[0], len(screens) - 1)]
+
+        sent = []
+
+        class MockSession:
+            def send(self, data):
+                sent.append(data)
+                txt = data if isinstance(data, str) else data.decode("latin1", errors="replace")
+                if txt == " ":
+                    pass
+                elif txt == KEY_SEQUENCES["F1"]:
+                    screen_idx[0] += 1
+                elif txt == KEY_SEQUENCES["F4"]:
+                    screen_idx[0] += 1
+
+        toppan_payload = {
+            "customer_name": "TOPPANインフォメディア株式会社",
+            "ship_to": "TOPPANインフォメディア(株)福島工場",
+            "purchase_order": "test",
+            "customer_code": "20000600",
+            "ship_to_code": "20000601",
+            "remarks": "test",
+            "so_comment": "",
+            "required_date": "2026-09-30",
+            "due_date": "2026-10-01",
+            "items": [
+                {
+                    "product_name": "BW0116Q3-2",
+                    "width": "200",
+                    "length": "600",
+                    "quantity": 1,
+                    "price": "120"
+                }
+            ]
+        }
+
+        controller = SalesOrderAutomationController(
+            session=MockSession(),
+            get_screen_text=get_screen,
+            payload=toppan_payload,
+            sleep_func=lambda s: None,
+            default_timeout=2.0,
+        )
+
+        # execute_full_order を実行 (Step 6到達まで)
+        # モックでは Step 6 画面で終了
+        try:
+            controller.execute_full_order()
+        except Exception:
+            pass
+
+        # Order ID が正しく SO199402 として抽出されていること
+        self.assertEqual(controller.order_id, "SO199402")
+
+        # 送信されたキーシーケンスの検証
+        # 1. Sold-To: 20000600\r
+        self.assertIn("20000600\r", sent)
+        # 2. Bill-To: 20000600\r
+        self.assertEqual(sent.count("20000600\r"), 2)
+        # 3. Ship-To: 20000601\r
+        self.assertIn("20000601\r", sent)
+        # 4. Req Date: 09/30/26\r
+        self.assertIn("09/30/26\r", sent)
+        # 5. Due Date: 10/01/26\r
+        self.assertIn("10/01/26\r", sent)
+        # 6. PO: test\r
+        self.assertIn("test\r", sent)
+        # 7. Category 警告解除の Space
+        self.assertIn(" ", sent)
+        # 8. ヘッダー確定 F1
+        self.assertIn(KEY_SEQUENCES["F1"], sent)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

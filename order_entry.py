@@ -1120,6 +1120,21 @@ class SalesOrderAutomationController:
         self.sleep = sleep_func
         self.default_timeout = default_timeout
         self.aborted = False
+        self.order_id: str | None = None
+
+    def _extract_order_id(self) -> str | None:
+        """画面バッファから最新の Order ID (例: SO199402) を抽出して保持"""
+        try:
+            txt = clean_screen_text(self.get_screen_text())
+            m = re.search(r"(?:Order|Sales Order):\s*([A-Za-z0-9]+)", txt, re.IGNORECASE)
+            if m:
+                extracted = m.group(1).strip()
+                if extracted and extracted != self.order_id:
+                    self.order_id = extracted
+                    self.log(f"Order ID を記録: {self.order_id}")
+        except Exception:
+            pass
+        return self.order_id
 
     def log(self, msg: str):
         if self.logger:
@@ -1455,8 +1470,10 @@ class SalesOrderAutomationController:
             lambda txt: "mfmenu" in txt or "main menu" in txt or ("order:" in txt and "sold-to:" in txt and "sales order maintenance" in txt),
             desc="受注完了・初期画面復帰"
         )
+        self._extract_order_id()
         self.set_status("✅ QAD 99.7.1.1 受注登録が全工程正常に完了しました！", "success", clear_delay=8)
-        self.log("=== QAD 99.7.1.1 受注入力自動化 全工程完了 ===")
+        self.log(f"=== QAD 99.7.1.1 受注入力自動化 全工程完了 (Order ID: {self.order_id or '完了'}) ===")
+        return self.order_id
 
     def execute_full_order(self):
         """メインメニュー (mfmenu) またはヘッダー画面から全工程 (Step 1 〜 Step 6.3.0) を実行"""
@@ -1476,12 +1493,13 @@ class SalesOrderAutomationController:
             self.send("\r")
             self.sleep(0.4)
 
-        # Step 2: 受注ヘッダー一括貼り付け
+        # Step 2: 受注ヘッダー項目入力
         self.wait_for_screen(
             lambda txt: "sold-to" in txt and ("order date:" in txt or "line pricing:" in txt),
             desc="Step 2: 受注ヘッダー画面"
         )
-        self.set_status("Step 2: 受注ヘッダー項目一括入力中...", "working")
+        self._extract_order_id()
+        self.set_status("Step 2: 受注ヘッダー項目入力中...", "working")
 
         today_qad = date.today().strftime("%m/%d/%y")
         req_d = self.payload.get("required_date", "")
@@ -1505,16 +1523,80 @@ class SalesOrderAutomationController:
         po_val = str(self.payload.get("purchase_order", "")).strip()
         rem_val = str(self.payload.get("remarks", "")).strip()
 
-        # 貼り付けバッファ
-        paste_items = [c_code, c_code, s_code, today_qad, req_qad, "", due_qad, "", po_val, rem_val]
-        paste_str = "\r".join(paste_items)
-        self.log(f"Step 2: ヘッダーバッチ送信 ({len(paste_items)} 項目)")
-        self.send(paste_str)
+        # 実機検証済みの確実なフィールド順次入力（文字落ち・Categoryプロンプトラグを完全防止）
+        # 1. Sold-To
+        self.log(f"Step 2: Sold-To 入力 ({c_code})")
+        self.send(f"{c_code}\r")
+        self.sleep(0.6)
+
+        # Sold-To 後の Category 警告チェック（TOPPANやタカラ等で出現）
+        st_txt = clean_screen_text(self.get_screen_text()).lower()
+        if "press space" in st_txt or "space bar" in st_txt:
+            self.log("Step 2: Sold-To 後の Category 警告検知 -> Space 送信")
+            self.send(" ")
+            self.sleep(0.4)
+
+        # 2. Bill-To (Sold-Toと同値)
+        self.log(f"Step 2: Bill-To 入力 ({c_code})")
+        self.send(f"{c_code}\r")
+        self.sleep(0.35)
+
+        # 3. Ship-To
+        self.log(f"Step 2: Ship-To 入力 ({s_code})")
+        self.send(f"{s_code}\r")
         self.sleep(0.4)
 
+        # 4. Order Date (デフォルトのままEnterでスキップ)
+        self.log("Step 2: Order Date スキップ")
+        self.send("\r")
+        self.sleep(0.2)
+
+        # 5. Required Date
+        self.log(f"Step 2: Required Date 入力 ({req_qad})")
+        self.send(f"{req_qad}\r" if req_qad else "\r")
+        self.sleep(0.2)
+
+        # 6. Promise Date (スキップ)
+        self.log("Step 2: Promise Date スキップ")
+        self.send("\r")
+        self.sleep(0.2)
+
+        # 7. Due Date
+        self.log(f"Step 2: Due Date 入力 ({due_qad})")
+        self.send(f"{due_qad}\r" if due_qad else "\r")
+        self.sleep(0.2)
+
+        # 8. Perform Date (スキップ)
+        self.log("Step 2: Perform Date スキップ")
+        self.send("\r")
+        self.sleep(0.2)
+
+        # 9. Pricing Date (スキップ) ★必須フィールド
+        self.log("Step 2: Pricing Date スキップ")
+        self.send("\r")
+        self.sleep(0.2)
+
+        # 10. Purchase Order
+        self.log(f"Step 2: Purchase Order 入力 ({po_val})")
+        self.send(f"{po_val}\r" if po_val else "\r")
+        self.sleep(0.2)
+
+        # 11. Remarks
+        self.log(f"Step 2: Remarks 入力 ({rem_val})")
+        self.send(f"{rem_val}\r" if rem_val else "\r")
+        self.sleep(0.35)
+
+        # ヘッダー確定: F1 送信
         self.log("Step 2: F1 送信 (ヘッダー確定)")
         self.send(KEY_SEQUENCES["F1"])
         self.sleep(0.5)
+
+        # ヘッダー確定後のスペース警告チェック
+        post_f1_txt = clean_screen_text(self.get_screen_text()).lower()
+        if "press space" in post_f1_txt or "space bar" in post_f1_txt:
+            self.log("Step 2: ヘッダー確定後の警告検知 -> Space 送信")
+            self.send(" ")
+            self.sleep(0.4)
 
         # Step 3: Tax Usage ポップアップ
         self.wait_for_screen(

@@ -115,7 +115,7 @@ QAD（Progress 4GL）のキーマッピングは、社内環境の `protermcap`�
 
 ```mermaid
 flowchart TD
-    S1["STEP 1: 99.7.1.1 遷移 ＆ 空Enterで最新Order ID自動採番"] --> S2["STEP 2: Sold-To 着地検知 ➔ ヘッダー10行一括ペースト ➔ F1"]
+    S1["STEP 1: 99.7.1.1 遷移 ＆ 空Enterで最新Order ID自動採番"] --> S2["STEP 2: Sold-To 着地検知 ➔ ヘッダー11項目順次入力 ➔ F1"]
     S2 --> S3["STEP 3: Tax Usage ポップアップ検知 ➔ F1 スキップ"]
     S3 --> S4["STEP 4: Salesperson 画面検知 ➔ F1 スキップ"]
     S4 --> S5["STEP 5: Transaction Comments 検知 ➔ 案C: F1 ➔ F8(Clear)全消去 ➔ 本文入力 ➔ F1 ➔ F1 ➔ F4"]
@@ -129,7 +129,7 @@ flowchart TD
 | ステップ | 画面名 / 状態 | 待機文字列・検知条件 (正規表現) | 送信キー・データ | 留意事項・フェイルセーフ |
 | :--- | :--- | :--- | :--- | :--- |
 | **Step 1** | Order番号採番 | `r"order:"` を検知 | `\r` (空Enter) | 空のままEnterでサーバーがOrder ID（例: `SO199401`）を自動採番。 |
-| **Step 2** | ヘッダー貼り付け | カーソルが Sold-To (Row 3, Col 29) または `r"sold-to:"` | 10行改行結合テキスト一括ペースト ➔ `\x1bOP` (`<F1>`) | `Category=... Press space bar` 検知時は `" "` (Space) 送信。Bill-To には Sold-To と同値を自動セット。 |
+| **Step 2** | ヘッダー項目入力 | カーソルが Sold-To (Row 3, Col 29) または `r"sold-to:"` | 全11項目を順次入力（Sold-To, Bill-To, Ship-To, OrderDate, ReqDate, Promise, DueDate, Perform, PricingDate, PO, Remarks） ➔ `<F1>` | `Category=... Press space bar` 検知時は `" "` (Space) 送信。Pricing Date のスキップが必須。Bill-To には Sold-To と同値を自動セット。 |
 | **Step 3** | 税金設定 | `r"tax usage:"` または `r"tax environment:"` | `\x1bOP` (`<F1>`) | ポップアップを無変更でスキップ。 |
 | **Step 4** | 営業担当者 | `r"salesperson 1:"` または `r"freight list:"` | `\x1bOP` (`<F1>`) | 無変更でスキップ。 |
 | **Step 5** | 特記事項 (案C) | `r"transaction comments"` | **有**: `\x1bOP` ➔ `\x1b[19~` (`<F8>`) ➔ 本文行 + `\r` ➔ `\x1bOP` ➔ `\x1bOP` ➔ `\x1bOS` (`<F4>`)<br>**無**: `\x1bOS` (`<F4>`) | `<F8>` (Clear) で得意先マスタ引用の既定13行等を一括消去。確認プロンプト時は `y\r`。Quoteポップアップ確定後に `<F4>` で明細へ。 |
