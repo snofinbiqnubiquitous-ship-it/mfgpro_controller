@@ -453,6 +453,49 @@ class CustomerInfoAndAddressTests(unittest.TestCase):
         self.assertEqual(customer_combo.get(), "テスト顧客A")
         self.assertEqual(panel.fields["ship_to"].cget("values"), ["納品先A1", "納品先A2"])
 
+    def test_order_output_terminal_demo_button(self):
+        from order_entry import OrderOutputTerminalWindow
+        submitted_payloads = []
+
+        class DummyParent:
+            def __init__(self, root):
+                self.root = root
+                self.order_panel = None
+            def winfo_rootx(self): return 100
+            def winfo_rooty(self): return 100
+            def winfo_width(self): return 800
+            def winfo_height(self): return 600
+            def _process_order_submission(self, payload):
+                submitted_payloads.append(payload)
+
+        parent = DummyParent(self.root)
+        term_win = OrderOutputTerminalWindow(parent=self.root)
+        term_win.parent = parent
+
+        # デモボタンが存在すること
+        self.assertTrue(hasattr(term_win, "demo_btn"))
+        self.assertEqual(term_win.demo_btn.cget("text"), "🧪 デモ注文送信 (2製品)")
+
+        # デモボタンを押下 (_on_demo_clicked)
+        term_win._on_demo_clicked()
+
+        # 送信された payload の検証
+        self.assertEqual(len(submitted_payloads), 1)
+        p = submitted_payloads[0]
+        self.assertEqual(p["customer_code"], "20000600")
+        self.assertEqual(p["ship_to_code"], "20000601")
+        self.assertEqual(p["required_date"], "2026-10-01")
+        self.assertEqual(p["due_date"], "2026-09-30")
+        self.assertEqual(len(p["items"]), 2)
+        self.assertEqual(p["items"][0]["product_name"], "BW0100D")
+        self.assertEqual(p["items"][1]["product_name"], "BW0116Q3-2")
+
+        # ターミナルウィンドウ内にも反映されていること
+        self.assertEqual(term_win.submission_count, 1)
+        self.assertEqual(term_win.last_payload, p)
+
+        term_win.destroy()
+
 
 if __name__ == "__main__":
     unittest.main()

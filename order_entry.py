@@ -2950,6 +2950,7 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
 
     def __init__(self, parent, colors=None, font_family=None, on_close=None):
         super().__init__(parent)
+        self.parent = parent
         self.on_close = on_close
         self.submission_count = 0
         self.font_family = font_family or "Consolas"
@@ -3025,6 +3026,19 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         )
         self.execute_btn.pack(side="right", padx=(4, 8), pady=5)
 
+        self.demo_btn = ctk.CTkButton(
+            top_bar,
+            text="🧪 デモ注文送信 (2製品)",
+            font=ctk.CTkFont(family="Meiryo", size=11, weight="bold"),
+            fg_color="#4F46E5",
+            hover_color="#4338CA",
+            text_color="#FFFFFF",
+            height=26,
+            corner_radius=5,
+            command=self._on_demo_clicked,
+        )
+        self.demo_btn.pack(side="right", padx=(4, 6), pady=5)
+
         # 下部キーガイドバー
         bottom_bar = ctk.CTkFrame(self, fg_color=self.term_card_bg, corner_radius=0, height=28)
         bottom_bar.pack(fill="x", side="bottom")
@@ -3066,12 +3080,57 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         tb.tag_config("term_paste", foreground="#34D399", font=("Consolas", 12))
         tb.tag_config("term_comment", foreground="#94A3B8", font=("Consolas", 11))
 
+    def _on_demo_clicked(self):
+        """ユーザー指定の2製品デモPayloadで送信ボタン押下時と同一の挙動を実行"""
+        demo_payload = {
+            "purchase_order": "test",
+            "customer_code": "20000600",
+            "ship_to_code": "20000601",
+            "address": "960-8201\nTOPPANインフォメディア(株)福島工場\n福島県福島市岡島字宮田30-2\n\n\n024-536-6111",
+            "remarks": "test",
+            "so_comment": "test",
+            "required_date": "2026-10-01",
+            "due_date": "2026-09-30",
+            "items": [
+                {
+                    "product_name": "BW0100D",
+                    "width": "200",
+                    "length": "600",
+                    "quantity": 1,
+                    "price": "200",
+                },
+                {
+                    "product_name": "BW0116Q3-2",
+                    "width": "200",
+                    "length": "600",
+                    "quantity": 1,
+                    "price": "200",
+                },
+            ],
+        }
+        target_parent = getattr(self, "parent", None) or getattr(self, "master", None)
+        items_data = None
+        if hasattr(target_parent, "order_panel") and target_parent.order_panel is not None:
+            items_data = getattr(target_parent.order_panel, "item_list_data", None)
+
+        # ターミナル画面上にデモ注文内容を表示・記録
+        self.append_submission(demo_payload, item_list_data=items_data)
+
+        # サイドバー送信ボタン押下時と同一の挙動（履歴記録＆自動入力実行）
+        if hasattr(target_parent, "_process_order_submission"):
+            target_parent._process_order_submission(demo_payload)
+        elif hasattr(target_parent, "run_sales_order_automation"):
+            target_parent.run_sales_order_automation(demo_payload)
+        else:
+            messagebox.showwarning("警告", "メインアプリに注文送信機能が見つかりません。", parent=self)
+
     def _on_execute_clicked(self):
         if not self.last_payload:
-            messagebox.showinfo("案内", "送信された注文データがありません。サイドバーで注文を入力してから実行してください。", parent=self)
+            messagebox.showinfo("案内", "送信された注文データがありません。サイドバーで注文を入力してから実行するか、[🧪 デモ注文送信] を押してください。", parent=self)
             return
-        if hasattr(self.parent, "run_sales_order_automation"):
-            self.parent.run_sales_order_automation(self.last_payload)
+        target_parent = getattr(self, "parent", None) or getattr(self, "master", None)
+        if hasattr(target_parent, "run_sales_order_automation"):
+            target_parent.run_sales_order_automation(self.last_payload)
         else:
             messagebox.showwarning("警告", "メインアプリに注文自動入力機能が見つかりません。", parent=self)
 
