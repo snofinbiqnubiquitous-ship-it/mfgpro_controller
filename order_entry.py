@@ -1142,12 +1142,31 @@ def is_space_prompt(clean_lower_text: str) -> bool:
     )
 
 
+def is_order_completed(clean_lower_text: str) -> bool:
+    """QAD 99.7.1.1 の注文確定後の完了・復帰画面（メインメニューまたはHOME画面）を判定する。
+    HOME画面（空の受注入力初期画面: Order空欄、Sold-To、Bill To等のヘッダー表示）も含めて検知する。
+    """
+    if not clean_lower_text:
+        return False
+    txt = clean_lower_text.lower()
+    if "mfmenu" in txt or "main menu" in txt:
+        return True
+    # HOME画面 (受注入力初期画面: Order空欄、Sold-To、Order Date等)
+    # または "sales order maintenance" タイトル付きの初期画面
+    if "order:" in txt and ("sold-to" in txt or "sold to" in txt):
+        if ("order date:" in txt or "bill to:" in txt or "purchase order:" in txt or "sales order maintenance" in txt):
+            if "line total:" not in txt and "total tax:" not in txt and "sales order line" not in txt:
+                return True
+    return False
+
+
 class SalesOrderAutomationController:
     """QAD 99.7.1.1 (Sales Order Maintenance) の同期式・画面検知型自動入力コントローラ。
     画面のプロンプト・ポップアップ・表示変化を待機して、正確なタイミングでキーストロークを送信します。
     """
 
     is_space_prompt = staticmethod(is_space_prompt)
+    is_order_completed = staticmethod(is_order_completed)
 
     def __init__(self, session, get_screen_text, payload, status_callback=None, logger=None, sleep_func=time.sleep, default_timeout: float = 12.0):
         self.session = session
@@ -1625,7 +1644,7 @@ class SalesOrderAutomationController:
         self.sleep(0.5)
 
         curr_txt = clean_screen_text(self.get_screen_text()).lower()
-        is_completed = lambda txt: "mfmenu" in txt or "main menu" in txt or ("order:" in txt and "sales order maintenance" in txt and "line total:" not in txt)
+        is_completed = self.is_order_completed
 
         # C1: Totals画面で1回目のF1送信直後に警告が出現した場合、2回目のF1を送信せず直ちにSpace送信へ分岐する
         if is_space_prompt(curr_txt):
@@ -1636,7 +1655,7 @@ class SalesOrderAutomationController:
             self.send(KEY_SEQUENCES[ORDER_TOTALS_COMMIT_KEY])
             self.sleep(0.5)
 
-        # メインメニュー (mfmenu) または初期画面復帰確認（警告があれば自動で Space 送信して解除）
+        # メインメニュー (mfmenu) または初期画面 (HOME画面) 復帰確認（警告があれば自動で Space 送信して解除）
         # C2: 警告が出ずに完了画面へ復帰した場合は不要な Space を送らず即時正常終了
         self.wait_for_screen(
             is_completed,

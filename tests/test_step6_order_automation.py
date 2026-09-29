@@ -10,6 +10,7 @@ from order_entry import (
     group_order_items,
     SalesOrderAutomationController,
     KEY_SEQUENCES,
+    is_order_completed,
 )
 
 
@@ -2224,10 +2225,24 @@ class AutomationControllerExecutionTests(unittest.TestCase):
             "Enter data or press F4 to end.\n"
             "F1=Go 2=Help 3=Ins 4=End",
 
-            # 18: 受注完了・初期画面復帰
-            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
-            "Order:          Sold-To:                                                       \n"
-            "F1=Go 2=Help 3=Ins 4=End",
+            # 18: 受注完了・初期画面復帰（ユーザー実機仕様: タイトル行なしHOME画面）
+            "┌──────────────────────────────────────────────────────────────────────────────┐\n"
+            "│ Order:           Sold-To:           Bill To:           Ship-To:              │\n"
+            "└──────────────────────────────────────────────────────────────────────────────┘\n"
+            "┌────────────── Sold-To ───────────────┐┌────────────── Ship-To ───────────────┐\n"
+            "│                                      ││                                      │\n"
+            "└──────────────────────────────────────┘└──────────────────────────────────────┘\n"
+            "┌──────────────────────────────────────────────────────────────────────────────┐\n"
+            "│    Order Date:          Line Pricing: No       Confirmed: No                 │\n"
+            "│ Required Date:                Manual:           Currency:      Language:     │\n"
+            "│  Promise Date:                  Site:            Taxable: No                 │\n"
+            "│      Due Date:               Channel:                  Fixed Price: No       │\n"
+            "│  Perform Date:               Project:                 Credit Terms:          │\n"
+            "│  Pricing Date:                             Credit Terms Interest %:          │\n"
+            "│Purchase Order:                                             Reprice: No       │\n"
+            "│       Remarks:                                          Entered By:          │\n"
+            "└──────────────────────────────────────────────────────────────────────────────┘\n"
+            "F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf\n",
         ]
 
         def get_screen():
@@ -2324,6 +2339,54 @@ class AutomationControllerExecutionTests(unittest.TestCase):
         self.assertIn("200", sent_data)
         self.assertEqual(res_order_id, "SO199526")
         self.assertEqual(screen_idx[0], len(screens) - 1)
+
+    def test_home_screen_recognized_as_order_completed(self):
+        """ユーザー実機ログの HOME画面（タイトル行なし・Order空欄）が確実に完了画面として検知されること"""
+        user_home_screen = (
+            "┌──────────────────────────────────────────────────────────────────────────────┐\n"
+            "│ Order:           Sold-To:           Bill To:           Ship-To:              │\n"
+            "└──────────────────────────────────────────────────────────────────────────────┘\n"
+            "┌────────────── Sold-To ───────────────┐┌────────────── Ship-To ───────────────┐\n"
+            "│                                      ││                                      │\n"
+            "└──────────────────────────────────────┘└──────────────────────────────────────┘\n"
+            "┌──────────────────────────────────────────────────────────────────────────────┐\n"
+            "│    Order Date:          Line Pricing: No       Confirmed: No                 │\n"
+            "│ Required Date:                Manual:           Currency:      Language:     │\n"
+            "│  Promise Date:                  Site:            Taxable: No                 │\n"
+            "│      Due Date:               Channel:                  Fixed Price: No       │\n"
+            "│  Perform Date:               Project:                 Credit Terms:          │\n"
+            "│  Pricing Date:                             Credit Terms Interest %:          │\n"
+            "│Purchase Order:                                             Reprice: No       │\n"
+            "│       Remarks:                                          Entered By:          │\n"
+            "└──────────────────────────────────────────────────────────────────────────────┘\n"
+            "F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf\n"
+        )
+        self.assertTrue(is_order_completed(user_home_screen))
+        self.assertTrue(SalesOrderAutomationController.is_order_completed(user_home_screen))
+
+        # メインメニュー画面
+        self.assertTrue(is_order_completed("mfmenu Main Menu"))
+
+        # 合計画面（未完了）
+        totals_screen = (
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "│ Sales Order: SO199527 Sold-To: 20000600                                      │\n"
+            "│ Line Total: 24,000.00   Total Tax: 2,400.00   Trailer: 0.00                  │\n"
+            "│ Disc Pct: 0.00%                                                              │\n"
+            "Enter data or press F4 to end.\n"
+        )
+        self.assertFalse(is_order_completed(totals_screen))
+
+        # 明細入力画面（未完了）
+        lines_screen = (
+            "Sales Order Line\n"
+            "Ln Item Number        Qty Ordered UM     List Price Discount           Price\n"
+        )
+        self.assertFalse(is_order_completed(lines_screen))
+
+        # 警告画面（未完了）
+        warning_screen = "Press space bar to continue.\n"
+        self.assertFalse(is_order_completed(warning_screen))
 
 
 if __name__ == "__main__":
