@@ -1516,8 +1516,7 @@ class SalesOrderAutomationController:
                 self.sleep(0.45)
                 # 詳細枠が閉じる（または次画面へ遷移する）のを待機
                 self.wait_for_screen(
-                    lambda txt: ("sales acct:" not in txt and "jpy cost:" not in txt) or
-                                "tax usage:" in txt or "tax environment:" in txt or "tax class:" in txt or
+                    lambda txt: "tax usage:" in txt or "tax environment:" in txt or "tax class:" in txt or
                                 "transaction comments" in txt or "master reference:" in txt or
                                 "reason code" in txt or "create wo:" in txt or "rework:" in txt,
                     desc="6.2.4 詳細枠スキップ確定待ち"
@@ -1532,7 +1531,7 @@ class SalesOrderAutomationController:
                     or "reason code" in txt
                     or "create wo:" in txt
                     or "rework:" in txt
-                    or (("sales order line" in txt or "ln item number" in txt) and "sales acct:" not in txt and "jpy cost:" not in txt)
+                    or ("sales order line" in txt and "list price" not in txt)
                 ),
                 desc="6.2.5 Tax ポップアップ または 次画面"
             )
@@ -1550,7 +1549,7 @@ class SalesOrderAutomationController:
                     or "reason code" in txt
                     or "create wo:" in txt
                     or "rework:" in txt
-                    or (("sales order line" in txt or "ln item number" in txt) and "sales acct:" not in txt and "jpy cost:" not in txt)
+                    or ("sales order line" in txt and "list price" not in txt)
                 ),
                 desc="6.2.5 Transaction Comments または 次画面"
             )
@@ -1560,13 +1559,13 @@ class SalesOrderAutomationController:
                 self.send(KEY_SEQUENCES["F4"])
                 self.sleep(0.5)
 
-            # 6.2.5-Rsn: Reason Code ポップアップまたは メイン明細画面 (Sales Order Line / Ln Item Number) の出現を待機
+            # 6.2.5-Rsn: Reason Code ポップアップまたは メイン明細画面 (Sales Order Line / Ln Item Number / Create WO) の出現を待機
             self.wait_for_screen(
                 lambda txt: (
                     "reason code" in txt
                     or "create wo:" in txt
                     or "rework:" in txt
-                    or (("sales order line" in txt or "ln item number" in txt) and "transaction comments" not in txt and "sales acct:" not in txt and "jpy cost:" not in txt)
+                    or (("sales order line" in txt or "ln item number" in txt) and "transaction comments" not in txt)
                 ),
                 desc="6.2.5 Reason Code または Sales Order Line 復帰"
             )
@@ -1582,10 +1581,10 @@ class SalesOrderAutomationController:
                 self.send(KEY_SEQUENCES["F1"])
                 self.sleep(0.4)
 
-            # 6.1.0 メイン明細一覧 (Sales Order Line 空のLn) への復帰待機
+            # 6.1.0 メイン明細一覧 (Sales Order Line 空のLn または 次行 Create WO) への復帰待機
             self.wait_for_screen(
                 lambda txt: ("sales order line" in txt or "ln item number" in txt or "create wo:" in txt or "rework:" in txt)
-                            and "transaction comments" not in txt and "reason code" not in txt and "sales acct:" not in txt and "jpy cost:" not in txt,
+                            and "transaction comments" not in txt and "reason code" not in txt,
                 desc="6.1.0 メイン明細一覧復帰"
             )
 

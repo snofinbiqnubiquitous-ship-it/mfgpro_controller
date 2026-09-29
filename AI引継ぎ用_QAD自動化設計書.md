@@ -166,9 +166,11 @@ flowchart TD
 4. **Step 6.2.4: 単価入力後の明細詳細枠（Loc: / Sales Acct:）着地とスキップ**:
    - 単価確定の `<F1>` 送信直後、画面中下段に詳細枠（`Desc: ... / Loc: ... Site: CB2 / Sales Acct: 400000 / JPY Cost: ...`）が展開され、カーソルが `Loc:` 欄に着地します。
    - これを待機せず直ちに `tax usage:` や `transaction comments` の出現を待つとタイムアウトするため、詳細枠（`sales acct:` ＆ `loc:` または `jpy cost:`）を検知した場合は初期値のまま `<F1>` を送信して安全に確定・スキップします。
-5. **Step 6: 複数製品（Line 2+）の Create WO 重複 Enter 防止**:
-   - 1品目目の Reason Code 確定（F1）直後、QADサーバー側で自動的に Line 2 が採番され、画面にはすでに `Create WO: Y Rework: Y Exact: Y` が表示されています。
-   - ここで不要な Enter を送るとフォーカスがずれてしまうため、画面に `create wo:` が既に出現している場合は Enter をスキップし直ちに `<F1>` を送ります。
+5. **Step 6: 複数製品（Line 2+）の Create WO 重複 Enter 防止 ＆ 背景詳細枠共存**:
+   - 1品目目の Reason Code 確定（F1）直後、QADサーバー側で自動的に Line 2 が採番され、画面上部にはすでに `Create WO: Y Rework: Y Exact: Y` が表示されます。
+   - このとき画面下部には直前の Line 1 の詳細枠（`Desc: ... / Loc: ... Site: CB2 / Sales Acct: 400000 / JPY Cost: ...`）が背景フレームとして残留し、最下行に `Category=...` が表示されます。
+   - 画面復帰待ちで `sales acct:` を除外条件にするとマッチせずタイムアウトするため、`create wo:` の出現を最優先で検知します。
+   - また、画面に `create wo:` が既に出現している場合は不要な Enter をスキップし、直ちに `<F1>` を送信して Line 2 の品番入力（Item Number）へ進みます。
 6. **Step 6.3.0: 最終合計画面（Totals）の F1×2回 + Space 確定フロー**:
    - 画面が `0.00%`（Totals 画面）に到達した時点で、`<F1>`（下段へ） ➔ `<F1>`（確定） ➔ `<Space>`（与信警告解除） を送信して正式コミットします。
    - メインメニュー（`mfmenu`）へ復帰すると画面上の Order ID 文字列が消去されるため、Totals 画面到達時点で `self.order_id` を確定抽出して保持・返却します。

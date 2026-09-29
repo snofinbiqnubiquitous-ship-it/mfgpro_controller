@@ -2199,12 +2199,22 @@ class AutomationControllerExecutionTests(unittest.TestCase):
             "└──────────────────────────────────────────────────────────────────────────────┘\n"
             "F1=Go 2=Help 3=Ins 4=End",
 
-            # 16: 6.1.0 次行 Create WO 出現 (Line 2 へ)
+            # 16: 6.1.0 次行 Create WO 出現 (Line 2 へ: 背景に直前の詳細枠 Sales Acct: や Category= が残る実機画面)
             "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
             "│ Sales Order: SO199526 Sold-To: 20000600 Ln Format S/M: Single                │\n"
+            "┌────────┌───────────────────────────────┐r Line ──────────────────────────────┐\n"
             "│ Ln Item│Create WO: Y Rework: Y Exact: Y│ List Price Discount           Price │\n"
+            "│─── ────└───────────────────────────────┘─────────── ──────── ─────────────── │\n"
+            "│  2                            0.0              0.00      0.0            0.00 │\n"
+            "└──────────────────────────────────────────────────────────────────────────────┘\n"
+            "┌──────────────────────────────────────────────────────────────────────────────┐\n"
+            "│Desc: SemiCLOPP18/S692N/BG40W  Sales Acct: 400000                             │\n"
             "│ Loc:           Site: CB2       Disc Acct: 403100                             │\n"
-            "F1=Go 2=Hlp 3=Ins 4=End",
+            "│   JPY Cost: 54.5301            Confirmed: Yes   Credit Terms Int: 0.00       │\n"
+            "│ Lot/Serial:                     Required: 10/01/26     Ship Type:            │\n"
+            "└──────────────────────────────────────────────────────────────────────────────┘\n"
+            "Category=Strat Hipo\n"
+            "F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf",
 
             # 17: Step 6.3.0 最終合計画面 (Totals)
             "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
