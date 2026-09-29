@@ -1945,10 +1945,9 @@ class TerminalTab:
         tb.bind("<Key>", app.on_key_press)
         tb.bind("<Control-Shift-C>", app.copy_screen_text)
         tb.bind("<Control-Shift-c>", app.copy_screen_text)
-        tb.bind("<Control-d>", app._on_ctrl_d)
-        tb.bind("<Control-D>", app._on_ctrl_d)
-        tb._textbox.bind("<Control-d>", app._on_ctrl_d)
-        tb._textbox.bind("<Control-D>", app._on_ctrl_d)
+        for seq in ("<Control-d>", "<Control-D>", "<Control-Key-d>", "<Control-Key-D>"):
+            tb.bind(seq, app._on_ctrl_d)
+            tb._textbox.bind(seq, app._on_ctrl_d)
         tb.bind("<<Paste>>", app._on_paste_event)
         tb.bind("<<Cut>>", lambda event: "break")
         tb._textbox.bind("<<Paste>>", app._on_paste_event)
@@ -4983,10 +4982,14 @@ class TerminalApp(ctk.CTk):
         ):
             return "break"
         try:
-            self.textbox._textbox.tag_remove("sel", "1.0", "end")
+            tb = self.textbox
+            if tb and hasattr(tb, "_textbox"):
+                tb._textbox.tag_remove("sel", "1.0", "end")
         except Exception:
             pass
-        self._send(key_sequence("Delete"))
+        del_seq = key_sequence("Delete") or "\x7f"
+        log_info(f"Ctrl+D押下検知: Deleteキーシーケンス {repr(del_seq)} をサーバーへ送信")
+        self._send(del_seq)
         return "break"
 
     def insert_today_date(self, event=None):
@@ -5954,7 +5957,7 @@ class TerminalApp(ctk.CTk):
                 return self.select_all_text(event)
 
             # Ctrl+D: 元のターミナルと同様に Delete キーと同じ入力をサーバーへ送信
-            if is_ctrl and not is_shift and keysym_lower == "d":
+            if (is_ctrl and not is_shift and keysym_lower == "d") or (event and getattr(event, "char", "") == "\x04"):
                 return self._on_ctrl_d(event)
 
             # Ctrl+E: 画面のデータをCSV化してExcelで開く
@@ -6103,6 +6106,8 @@ class TerminalApp(ctk.CTk):
         if not data or not self.is_connected or self.session is None:
             return
         try:
+            if data in ("\x7f", "\b", "\x1bOP", "\x1bOS", "\x06", "\x1a", "\x04"):
+                log_info(f"キーコード送信: {repr(data)}")
             self.session.send(data)
         except UnicodeEncodeError:
             self.bell()

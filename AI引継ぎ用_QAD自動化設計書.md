@@ -115,21 +115,21 @@ QAD（Progress 4GL）のキーマッピングは、社内環境の `protermcap`�
 
 ```mermaid
 flowchart TD
-    S1["STEP 1: 99.7.1.1 遷移 ＆ 空Enterで最新Order ID自動採番"] --> S2["STEP 2: Sold-To 着地検知 ➔ ヘッダー11項目順次入力 ➔ F1"]
+    S1["STEP 1: 99.7.1.1 遷移 ＆ 空Enter/F1で最新Order ID自動採番"] --> S2["STEP 2: Sold-To/Bill-To/Ship-To 順次入力 ➔ Order Date着地 ➔ 8項目一括貼り付け ➔ F1"]
     S2 --> S3["STEP 3: Tax Usage ポップアップ検知 ➔ F1 スキップ"]
     S3 --> S4["STEP 4: Salesperson 画面検知 ➔ F1 スキップ"]
     S4 --> S5["STEP 5: Transaction Comments 検知 ➔ 案C: F1 ➔ F8(Clear)全消去 ➔ 本文入力 ➔ F1 ➔ F1 ➔ F4"]
     S5 --> S6["STEP 6: 明細行 3階層ループ (品番/Ln ➔ 長さ/SL ➔ 幅・本数/Ser/Rolls)"]
     S6 --> S6_Rsn["定価差異(70) / 納期差異(28) 理由コード自動解決"]
-    S6_Rsn --> S630["STEP 6.3.0: 空Lnで F4 ➔ F4 ➔ Totals画面で F1展開 ➔ F4コミット ➔ Space解除 ➔ 最終F4で初期画面復帰"]
+    S6_Rsn --> S630["STEP 6.3.0: 空Lnで F4 ➔ F4 ➔ Totals画面で F1(下段へ) ➔ F1(確定) ➔ Space(警告解除) ➔ 初期画面復帰"]
 ```
 
 ### 詳細ステップ仕様表
 
 | ステップ | 画面名 / 状態 | 待機文字列・検知条件 (正規表現) | 送信キー・データ | 留意事項・フェイルセーフ |
 | :--- | :--- | :--- | :--- | :--- |
-| **Step 1** | Order番号採番 | `r"order:"` を検知 | `\r` (空Enter) | 空のままEnterでサーバーがOrder ID（例: `SO199401`）を自動採番。 |
-| **Step 2** | ヘッダー項目入力 | カーソルが Sold-To (Row 3, Col 29) または `r"sold-to:"` | 全11項目を順次入力（Sold-To, Bill-To, Ship-To, OrderDate, ReqDate, Promise, DueDate, Perform, PricingDate, PO, Remarks） ➔ `<F1>` | `Category=... Press space bar` 検知時は `" "` (Space) 送信。Pricing Date のスキップが必須。Bill-To には Sold-To と同値を自動セット。 |
+| **Step 1** | Order番号採番 | `r"order:"` を検知 | `\r` (空Enter) または `<F1>` | 空のままEnter/F1でサーバーがOrder ID（例: `SO199401`）を自動採番。 |
+| **Step 2** | ヘッダー項目入力 | カーソルが Sold-To (Row 3, Col 29) または `r"sold-to:"` | `Sold-To + \r` ➔ (警告時 `" "`) ➔ `Bill-To + \r` ➔ `Ship-To + \r` ➔ Order Date着地待機 ➔ Order Dateから8項目改行結合一括送信 ➔ `<F1>` | Sold-To/Bill-To/Ship-To を順次確定後、Order Date 着地を待ってから全8項目（OrderDate, ReqDate, Promise, DueDate, Perform, PricingDate, PO, Remarks）を一括送信。Pricing Date の空スキップ必須。送信後に `<F1>` で確定。`Category=... Press space bar` 検知時は `" "` (Space) 送信。 |
 | **Step 3** | 税金設定 | `r"tax usage:"` または `r"tax environment:"` | `\x1bOP` (`<F1>`) | ポップアップを無変更でスキップ。 |
 | **Step 4** | 営業担当者 | `r"salesperson 1:"` または `r"freight list:"` | `\x1bOP` (`<F1>`) | 無変更でスキップ。 |
 | **Step 5** | 特記事項 (案C) | `r"transaction comments"` | **有**: `\x1bOP` ➔ `\x1b[19~` (`<F8>`) ➔ 本文行 + `\r` ➔ `\x1bOP` ➔ `\x1bOP` ➔ `\x1bOS` (`<F4>`)<br>**無**: `\x1bOS` (`<F4>`) | `<F8>` (Clear) で得意先マスタ引用の既定13行等を一括消去。確認プロンプト時は `y\r`。Quoteポップアップ確定後に `<F4>` で明細へ。 |
@@ -145,7 +145,25 @@ flowchart TD
 | **Step 6.2.4** | 単価入力 | `r"list price"` / `r"price"` | `\x1bOP` (List Priceスキップ) ➔ 単価 (`price`) + `\x1bOP` | 単価を入力して確定。 |
 | **Step 6.2.5** | 税・コメント | `r"tax usage:"` ➔ `r"transaction comments"` | Tax: `\x1bOP` ➔ Comments: `\x1bOS` (`<F4>`) | 明細コメントは不要なため `<F4>` でスキップ。 |
 | **Step 6.2.5-Rsn** | 理由コード解決 | `r"reason code"` または `r"rsn"` | 定価差異: `70\r` / 納期差異: `28\r` ➔ `\x1bOP` | 定価や納期がマスターと異なる場合の必須対応。 |
-| **Step 6.3.0** | 最終コミット | `r"line total:"` / `r"total tax:"` | `\x1bOP` (下段展開) ➔ `\x1bOS` (正式コミット) ➔ 警告時 `" "` ➔ `\x1bOS` (初期画面復帰) | 空Lnで `<F4>` ➔ Formatで `<F4>` でTotals画面到達。`<F4>` でDB書き込みコミット。最後に Order: ブランク初期画面へ復帰。 |
+| **Step 6.3.0** | 最終コミット | `r"line total:"` / `r"total tax:"` | `\x1bOP` (`<F1>` 下段へ) ➔ `\x1bOP` (`<F1>` 確定) ➔ `" "` (Space 警告解除) ➔ 初期画面復帰 | 実機検証仕様: Totals画面の0.00%で `<F1>` を2回押し（下段移動➔確定）、Spaceで与信警告を解除して受注完了。 |
+
+---
+
+### 3.1 実機検証で得られたトラブルシューティング教訓・同期仕様（重要）
+
+1. **Step 2: Sold-To 送信直後の遅延と警告（Category=）検知ポーリング**:
+   - `Sold-To` に顧客コードを入力して Enter を送信すると、サーバー側で得意先マスタ検索と住所展開が走り、最下段に `Category=... Press space bar to continue.` が表示されるまでに約0.6〜1.0秒のラグが生じます。
+   - 単なる短時間スリープ（0.4秒等）で判定すると警告が出現する前に通過してしまい、後続キーが詰まる原因になります。
+   - **対策**: 最大2.5秒間（100ms周期）画面をポーリング監視し、警告が出現した瞬間に `<Space>` を送信して解除する同期ロジックを徹底しています。
+2. **Step 2: Order Date からの8項目一括貼り付けへの分離**:
+   - `Sold-To`, `Bill-To`, `Ship-To` の3項目はサーバー側の住所展開・検証を待つため順次送信（各ステップ間に0.5〜0.6秒のウェイトを確保）。
+   - 下段の `Order Date` にカーソルが着地したことを確認してから、Order Date 〜 Remarks までの全8項目（Pricing Date 空スキップ含む）を一括貼り付け送信することで、入力バッファの混信（`Bill To` に `test` 等が誤入力される問題）を完全に防止します。
+3. **Step 6: 複数製品（Line 2+）の Create WO 重複 Enter 防止**:
+   - 1品目目の Reason Code 確定（F1）直後、QADサーバー側で自動的に Line 2 が採番され、画面にはすでに `Create WO: Y Rework: Y Exact: Y` が表示されています。
+   - ここで不要な Enter を送るとフォーカスがずれてしまうため、画面に `create wo:` が既に出現している場合は Enter をスキップし直ちに `<F1>` を送ります。
+4. **Step 6.3.0: 最終合計画面（Totals）の F1×2回 + Space 確定フロー**:
+   - 画面が `0.00%`（Totals 画面）に到達した時点で、`<F1>`（下段へ） ➔ `<F1>`（確定） ➔ `<Space>`（与信警告解除） を送信して正式コミットします。
+   - メインメニュー（`mfmenu`）へ復帰すると画面上の Order ID 文字列が消去されるため、Totals 画面到達時点で `self.order_id` を確定抽出して保持・返却します。
 
 ---
 
@@ -195,13 +213,10 @@ flowchart TD
 1. **言語・品質方針**:
    - 回答、解説、コード内コメントはすべて**日本語**。
    - 時間の早さよりも「正確性」「品質」「既存機能のデグレ厳禁」を最優先。
-2. **デスクトップ同期の絶対原則**:
-   - 変更した主要ファイルは、必ず以下のデスクトップファイルと同期（ハッシュ一致）させてください：
-     - `C:\Users\0138018\Desktop\自作モダンターミナル.pyw`
-     - `C:\Users\0138018\Desktop\order_entry.py`
-     - `C:\Users\0138018\Desktop\terminal_core.py`
-     - `C:\Users\0138018\Desktop\QAD_99_7_1_1_Order_Entry_Manual.pdf`
-     - `C:\Users\0138018\Desktop\QAD_99_7_1_1_Order_Entry_Manual.md`
-     - `C:\Users\0138018\Desktop\AI引継ぎ用_QAD自動化設計書.md`
-3. **実機検証の規律**:
-   - テスト環境で不要な Order ID を複数採番しないこと。指定がない限り既存 ID のデータを書き換えないこと。
+2. **プロジェクト配置・編集運用の原則**:
+   - 本システムの正本パスは `C:\Users\0138018\.antigravity\mfgpro_controller\` です。
+   - デスクトップ等への不要なコピー・同期は行わず、常に本フォルダ内のファイルを直接編集・テスト・Git管理してください。
+3. **実機検証の絶対規律（複数Order ID採番の永久禁止）**:
+   - **【最重要命令】実機検証時に何度も新規ログイン・空Enter/F1を行って新たなOrder IDを複数取得することは絶対に厳禁（永久禁止）** です。サーバーDBの採番整合性を破壊するため、新規採番テストの乱発は固く禁止します。
+   - 実機検証が必要な場合は、**必ず1つの既存Order ID（すでに採番された単一のオーダー）を開き、そのオーダーの中で `<F1>` / `<F4>` を用いて画面間を移動しながら動作を検証してください**。
+   - 基本的なロジック検証やリグレッションテストは、実機を汚さない **モック単体テスト（`tests/test_*.py`）** を最大限活用して完結させてください。

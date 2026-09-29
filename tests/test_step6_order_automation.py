@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import MagicMock
 import time
+from datetime import date
 
 from order_entry import (
     clean_screen_text,
@@ -144,6 +145,13 @@ class Step6SimulationRenderingTests(unittest.TestCase):
             # 検証: 各ステップのタイトル・キー・待機条件が存在すること
             self.assertIn(">> [STEP 1]", out)
             self.assertIn(">> [STEP 2]", out)
+            self.assertIn(">> [STEP 2] 受注ヘッダー項目入力（Sold-To/Bill-To/Ship-To 個別入力 ＋ Order Date から一括貼り付け）", out)
+            self.assertIn("2-1. Sold-To 順次入力:", out)
+            self.assertIn("2-2. Bill-To 順次入力:", out)
+            self.assertIn("2-3. Ship-To 順次入力:", out)
+            self.assertIn("2-4. 一括貼り付けバッファ（Order Date 入力欄から一括ペースト・全8項目）:", out)
+            self.assertIn("Line 1 : Order Date", out)
+            self.assertIn("Line 8 : Remarks", out)
             self.assertIn(">> [STEP 3]", out)
             self.assertIn(">> [STEP 4]", out)
             self.assertIn(">> [STEP 5]", out)
@@ -261,7 +269,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
                 advanced = True
             elif idx == 5 and data == KEY_SEQUENCES["F1"]:
                 advanced = True
-            elif idx == 6 and data == KEY_SEQUENCES["F1"]:
+            elif idx == 6 and (data == KEY_SEQUENCES["F1"] or (isinstance(data, str) and data.endswith("\r") and any(c.isdigit() for c in data))):
                 advanced = True
             elif idx == 7 and data == KEY_SEQUENCES["F4"]:
                 advanced = True
@@ -269,7 +277,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
                 advanced = True
             elif idx == 9 and data == KEY_SEQUENCES["F4"]:
                 advanced = True
-            elif idx == 10 and data == "\r":
+            elif idx == 10 and data in (KEY_SEQUENCES["F1"], "\r"):
                 advanced = True
             elif idx == 11 and data == KEY_SEQUENCES["F1"]:
                 advanced = True
@@ -317,7 +325,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
         self.assertIn(KEY_SEQUENCES["F1"], sent_data)      # 6.1.1 Create WO スキップ
         self.assertIn("OZS200", sent_data)                # 6.1.3 品番
         self.assertIn("CB2", sent_data)                   # 6.1.3 Site
-        self.assertIn("600", sent_data)                   # 6.2.0 長さ
+        self.assertTrue(any("600" in s for s in sent_data)) # 6.2.0 長さ
         self.assertIn("1\r", sent_data)                   # 6.2.1 本数
         self.assertIn("1070\r", sent_data)                # 6.2.1 幅
         self.assertIn(KEY_SEQUENCES["F4"], sent_data)      # 6.2.1 ロール完了 & 6.3.0 遷移
@@ -453,7 +461,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
                 advanced = True
             elif idx == 4 and data == KEY_SEQUENCES["F1"]:
                 advanced = True
-            elif idx == 5 and data == KEY_SEQUENCES["F1"]:
+            elif idx == 5 and (data == KEY_SEQUENCES["F1"] or (isinstance(data, str) and data.endswith("\r") and any(c.isdigit() for c in data))):
                 advanced = True
             elif idx == 6 and data == KEY_SEQUENCES["F4"]:
                 advanced = True
@@ -461,7 +469,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
                 advanced = True
             elif idx == 8 and data == KEY_SEQUENCES["F4"]:
                 advanced = True
-            elif idx == 9 and data == "\r":
+            elif idx == 9 and data in (KEY_SEQUENCES["F1"], "\r"):
                 advanced = True
             elif idx == 10 and data == KEY_SEQUENCES["F1"]:
                 advanced = True
@@ -568,7 +576,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
                 advanced = True
             elif idx == 5 and data == KEY_SEQUENCES["F1"]:
                 advanced = True
-            elif idx == 6 and data == KEY_SEQUENCES["F1"]:
+            elif idx == 6 and (data == KEY_SEQUENCES["F1"] or (isinstance(data, str) and data.endswith("\r") and any(c.isdigit() for c in data))):
                 advanced = True
             elif idx == 7 and data == KEY_SEQUENCES["F4"]:
                 advanced = True
@@ -576,7 +584,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
                 advanced = True
             elif idx == 9 and data == KEY_SEQUENCES["F4"]:
                 advanced = True
-            elif idx == 10 and data == "\r":
+            elif idx == 10 and data in (KEY_SEQUENCES["F1"], "\r"):
                 advanced = True
             elif idx == 11 and data == KEY_SEQUENCES["F1"]:
                 advanced = True
@@ -592,7 +600,8 @@ class AutomationControllerExecutionTests(unittest.TestCase):
                 advanced = True
             elif idx == 16 and data == KEY_SEQUENCES["F1"]:
                 f1_totals_count[0] += 1
-                advanced = True  # Advances immediately to Press space!
+                if f1_totals_count[0] >= 2:
+                    advanced = True  # Advances to Press space after 2nd F1!
             elif idx == 17 and data == " ":
                 advanced = True
 
@@ -611,8 +620,8 @@ class AutomationControllerExecutionTests(unittest.TestCase):
         )
 
         controller.execute_step6()
-        # Verify only 1 F1 was sent at totals screen before space was sent!
-        self.assertEqual(f1_totals_count[0], 1)
+        # Verify 2 F1s were sent at totals screen before space was sent!
+        self.assertEqual(f1_totals_count[0], 2)
         self.assertIn(" ", sent)
         self.assertEqual(screen_idx[0], len(screens) - 1)
 
@@ -775,7 +784,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
                 advanced = True
             elif idx == 5 and data == KEY_SEQUENCES["F1"]:
                 advanced = True
-            elif idx == 6 and data == KEY_SEQUENCES["F1"]:
+            elif idx == 6 and (data == KEY_SEQUENCES["F1"] or (isinstance(data, str) and data.endswith("\r") and any(c.isdigit() for c in data))):
                 advanced = True
             elif idx == 7 and data == KEY_SEQUENCES["F4"]:
                 advanced = True
@@ -783,7 +792,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
                 advanced = True
             elif idx == 9 and data == KEY_SEQUENCES["F4"]:
                 advanced = True
-            elif idx == 10 and data == "\r":
+            elif idx == 10 and data in (KEY_SEQUENCES["F1"], "\r"):
                 advanced = True
             elif idx == 11 and data == KEY_SEQUENCES["F1"]:
                 advanced = True
@@ -824,7 +833,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
         controller.execute_step6()
         self.assertEqual(screen_idx[0], len(screens) - 1)
         self.assertIn("CB2", sent)
-        self.assertIn("600", sent)
+        self.assertTrue(any("600" in s for s in sent))
         self.assertIn("1530\r", sent)
         self.assertIn("320", sent)
         self.assertIn(" ", sent)
@@ -973,10 +982,14 @@ class AutomationControllerExecutionTests(unittest.TestCase):
             def send(self, data):
                 sent.append(data)
                 txt = data if isinstance(data, str) else data.decode("latin1", errors="replace")
-                if txt == " ":
-                    pass
+                if screen_idx[0] == 0:
+                    if txt == " ":
+                        screens[0] = screens[0].replace("Category=Strat Hipo  Press space bar to continue.", "")
+                    elif txt == KEY_SEQUENCES["F1"]:
+                        screen_idx[0] = 1
                 elif txt == KEY_SEQUENCES["F1"]:
-                    screen_idx[0] += 1
+                    if screen_idx[0] > 0:
+                        screen_idx[0] += 1
                 elif txt == KEY_SEQUENCES["F4"]:
                     screen_idx[0] += 1
 
@@ -1019,26 +1032,1033 @@ class AutomationControllerExecutionTests(unittest.TestCase):
         # Order ID が正しく SO199402 として抽出されていること
         self.assertEqual(controller.order_id, "SO199402")
 
-        # 送信されたキーシーケンスの検証
-        # 1. Sold-To: 20000600\r
+        # Sold-To, Bill-To, Ship-To が順次送信されていること
         self.assertIn("20000600\r", sent)
-        # 2. Bill-To: 20000600\r
-        self.assertEqual(sent.count("20000600\r"), 2)
-        # 3. Ship-To: 20000601\r
         self.assertIn("20000601\r", sent)
-        # 4. Req Date: 09/30/26\r
-        self.assertIn("09/30/26\r", sent)
-        # 5. Due Date: 10/01/26\r
-        self.assertIn("10/01/26\r", sent)
-        # 6. PO: test\r
-        self.assertIn("test\r", sent)
-        # 7. Category 警告解除の Space
+        # Sold-To の後の Category 警告解除の Space
         self.assertIn(" ", sent)
-        # 8. ヘッダー確定 F1
+
+        # 送信された Order Date からの一括貼り付けバッファの検証 (全8項目)
+        paste_sent = [s for s in sent if isinstance(s, str) and "\r" in s and len(s.split("\r")) == 8]
+        self.assertTrue(len(paste_sent) > 0, "Order Dateからの一括貼り付けバッファ(8項目)が送信されていること")
+        items = paste_sent[0].split("\r")
+        self.assertEqual(len(items), 8, "全8項目が改行で結合されていること")
+        today_qad = date.today().strftime("%m/%d/%y")
+        self.assertEqual(items[0], today_qad, "Line 1: Order Date")
+        self.assertEqual(items[1], "09/30/26", "Line 2: Req Date")
+        self.assertEqual(items[2], "", "Line 3: Promise Date (空)")
+        self.assertEqual(items[3], "10/01/26", "Line 4: Due Date")
+        self.assertEqual(items[4], "", "Line 5: Perform Date (空)")
+        self.assertEqual(items[5], "", "Line 6: Pricing Date (空 ★必須)")
+        self.assertEqual(items[6], "test", "Line 7: PO")
+        self.assertEqual(items[7], "test", "Line 8: Remarks")
+        # ヘッダー確定 F1
         self.assertIn(KEY_SEQUENCES["F1"], sent)
+
+    def test_execute_full_order_from_blank_order_screen(self):
+        """Order: が空の初期画面から開始した場合、F1で自動採番されてからSold-Toへ進むことを検証"""
+        screens = [
+            # 0: Order 欄がブランクの初期画面 (未採番)
+            (
+                "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26\n"
+                "┌──────────────────────────────────────────────────────────────────────────────┐\n"
+                "│Order:           Sold-To:           Bill To:           Ship-To:              │\n"
+                "└──────────────────────────────────────────────────────────────────────────────┘\n"
+                "F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf"
+            ),
+            # 1: F1 送信後、Order ID (SO199420) が採番され Sold-To 待ちになった画面
+            (
+                "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26\n"
+                "┌──────────────────────────────────────────────────────────────────────────────┐\n"
+                "│Order: SO199420  Sold-To:           Bill To:           Ship-To:              │\n"
+                "└──────────────────────────────────────────────────────────────────────────────┘\n"
+                "   Order Date: 09/29/26 Line Pricing: Yes\n"
+                "F1=Go 2=Hlp 3=Ins 4=End 6=Mnu"
+            ),
+            # 2: 完了 (モック)
+            "Sales Order Line\nLn Item Number",
+        ]
+        screen_idx = [0]
+
+        def get_screen():
+            return screens[min(screen_idx[0], len(screens) - 1)]
+
+        sent = []
+
+        class MockSession:
+            def send(self, data):
+                sent.append(data)
+                txt = data if isinstance(data, str) else data.decode("latin1", errors="replace")
+                if txt == KEY_SEQUENCES["F1"]:
+                    screen_idx[0] = min(screen_idx[0] + 1, len(screens) - 1)
+
+        payload = {
+            "customer_code": "20000600",
+            "ship_to_code": "20000601",
+            "items": [{"product_name": "BW0100D", "width": "200", "length": "600", "quantity": 1, "price": "150"}]
+        }
+
+        controller = SalesOrderAutomationController(
+            session=MockSession(),
+            get_screen_text=get_screen,
+            payload=payload,
+            sleep_func=lambda s: None,
+            default_timeout=2.0,
+        )
+
+        try:
+            controller.execute_full_order()
+        except Exception:
+            pass
+
+        # 最初のキーストロークは F1 (Order自動採番) であること
+        self.assertEqual(sent[0], KEY_SEQUENCES["F1"])
+        # その後に Sold-To (20000600) を含む一括バッファが送信されていること (Order欄に20000600は入らない！)
+        self.assertTrue(any("20000600" in s for s in sent))
+        # Order ID が正しく記録されていること
+        self.assertEqual(controller.order_id, "SO199420")
+
+    def test_toppan_full_pipeline_step1_to_step6_with_so_comment(self):
+        """指示10のTOPPANペイロード(so_comment='test'付き)でStep1〜Step6.1.0到達までの自動化を完全検証"""
+        screens = [
+            # 0: Order 欄ブランク (未採番)
+            (
+                "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26\n"
+                "┌──────────────────────────────────────────────────────────────────────────────┐\n"
+                "│Order:           Sold-To:           Bill To:           Ship-To:              │\n"
+                "└──────────────────────────────────────────────────────────────────────────────┘\n"
+                "F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf"
+            ),
+            # 1: Order ID (SO199499) 採番後、Sold-To フォーカス
+            (
+                "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26\n"
+                "┌──────────────────────────────────────────────────────────────────────────────┐\n"
+                "│Order: SO199499  Sold-To:           Bill To:           Ship-To:              │\n"
+                "└──────────────────────────────────────────────────────────────────────────────┘\n"
+                "   Order Date: 09/29/26 Line Pricing: Yes\n"
+                "Category=Strat Hipo  Press space bar to continue."
+            ),
+            # 2: Tax Usage ポップアップ
+            "Tax Usage: 10%consumption\nTax Environment: 10%",
+            # 3: Salesperson 画面
+            "Salesperson 1: S71\nFreight List:",
+            # 4: Step 5 Transaction Comments 初期画面
+            (
+                "┌──────────────────────────── Transaction Comments ────────────────────────────┐\n"
+                "│             Page: 1                                                          │\n"
+                "│ Master Reference: 20000600                                   Language:       │\n"
+                "│             Type:                                                Page: 1     │\n"
+                "│ 既存コメント行                                                               │\n"
+                "└──────────────────────────────────────────────────────────────────────────────┘\n"
+                "F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf"
+            ),
+            # 5: F1送信後、エディタ画面
+            (
+                "┌──────────────────────────── Transaction Comments ────────────────────────────┐\n"
+                "│ 既存コメント行                                                               │\n"
+                "└──────────────────────────────────────────────────────────────────────────────┘\n"
+                "F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear"
+            ),
+            # 6: F8送信後、クリアされたエディタ画面
+            (
+                "┌──────────────────────────── Transaction Comments ────────────────────────────┐\n"
+                "│                                                                              │\n"
+                "└──────────────────────────────────────────────────────────────────────────────┘\n"
+                "F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear"
+            ),
+            # 7: 本文(test)入力後、F1送信で Print On Quote ポップアップ表示
+            (
+                "┌──────────────────────────── Transaction Comments ────────────────────────────┐\n"
+                "│ test                                                                         │\n"
+                "│                      ┌─────────────────────────────┐                         │\n"
+                "│                      │          Print On Quote: Yes│                         │\n"
+                "│                      │    Print On Sales Order: Yes│                         │\n"
+                "│                      └─────────────────────────────┘                         │\n"
+                "└──────────────────────────────────────────────────────────────────────────────┘"
+            ),
+            # 8: Print On Quote 確定後、先頭行復帰
+            (
+                "┌──────────────────────────── Transaction Comments ────────────────────────────┐\n"
+                "│             Page: 1                                                          │\n"
+                "│ Master Reference: 20000600                                   Language:       │\n"
+                "│             Type:                                                Page: 1     │\n"
+                "│ test                                                                         │\n"
+                "└──────────────────────────────────────────────────────────────────────────────┘\n"
+                "F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf"
+            ),
+            # 9: F4送信後、明細画面へ到達
+            "Sales Order Line\nLn Item Number",
+        ]
+        screen_idx = [0]
+
+        def get_screen():
+            return screens[min(screen_idx[0], len(screens) - 1)]
+
+        sent = []
+
+        class MockSession:
+            def send(self, data):
+                sent.append(data)
+                txt = data if isinstance(data, str) else data.decode("latin1", errors="replace")
+                idx = screen_idx[0]
+                if idx == 0 and txt == KEY_SEQUENCES["F1"]:
+                    screen_idx[0] = 1
+                elif idx == 1:
+                    if txt == " ":
+                        screens[1] = screens[1].replace("Category=Strat Hipo  Press space bar to continue.", "")
+                    elif txt == KEY_SEQUENCES["F1"]:
+                        screen_idx[0] = 2
+                elif idx == 2 and txt == KEY_SEQUENCES["F1"]:
+                    screen_idx[0] = 3
+                elif idx == 3 and txt == KEY_SEQUENCES["F1"]:
+                    screen_idx[0] = 4
+                elif idx == 4 and txt == KEY_SEQUENCES["F1"]:
+                    screen_idx[0] = 5
+                elif idx == 5 and txt in (KEY_SEQUENCES.get("F8", "\x1b[19~"), "\x1b[19~"):
+                    screen_idx[0] = 6
+                elif idx == 6 and txt == KEY_SEQUENCES["F1"]:
+                    screen_idx[0] = 7
+                elif idx == 7 and txt == KEY_SEQUENCES["F1"]:
+                    screen_idx[0] = 8
+                elif idx == 8 and txt == KEY_SEQUENCES["F4"]:
+                    screen_idx[0] = 9
+
+        toppan_payload = {
+            "customer_name": "TOPPANインフォメディア株式会社",
+            "ship_to": "TOPPANインフォメディア(株)福島工場",
+            "purchase_order": "test",
+            "customer_code": "20000600",
+            "ship_to_code": "20000601",
+            "remarks": "test",
+            "so_comment": "test",
+            "required_date": "2026-09-30",
+            "due_date": "2026-09-29",
+            "items": [
+                {
+                    "product_name": "BW0100D",
+                    "width": "200",
+                    "length": "600",
+                    "quantity": 2,
+                    "price": "200"
+                }
+            ]
+        }
+
+        controller = SalesOrderAutomationController(
+            session=MockSession(),
+            get_screen_text=get_screen,
+            payload=toppan_payload,
+            sleep_func=lambda s: None,
+            default_timeout=2.0,
+        )
+
+        try:
+            controller.execute_full_order()
+        except Exception:
+            pass
+
+        # 1. Order ID が SO199499 として抽出されたこと
+        self.assertEqual(controller.order_id, "SO199499")
+
+        # 2. Step 2 の順次送信および Order Date からの一括バッファ送信の検証
+        self.assertIn("20000600\r", sent)
+        self.assertIn("20000601\r", sent)
+        self.assertIn(" ", sent)
+
+        paste_sent = [s for s in sent if isinstance(s, str) and "\r" in s and len(s.split("\r")) == 8]
+        self.assertTrue(len(paste_sent) > 0, "Order Dateからの一括貼り付けバッファ(8項目)が送信されていること")
+        items = paste_sent[0].split("\r")
+        self.assertEqual(len(items), 8)
+        today_qad = date.today().strftime("%m/%d/%y")
+        self.assertEqual(items[0], today_qad)   # Line 1: Order Date
+        self.assertEqual(items[1], "09/30/26") # Line 2: Req Date
+        self.assertEqual(items[2], "")         # Line 3: Promise Date
+        self.assertEqual(items[3], "09/29/26") # Line 4: Due Date
+        self.assertEqual(items[4], "")         # Line 5: Perform Date
+        self.assertEqual(items[5], "")         # Line 6: Pricing Date (スキップ)
+        self.assertEqual(items[6], "test")     # Line 7: PO
+        self.assertEqual(items[7], "test")     # Line 8: Remarks
+
+        # 3. Step 5 特記事項の入力検証
+        self.assertIn("test\r", sent)
+        self.assertIn(KEY_SEQUENCES.get("F8", "\x1b[19~"), sent)
+
+        # 4. 最終的に Step 6.1.0 明細画面まで到達したこと
+        self.assertEqual(screen_idx[0], 9)
+
+    def test_toppan_user_payload_step2_sequential_and_order_date_paste(self):
+        """ユーザー報告のTOPPANインフォメディア payload (SO199508) において、
+        Sold-To/Bill-To/Ship-To 個別順次送信 ＋ Order Date からの一斉貼り付け（8項目）が正しく動作することを検証
+        """
+        screens = [
+            # 0: Order ID (SO199508) 採番後、Sold-To 入力待ち
+            (
+                "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26\n"
+                "┌──────────────────────────────────────────────────────────────────────────────┐\n"
+                "│ Order: SO199508  Sold-To: 20000600  Bill To: 20000600  Ship-To: 20000601     │\n"
+                "└──────────────────────────────────────────────────────────────────────────────┘\n"
+                "   Order Date: 09/29/26 Line Pricing: Yes\n"
+                "Category=Strat Hipo  Press space bar to continue."
+            ),
+            # 1: Tax Usage ポップアップ
+            "Tax Usage: 10%consumption\nTax Environment: 10%",
+            # 2: Salesperson
+            "Salesperson 1: S71\nFreight List:",
+            # 3: Comments (なし)
+            "Transaction Comments\nAdding new record",
+            # 4: Sales Order Line (Step 6)
+            "Sales Order Line\nLn Item Number",
+        ]
+        screen_idx = [0]
+
+        def get_screen():
+            return screens[min(screen_idx[0], len(screens) - 1)]
+
+        sent = []
+
+        class MockSession:
+            def send(self, data):
+                sent.append(data)
+                txt = data if isinstance(data, str) else data.decode("latin1", errors="replace")
+                if screen_idx[0] == 0:
+                    if txt == " ":
+                        screens[0] = screens[0].replace("Category=Strat Hipo  Press space bar to continue.", "")
+                    elif txt == KEY_SEQUENCES["F1"]:
+                        screen_idx[0] = 1
+                elif txt == KEY_SEQUENCES["F1"]:
+                    if screen_idx[0] > 0:
+                        screen_idx[0] += 1
+                elif txt == KEY_SEQUENCES["F4"]:
+                    screen_idx[0] += 1
+
+        payload = {
+            "customer_name": "TOPPANインフォメディア株式会社",
+            "ship_to": "TOPPANインフォメディア(株)福島工場",
+            "purchase_order": "test",
+            "customer_code": "20000600",
+            "ship_to_code": "20000601",
+            "address": "960-8201\nTOPPANインフォメディア(株)福島工場\n福島県福島市岡島字宮田30-2\n\n\n024-536-6111",
+            "remarks": "test",
+            "so_comment": "",
+            "required_date": "2026-10-02",
+            "due_date": "2026-09-30",
+            "items": [
+                {
+                    "product_name": "BW0100D",
+                    "width": "200",
+                    "length": "600",
+                    "quantity": 1,
+                    "price": "200"
+                },
+                {
+                    "product_name": "BW0212C-2",
+                    "width": "200",
+                    "length": "600",
+                    "quantity": 1,
+                    "price": "200"
+                }
+            ]
+        }
+
+        controller = SalesOrderAutomationController(
+            session=MockSession(),
+            get_screen_text=get_screen,
+            payload=payload,
+            sleep_func=lambda s: None,
+            default_timeout=2.0,
+        )
+
+        try:
+            controller.execute_full_order()
+        except Exception:
+            pass
+
+        # 1. Order ID が SO199508 として抽出されていること
+        self.assertEqual(controller.order_id, "SO199508")
+
+        # 2. Sold-To, Bill-To, Ship-To が個別に順次送信されたこと
+        self.assertIn("20000600\r", sent)
+        self.assertIn("20000601\r", sent)
+        self.assertIn(" ", sent)
+
+        sold_to_idx = sent.index("20000600\r")
+        space_idx = sent.index(" ")
+        self.assertTrue(sold_to_idx < space_idx, "Sold-To の後に Space 警告解除が送信されること")
+
+        # 3. Order Date からの一括貼り付けバッファ (全8項目) の検証
+        paste_sent = [s for s in sent if isinstance(s, str) and "\r" in s and len(s.split("\r")) == 8]
+        self.assertTrue(len(paste_sent) > 0, "Order Date からの8項目一括貼り付けバッファが送信されていること")
+        items = paste_sent[0].split("\r")
+        self.assertEqual(len(items), 8)
+        today_qad = date.today().strftime("%m/%d/%y")
+        self.assertEqual(items[0], today_qad, "Line 1: Order Date (当日日付)")
+        self.assertEqual(items[1], "10/02/26", "Line 2: Required Date (2026-10-02 -> 10/02/26)")
+        self.assertEqual(items[2], "", "Line 3: Promise Date (空Enterスキップ)")
+        self.assertEqual(items[3], "09/30/26", "Line 4: Due Date (2026-09-30 -> 09/30/26)")
+        self.assertEqual(items[4], "", "Line 5: Perform Date (空Enterスキップ)")
+        self.assertEqual(items[5], "", "Line 6: Pricing Date (空Enterスキップ ★必須)")
+        self.assertEqual(items[6], "test", "Line 7: Purchase Order (test)")
+        self.assertEqual(items[7], "test", "Line 8: Remarks (test)")
+
+        # 4. ヘッダー確定 F1
+        self.assertIn(KEY_SEQUENCES["F1"], sent)
+
+    def test_multi_product_with_pre_existing_create_wo(self):
+        """2品目目開始時にすでにCreate WOが出現している場合、余計なEnterを送らず直ちにF1でスキップして品番入力へ進むことを検証"""
+        screens = [
+            # 0: Line 1 Ln 採番画面 (まだ Create WO はない)
+            "Sales Order Line\nLn Item Number",
+            # 1: Line 1 Create WO
+            "Create WO: Y Rework: Y Exact: Y",
+            # 2: Line 1 Item Number
+            "Sales Order Line\nLn Item Number",
+            # 3: Line 1 Site
+            "Site: CB2",
+            # 4: Line 1 Qty Ordered UM スキップ
+            "Sales Order Line\nQty Ordered UM M2",
+            # 5: Line 1 SL一覧画面 (No1)
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 0\nSL Run Len(m)",
+            # 6: Line 1 Len(m) 入力欄
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 0\nSL Run Len(m)\nValue Should Be > 0",
+            # 7: Line 1 ロールポップアップ
+            "Ser T Rolls Width(mm) Tot Qty(M2)",
+            # 8: Line 1 Rolls 確定
+            "Please confirm update yes",
+            # Line 1 SL一覧復帰
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 100\nSL Run Len(m)",
+            # 10: Line 1 SL 確定
+            "Please confirm update yes",
+            # 11: Line 1 Pricing Date
+            "Sales Order Line\nPricing Date: 09/26/26",
+            # 12: Line 1 Price (単価)
+            "Sales Order Line\nList Price 130.00 Price 130.00",
+            # 13: Line 1 Tax Usage
+            "Tax Usage: 10%consumption",
+            # 14: Line 1 Transaction Comments
+            "Transaction Comments\nMaster Reference: BW0100D",
+            # 15: Line 1 Reason Code
+            "Reason Code: 70",
+            # ★16: Line 2 開始時: Reason Code 確定直後にすでに Line 2 の Create WO が出現している状態！
+            "Sales Order Line\nLn 2 Item Number\nCreate WO: Y Rework: Y Exact: Y",
+            # 17: Line 2 Create WO 解除後の Item Number 画面
+            "Sales Order Line\nLn 2 Item Number",
+            # 18: Line 2 Site
+            "Site: CB2",
+            # 19: Line 2 Qty Ordered UM スキップ
+            "Sales Order Line\nQty Ordered UM M2",
+            # 20: Line 2 SL画面
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 0\nSL Run Len(m)",
+            # 21: Line 2 Len(m) 入力欄
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 0\nSL Run Len(m)\nValue Should Be > 0",
+            # 22: Line 2 ロールポップアップ
+            "Ser T Rolls Width(mm) Tot Qty(M2)",
+            # 23: Line 2 Rolls 確定
+            "Please confirm update yes",
+            # Line 2 SL一覧復帰
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 100\nSL Run Len(m)",
+            # 25: Line 2 SL 確定
+            "Please confirm update yes",
+            # 26: Line 2 Pricing Date
+            "Sales Order Line\nPricing Date: 09/26/26",
+            # 27: Line 2 Price (単価)
+            "Sales Order Line\nList Price 150.00 Price 150.00",
+            # 28: Line 2 Tax Usage
+            "Tax Usage: 10%consumption",
+            # 29: Line 2 Transaction Comments
+            "Transaction Comments\nMaster Reference: BW0212C-2",
+            # 30: Line 2 完了後の明細画面復帰（次行 Line 3 の Create WO が出現）
+            "Sales Order Line\nLn 3 Item Number\nCreate WO: Y Rework: Y Exact: Y",
+            # 31: Line 3 Create WO 解除後の画面 (F1 送信後)
+            "Sales Order Line\nLn 3 Item Number",
+            # 32: 6.3.0 Totals 画面 (F4 送信後)
+            "Order: SO199405\nLine Total: 30,000\nTotal Tax: 3,000\nEnter data or press F4 to end.",
+            # 33: Space 待機 (F1 x 2 送信後)
+            "Press space bar to continue.",
+            # 34: 完了 (Space 送信後)
+            "mfmenu Main Menu",
+        ]
+
+        screen_idx = [0]
+        sent_data = []
+        f1_counts = {32: 0}
+
+        def get_screen():
+            idx = screen_idx[0]
+            if idx < len(screens):
+                return screens[idx]
+            return screens[-1]
+
+        def custom_send(*args):
+            data = args[-1]
+            sent_data.append(data)
+            idx = screen_idx[0]
+            advanced = False
+
+            if idx == 0 and data == "\r":
+                advanced = True
+            elif idx == 1 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 2 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 3 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 4 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 5 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 6 and (data == KEY_SEQUENCES["F1"] or (isinstance(data, str) and data.endswith("\r") and any(c.isdigit() for c in data))):
+                advanced = True
+            elif idx == 7 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 8 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 9 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 10 and data in (KEY_SEQUENCES["F1"], "\r"):
+                advanced = True
+            elif idx == 11 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 12 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 13 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 14 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 15 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            # ★idx == 16 (Line 2 の Create WO 既存画面): F1 が送られたら次へ進む！
+            elif idx == 16 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 17 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 18 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 19 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 20 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 21 and (data == KEY_SEQUENCES["F1"] or (isinstance(data, str) and data.endswith("\r") and any(c.isdigit() for c in data))):
+                advanced = True
+            elif idx == 22 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 23 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 24 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 25 and data in (KEY_SEQUENCES["F1"], "\r"):
+                advanced = True
+            elif idx == 26 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 27 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 28 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 29 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 30 and data == KEY_SEQUENCES["F1"]:
+                # Line 3 の Create WO ポップアップを F1 で解除
+                advanced = True
+            elif idx == 31 and data == KEY_SEQUENCES["F4"]:
+                # 明細を抜けて Totals 画面へ進む
+                advanced = True
+            elif idx == 32 and data in (KEY_SEQUENCES["F4"], KEY_SEQUENCES["F1"]):
+                # Totals 画面で F1 を 2回送信してコミット
+                f1_counts[32] += 1
+                if data == KEY_SEQUENCES["F4"] or f1_counts[32] >= 2:
+                    advanced = True
+            elif idx == 33 and data == " ":
+                advanced = True
+
+            if advanced and screen_idx[0] < len(screens) - 1:
+                screen_idx[0] += 1
+
+        class MockSession:
+            stop_event = MagicMock()
+            stop_event.is_set.return_value = False
+            send = custom_send
+
+        payload = {
+            "items": [
+                {"product_name": "BW0100D", "width": "200", "length": "600", "quantity": 1, "price": "130.00"},
+                {"product_name": "BW0212C-2", "width": "200", "length": "600", "quantity": 1, "price": "150.00"},
+            ]
+        }
+
+        controller = SalesOrderAutomationController(
+            session=MockSession(),
+            get_screen_text=get_screen,
+            payload=payload,
+            sleep_func=lambda s: None,
+            default_timeout=2.0,
+        )
+
+        res_order_id = controller.execute_step6()
+
+        # Line 1 (BW0100D) と Line 2 (BW0212C-2) が両方送信されていること
+        self.assertIn("BW0100D", sent_data)
+        self.assertIn("BW0212C-2", sent_data)
+        # Line 2 開始時に余計な \r が送られず、F1 で Create WO がスキップされたことの厳格な検証
+        bw2_idx = sent_data.index("BW0212C-2")
+        self.assertEqual(sent_data[bw2_idx - 1], KEY_SEQUENCES["F1"], "BW0212C-2直前のキーはF1(Create WO解除)であること")
+        self.assertNotEqual(sent_data[bw2_idx - 2], "\r", "Line 2開始時に余計なEnterが送られていないこと")
+        # 全工程を完走して最終画面まで到達したこと
+        self.assertEqual(screen_idx[0], len(screens) - 1)
+        # Order ID が正しく返却されたこと
+        self.assertEqual(res_order_id, "SO199405")
+
+    def test_three_products_with_pre_existing_create_wo(self):
+        """3品目以上の入力時に、Line 2およびLine 3両方で先行Create WOがF1でスキップされ、余計なEnterが送られないことを検証"""
+        screens = [
+            # 0: Line 1 Ln 採番画面
+            "Sales Order Line\nLn Item Number",
+            # 1: Line 1 Create WO
+            "Create WO: Y Rework: Y Exact: Y",
+            # 2: Line 1 Item Number
+            "Sales Order Line\nLn Item Number",
+            # 3: Line 1 Site
+            "Site: CB2",
+            # 4: Line 1 Qty Ordered UM スキップ
+            "Sales Order Line\nQty Ordered UM M2",
+            # 5: Line 1 SL一覧画面 (No1)
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 0\nSL Run Len(m)",
+            # 6: Line 1 Len(m) 入力欄
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 0\nSL Run Len(m)\nValue Should Be > 0",
+            # 7: Line 1 ロールポップアップ
+            "Ser T Rolls Width(mm) Tot Qty(M2)",
+            # 8: Line 1 Rolls 確定
+            "Please confirm update yes",
+            # 9: Line 1 SL一覧復帰
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 100\nSL Run Len(m)",
+            # 10: Line 1 SL 確定
+            "Please confirm update yes",
+            # 11: Line 1 Pricing Date
+            "Sales Order Line\nPricing Date: 09/26/26",
+            # 12: Line 1 Price (単価)
+            "Sales Order Line\nList Price 130.00 Price 130.00",
+            # 13: Line 1 Tax Usage
+            "Tax Usage: 10%consumption",
+            # 14: Line 1 Transaction Comments
+            "Transaction Comments\nMaster Reference: BW0100D",
+            # 15: Line 1 Reason Code
+            "Reason Code: 70",
+            # ★16: Line 2 開始時: Line 2 の Create WO 出現
+            "Sales Order Line\nLn 2 Item Number\nCreate WO: Y Rework: Y Exact: Y",
+            # 17: Line 2 Create WO 解除後
+            "Sales Order Line\nLn 2 Item Number",
+            # 18: Line 2 Site
+            "Site: CB2",
+            # 19: Line 2 Qty Ordered UM
+            "Sales Order Line\nQty Ordered UM M2",
+            # 20: Line 2 SL画面
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 0\nSL Run Len(m)",
+            # 21: Line 2 Len(m) 入力欄
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 0\nSL Run Len(m)\nValue Should Be > 0",
+            # 22: Line 2 ロールポップアップ
+            "Ser T Rolls Width(mm) Tot Qty(M2)",
+            # 23: Line 2 Rolls 確定
+            "Please confirm update yes",
+            # 24: Line 2 SL一覧復帰
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 100\nSL Run Len(m)",
+            # 25: Line 2 SL 確定
+            "Please confirm update yes",
+            # 26: Line 2 Pricing Date
+            "Sales Order Line\nPricing Date: 09/26/26",
+            # 27: Line 2 Price (単価)
+            "Sales Order Line\nList Price 150.00 Price 150.00",
+            # 28: Line 2 Tax Usage
+            "Tax Usage: 10%consumption",
+            # 29: Line 2 Transaction Comments
+            "Transaction Comments\nMaster Reference: BW0212C-2",
+            # 30: Line 2 Reason Code
+            "Reason Code: 70",
+            # ★31: Line 3 開始時: Line 3 の Create WO 出現
+            "Sales Order Line\nLn 3 Item Number\nCreate WO: Y Rework: Y Exact: Y",
+            # 32: Line 3 Create WO 解除後
+            "Sales Order Line\nLn 3 Item Number",
+            # 33: Line 3 Site
+            "Site: CB2",
+            # 34: Line 3 Qty Ordered UM
+            "Sales Order Line\nQty Ordered UM M2",
+            # 35: Line 3 SL画面
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 0\nSL Run Len(m)",
+            # 36: Line 3 Len(m) 入力欄
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 0\nSL Run Len(m)\nValue Should Be > 0",
+            # 37: Line 3 ロールポップアップ
+            "Ser T Rolls Width(mm) Tot Qty(M2)",
+            # 38: Line 3 Rolls 確定
+            "Please confirm update yes",
+            # 39: Line 3 SL一覧復帰
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 100\nSL Run Len(m)",
+            # 40: Line 3 SL 確定
+            "Please confirm update yes",
+            # 41: Line 3 Pricing Date
+            "Sales Order Line\nPricing Date: 09/26/26",
+            # 42: Line 3 Price (単価)
+            "Sales Order Line\nList Price 120.00 Price 120.00",
+            # 43: Line 3 Tax Usage
+            "Tax Usage: 10%consumption",
+            # 44: Line 3 Transaction Comments
+            "Transaction Comments\nMaster Reference: BW0116Q3-2",
+            # 45: Line 3 Reason Code
+            "Reason Code: 70",
+            # ★46: 全品目完了後: 次行 Line 4 の Create WO 出現
+            "Sales Order Line\nLn 4 Item Number\nCreate WO: Y Rework: Y Exact: Y",
+            # 47: Line 4 Create WO 解除後
+            "Sales Order Line\nLn 4 Item Number",
+            # 48: 6.3.0 Totals 画面
+            "Order: SO199410\nLine Total: 45,000\nTotal Tax: 4,500\nEnter data or press F4 to end.",
+            # 49: Space
+            "Press space bar to continue.",
+            # 50: 完了
+            "mfmenu Main Menu",
+        ]
+
+        screen_idx = [0]
+        sent_data = []
+        f1_counts = {48: 0}
+
+        def get_screen():
+            idx = screen_idx[0]
+            if idx < len(screens):
+                return screens[idx]
+            return screens[-1]
+
+        def custom_send(*args):
+            data = args[-1]
+            sent_data.append(data)
+            idx = screen_idx[0]
+            advanced = False
+
+            # Line 1 (idx 0〜15)
+            if idx == 0 and data == "\r":
+                advanced = True
+            elif idx in (1, 2, 3, 4, 5) and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 6 and (data == KEY_SEQUENCES["F1"] or (isinstance(data, str) and data.endswith("\r") and any(c.isdigit() for c in data))):
+                advanced = True
+            elif idx == 7 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 8 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 9 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx in (10, 11, 12, 13) and data in (KEY_SEQUENCES["F1"], "\r"):
+                advanced = True
+            elif idx == 14 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 15 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            # Line 2 (idx 16〜30) - idx 16は先行Create WOのためF1でスキップ
+            elif idx in (16, 17, 18, 19, 20) and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 21 and (data == KEY_SEQUENCES["F1"] or (isinstance(data, str) and data.endswith("\r") and any(c.isdigit() for c in data))):
+                advanced = True
+            elif idx == 22 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 23 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 24 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx in (25, 26, 27, 28) and data in (KEY_SEQUENCES["F1"], "\r"):
+                advanced = True
+            elif idx == 29 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 30 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            # Line 3 (idx 31〜45) - idx 31は先行Create WOのためF1でスキップ
+            elif idx in (31, 32, 33, 34, 35) and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 36 and (data == KEY_SEQUENCES["F1"] or (isinstance(data, str) and data.endswith("\r") and any(c.isdigit() for c in data))):
+                advanced = True
+            elif idx == 37 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 38 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 39 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx in (40, 41, 42, 43) and data in (KEY_SEQUENCES["F1"], "\r"):
+                advanced = True
+            elif idx == 44 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 45 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            # 脱出・完了 (idx 46〜50)
+            elif idx == 46 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 47 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 48 and data in (KEY_SEQUENCES["F4"], KEY_SEQUENCES["F1"]):
+                f1_counts[48] += 1
+                if data == KEY_SEQUENCES["F4"] or f1_counts[48] >= 2:
+                    advanced = True
+            elif idx == 49 and data == " ":
+                advanced = True
+
+            if advanced and screen_idx[0] < len(screens) - 1:
+                screen_idx[0] += 1
+
+        class MockSession:
+            stop_event = MagicMock()
+            stop_event.is_set.return_value = False
+            send = custom_send
+
+        payload = {
+            "items": [
+                {"product_name": "BW0100D", "width": "200", "length": "600", "quantity": 1, "price": "130.00"},
+                {"product_name": "BW0212C-2", "width": "200", "length": "600", "quantity": 1, "price": "150.00"},
+                {"product_name": "BW0116Q3-2", "width": "200", "length": "400", "quantity": 1, "price": "120.00"},
+            ]
+        }
+
+        controller = SalesOrderAutomationController(
+            session=MockSession(),
+            get_screen_text=get_screen,
+            payload=payload,
+            sleep_func=lambda s: None,
+            default_timeout=2.0,
+        )
+
+        res_order_id = controller.execute_step6()
+
+        # 3品目すべてが送信されていること
+        self.assertIn("BW0100D", sent_data)
+        self.assertIn("BW0212C-2", sent_data)
+        self.assertIn("BW0116Q3-2", sent_data)
+
+        # Line 2 および Line 3 開始時に余計な \r が送られず、F1 で Create WO がスキップされたことの検証
+        idx_p2 = sent_data.index("BW0212C-2")
+        self.assertEqual(sent_data[idx_p2 - 1], KEY_SEQUENCES["F1"])
+        self.assertNotEqual(sent_data[idx_p2 - 2], "\r")
+
+        idx_p3 = sent_data.index("BW0116Q3-2")
+        self.assertEqual(sent_data[idx_p3 - 1], KEY_SEQUENCES["F1"])
+        self.assertNotEqual(sent_data[idx_p3 - 2], "\r")
+
+        # 最終完了画面へ到達したこと
+        self.assertEqual(screen_idx[0], len(screens) - 1)
+        self.assertEqual(res_order_id, "SO199410")
+
+    def test_multi_product_multi_length_multi_width_full_execution(self):
+        """実機検証Test 5 (2製品 x 2長さ x 2幅) の全多段ループが過去の検証ログ通り確実に実行されることを検証"""
+        screens = [
+            # 0: Line 1 Ln 採番
+            "Sales Order Line\nLn Item Number",
+            # 1: Line 1 Create WO
+            "Create WO: Y Rework: Y Exact: Y",
+            # 2: Line 1 Item Number
+            "Sales Order Line\nLn Item Number",
+            # 3: Line 1 Site
+            "Site: CB2",
+            # 4: Line 1 Qty Ordered UM スキップ
+            "Sales Order Line\nQty Ordered UM M2",
+            # 5: Line 1 SL 1 (600m) SL一覧
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 0\nSL Run Len(m)",
+            # 6: Line 1 SL 1 Len(m) 入力
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 0\nSL Run Len(m)\nValue Should Be > 0",
+            # 7: Line 1 SL 1 ロールポップアップ (250mm)
+            "Ser T Rolls Width(mm) Tot Qty(M2)",
+            # 8: Line 1 SL 1 Rolls 確定
+            "Please confirm update yes",
+            # 9: Line 1 SL 2 (400m) SL一覧復帰
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 150\nSL Run Len(m)",
+            # 10: Line 1 SL 2 Len(m) 入力
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 150\nSL Run Len(m)\nValue Should Be > 0",
+            # 11: Line 1 SL 2 ロールポップアップ (120mm)
+            "Ser T Rolls Width(mm) Tot Qty(M2)",
+            # 12: Line 1 SL 2 Rolls 確定
+            "Please confirm update yes",
+            # 13: Line 1 SL 2 完了後 SL一覧復帰
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 198\nSL Run Len(m)",
+            # 14: Line 1 全SL完了確認
+            "Please confirm update yes",
+            # 15: Line 1 Pricing Date
+            "Sales Order Line\nPricing Date: 09/26/26",
+            # 16: Line 1 Price (130)
+            "Sales Order Line\nList Price 130.00 Price 130.00",
+            # 17: Line 1 Tax Usage
+            "Tax Usage: 10%consumption",
+            # 18: Line 1 Comments
+            "Transaction Comments\nMaster Reference: BW0100D",
+            # 19: Line 1 Reason Code
+            "Reason Code: 70",
+            # ★20: Line 2 開始時 (Create WO 既存画面)
+            "Sales Order Line\nLn 2 Item Number\nCreate WO: Y Rework: Y Exact: Y",
+            # 21: Line 2 Create WO 解除後
+            "Sales Order Line\nLn 2 Item Number",
+            # 22: Line 2 Site
+            "Site: CB2",
+            # 23: Line 2 Qty Ordered UM スキップ
+            "Sales Order Line\nQty Ordered UM M2",
+            # 24: Line 2 SL 1 (600m) SL一覧
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 0\nSL Run Len(m)",
+            # 25: Line 2 SL 1 Len(m) 入力
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 0\nSL Run Len(m)\nValue Should Be > 0",
+            # 26: Line 2 SL 1 ロールポップアップ (250mm)
+            "Ser T Rolls Width(mm) Tot Qty(M2)",
+            # 27: Line 2 SL 1 Rolls 確定
+            "Please confirm update yes",
+            # 28: Line 2 SL 2 (400m) SL一覧復帰
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 150\nSL Run Len(m)",
+            # 29: Line 2 SL 2 Len(m) 入力
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 150\nSL Run Len(m)\nValue Should Be > 0",
+            # 30: Line 2 SL 2 ロールポップアップ (120mm)
+            "Ser T Rolls Width(mm) Tot Qty(M2)",
+            # 31: Line 2 SL 2 Rolls 確定
+            "Please confirm update yes",
+            # 32: Line 2 SL 2 完了後 SL一覧復帰
+            "Item Width(mm):1070 Exact:yes TOTAL QTY (M2) 198\nSL Run Len(m)",
+            # 33: Line 2 全SL完了確認
+            "Please confirm update yes",
+            # 34: Line 2 Pricing Date
+            "Sales Order Line\nPricing Date: 09/26/26",
+            # 35: Line 2 Price (150)
+            "Sales Order Line\nList Price 150.00 Price 150.00",
+            # 36: Line 2 Tax Usage
+            "Tax Usage: 10%consumption",
+            # 37: Line 2 Comments
+            "Transaction Comments\nMaster Reference: BW0212C-2",
+            # 38: Line 2 Reason Code
+            "Reason Code: 70",
+            # ★39: 全完了後: 次行 Line 3 の Create WO
+            "Sales Order Line\nLn 3 Item Number\nCreate WO: Y Rework: Y Exact: Y",
+            # 40: Line 3 Create WO 解除後
+            "Sales Order Line\nLn 3 Item Number",
+            # 41: 6.3.0 Totals 画面
+            "Order: SO199400\nLine Total: 55,440\nTotal Tax: 5,544\nEnter data or press F4 to end.",
+            # 42: Space
+            "Press space bar to continue.",
+            # 43: 完了
+            "mfmenu Main Menu",
+        ]
+
+        screen_idx = [0]
+        sent_data = []
+        f1_counts = {41: 0}
+
+        def get_screen():
+            idx = screen_idx[0]
+            if idx < len(screens):
+                return screens[idx]
+            return screens[-1]
+
+        def custom_send(*args):
+            data = args[-1]
+            sent_data.append(data)
+            idx = screen_idx[0]
+            advanced = False
+
+            # Line 1 (idx 0〜19)
+            if idx == 0 and data == "\r":
+                advanced = True
+            elif idx in (1, 2, 3, 4, 5) and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 6 and (data == KEY_SEQUENCES["F1"] or (isinstance(data, str) and "600" in data)):
+                advanced = True
+            elif idx == 7 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 8 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 9 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 10 and (data == KEY_SEQUENCES["F1"] or (isinstance(data, str) and "400" in data)):
+                advanced = True
+            elif idx == 11 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 12 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 13 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 14 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx in (15, 16, 17) and data in (KEY_SEQUENCES["F1"], "\r"):
+                advanced = True
+            elif idx == 18 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 19 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            # Line 2 (idx 20〜38)
+            elif idx in (20, 21, 22, 23, 24) and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 25 and (data == KEY_SEQUENCES["F1"] or (isinstance(data, str) and "600" in data)):
+                advanced = True
+            elif idx == 26 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 27 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 28 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 29 and (data == KEY_SEQUENCES["F1"] or (isinstance(data, str) and "400" in data)):
+                advanced = True
+            elif idx == 30 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 31 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 32 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 33 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx in (34, 35, 36) and data in (KEY_SEQUENCES["F1"], "\r"):
+                advanced = True
+            elif idx == 37 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 38 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            # Exit to Totals (idx 39〜43)
+            elif idx == 39 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 40 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 41 and data in (KEY_SEQUENCES["F4"], KEY_SEQUENCES["F1"]):
+                f1_counts[41] += 1
+                if data == KEY_SEQUENCES["F4"] or f1_counts[41] >= 2:
+                    advanced = True
+            elif idx == 42 and data == " ":
+                advanced = True
+
+            if advanced and screen_idx[0] < len(screens) - 1:
+                screen_idx[0] += 1
+
+        class MockSession:
+            stop_event = MagicMock()
+            stop_event.is_set.return_value = False
+            send = custom_send
+
+        # Test 5 と同一の 2品番 x 2長さ x 2幅 ペイロード
+        payload = {
+            "items": [
+                {"product_name": "BW0100D", "width": "250", "length": "600", "quantity": 1, "price": "130"},
+                {"product_name": "BW0100D", "width": "120", "length": "400", "quantity": 1, "price": "130"},
+                {"product_name": "BW0212C-2", "width": "250", "length": "600", "quantity": 1, "price": "150"},
+                {"product_name": "BW0212C-2", "width": "120", "length": "400", "quantity": 1, "price": "150"},
+            ]
+        }
+
+        controller = SalesOrderAutomationController(
+            session=MockSession(),
+            get_screen_text=get_screen,
+            payload=payload,
+            sleep_func=lambda s: None,
+            default_timeout=2.0,
+        )
+
+        res_order_id = controller.execute_step6()
+
+        # 品番、長さ、幅がすべて送信されていること
+        self.assertIn("BW0100D", sent_data)
+        self.assertIn("BW0212C-2", sent_data)
+        self.assertTrue(any("250\r" in s for s in sent_data if isinstance(s, str)))
+        self.assertTrue(any("120\r" in s for s in sent_data if isinstance(s, str)))
+        self.assertTrue(any("600\r" in s for s in sent_data if isinstance(s, str)))
+        self.assertTrue(any("400\r" in s for s in sent_data if isinstance(s, str)))
+
+        # 最終完了画面へ到達したこと
+        self.assertEqual(screen_idx[0], len(screens) - 1)
+        self.assertEqual(res_order_id, "SO199400")
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
 
 

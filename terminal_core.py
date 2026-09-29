@@ -16,7 +16,7 @@ ENCODING = "cp932"
 COLS, ROWS = 132, 24
 KEY_SEQUENCES = {
     "Return": "\r", "KP_Enter": "\r", "space": " ",
-    "BackSpace": "\b", "Delete": "\b", "KP_Delete": "\b",
+    "BackSpace": "\b", "Delete": "\x7f", "KP_Delete": "\x7f",
     "Tab": "\t", "Escape": "\x1b",
     "F1": "\x1bOP", "F2": "\x1bOQ", "F3": "\x1bOR", "F4": "\x1bOS",
     "F5": "\x1b[15~", "F6": "\x1b[17~", "F7": "\x1b[18~", "F8": "\x1b[19~",
@@ -24,7 +24,7 @@ KEY_SEQUENCES = {
     "Clear": "\x1b[19~",
     "Up": "\x1b[A", "Down": "\x1b[B", "Right": "\x1b[C", "Left": "\x1b[D",
     "Ctrl+F": "\x06",
-    "Ctrl+D": "\b",
+    "Ctrl+D": "\x7f",
     "Ctrl+Z": "\x1a",
 }
 
@@ -45,8 +45,8 @@ def key_sequence(keysym, char="", state=0):
     if state & 0x4:
         if keysym.lower() == "f":
             return KEY_SEQUENCES["Ctrl+F"]
-        if keysym.lower() == "d":
-            return KEY_SEQUENCES.get("Delete", "\b")
+        if keysym.lower() == "d" or char == "\x04":
+            return KEY_SEQUENCES.get("Delete", "\x7f")
     return KEY_SEQUENCES.get(keysym, char)
 
 

@@ -1,0 +1,935 @@
+[2026-09-29 03:57:08] ================================================================================
+[2026-09-29 03:57:08] STARTING TEST 6: Single Product (BW0100D) with SO Comment ('テスト用です')
+[2026-09-29 03:57:08] ================================================================================
+[2026-09-29 03:57:12] Logged in to MFG/PRO successfully.
+[2026-09-29 03:57:12] 
+================================================================================
+ 01_MAIN_MENU (Cursor: row=20, col=51)
+================================================================================
+ 1 | lqqqqqqqqqqqqqqqqqqqqｴｲﾌﾞﾘｨ･ﾃﾞﾆｿﾝ･ｼﾞｬﾊﾟﾝ株式会社 : livejpdbqqqqqqqqqqqqqqqqqqqqk
+ 2 | xmfmenu                             Main Menu                          09/29/26x
+ 3 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 4 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 5 | x       DISTRIBUTION              MANUFACTURING               FINANCIAL        x
+ 6 | x  1. Items/Sites           13. Product Structures    25. General Ledger       x
+ 7 | x  2. Addresses/Taxes       14. Routings/Work Center  26. Multiple Currency    x
+ 8 | x  3. Inventory Control     15. Formula/Process       27. Accounts Receivable  x
+ 9 | x  4.                       16. Work Orders           28. Accounts Payable     x
+10 | x  5. Purchasing            17. Shop Floor Control    29.                      x
+11 | x  6.                       18. Repetitive            30. Cost Management      x
+12 | x  7. Sales Orders/Invoice  19.                       31. Cash Management      x
+13 | x  8.                       20.                       32. Fixed Assets         x
+14 | x  9.                       21.                       33.                      x
+15 | x 10.                       22. Forecast/Master Plan  34.                      x
+16 | x 11.                       23. Materials Rqmts Plan  35.                      x
+17 | x 12. Distribution Plan     24.                       36. Manager Functions    x
+18 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+19 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+20 | xPlease select a function.  F4 or blank to EXIT                                x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | Press F2 for Help                                                               
+[2026-09-29 03:57:12] Starting 99.7.1.1...
+[2026-09-29 03:57:13] >>> Detected pattern for: 99.7.1.1 Order Screen
+[2026-09-29 03:57:13] 
+================================================================================
+ 02_STEP1_ORDER_INITIAL (Cursor: row=3, col=10)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Order:           Sold-To:           Bill To:           Ship-To:              x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqq Sold-To qqqqqqqqqqqqqqqklqqqqqqqqqqqqqq Ship-To qqqqqqqqqqqqqqqk
+ 6 | x                                      xx                                      x
+ 7 | x                                      xx                                      x
+ 8 | x                                      xx                                      x
+ 9 | x                                      xx                                      x
+10 | x                                      xx                                      x
+11 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+12 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+13 | x    Order Date:          Line Pricing: No       Confirmed: No                 x
+14 | x Required Date:                Manual:           Currency:      Language:     x
+15 | x  Promise Date:                  Site:            Taxable: No                 x
+16 | x      Due Date:               Channel:                  Fixed Price: No       x
+17 | x  Perform Date:               Project:                 Credit Terms:          x
+18 | x  Pricing Date:                             Credit Terms Interest %:          x
+19 | xPurchase Order:                                             Reprice: No       x
+20 | x       Remarks:                                          Entered By:          x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:13] Step 1: Pressing Enter to acquire new Order ID (strictly once)...
+[2026-09-29 03:57:14] 
+================================================================================
+ 03_STEP1_AFTER_ORDER_ENTER (Cursor: row=3, col=29)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Order: SO199401  Sold-To:           Bill To:           Ship-To:              x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqq Sold-To qqqqqqqqqqqqqqqklqqqqqqqqqqqqqq Ship-To qqqqqqqqqqqqqqqk
+ 6 | x                                      xx                                      x
+ 7 | x                                      xx                                      x
+ 8 | x                                      xx                                      x
+ 9 | x                                      xx                                      x
+10 | x                                      xx                                      x
+11 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+12 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+13 | x    Order Date: 09/29/26 Line Pricing: Yes      Confirmed: Yes                x
+14 | x Required Date:                Manual:           Currency:      Language:     x
+15 | x  Promise Date:                  Site:            Taxable: No                 x
+16 | x      Due Date: 09/29/26      Channel:                  Fixed Price: Yes      x
+17 | x  Perform Date:               Project:                 Credit Terms:          x
+18 | x  Pricing Date:                             Credit Terms Interest %: 0.00     x
+19 | xPurchase Order:                                             Reprice: No       x
+20 | x       Remarks:                                          Entered By: takehik  x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 | Adding new record                                                               
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:14] *** NEW ORDER ID ACQUIRED: SO199401 ***
+[2026-09-29 03:57:14] Step 2: Inputting Header fields...
+[2026-09-29 03:57:15] >>> Category prompt after Sold-To, clearing with Space...
+[2026-09-29 03:57:18] 
+================================================================================
+ 04_STEP2_HEADER_INPUT_DONE (Cursor: row=13, col=41)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Order: SO199401  Sold-To: 20000900  Bill To: 20000900  Ship-To: 20000911     x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqq Sold-To qqqqqqqqqqqqqqqklqqqqqqqqqqqqqq Ship-To qqqqqqqqqqqqqqqk
+ 6 | x 株式会社ﾀｶﾗ                          xx 株式会社ｶｸｴｲ                         x
+ 7 | x 神奈川県横浜市青葉区あざみ野         xx 東京都練馬区高松6-36-12              x
+ 8 | x １-4-13                              xx                                      x
+ 9 | x 横浜市                    225-8522   xx 練馬区                    179-0075   x
+10 | x JAPAN                                xx JAPAN                                x
+11 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+12 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+13 | x    Order Date: 09/29/26 Line Pricing: Yes      Confirmed: Yes                x
+14 | x Required Date: 09/30/26       Manual:           Currency: JPY  Language:     x
+15 | x  Promise Date:   /  /           Site: CB2        Taxable: Yes  10     /  /   x
+16 | x      Due Date: 10/01/26      Channel:                  Fixed Price: Yes      x
+17 | x  Perform Date:   /  /        Project:                 Credit Terms: J20115   x
+18 | x  Pricing Date:   /  /                      Credit Terms Interest %: 0.00     x
+19 | xPurchase Order: test2                                       Reprice: No       x
+20 | x       Remarks: test2                                    Entered By: takehik  x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear                              
+[2026-09-29 03:57:18] Step 2: Confirming Header with F1...
+[2026-09-29 03:57:20] 
+================================================================================
+ 05_STEP2_CONFIRMED (Cursor: row=9, col=43)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Order: SO199401  Sold-To: 20000900  Bill To: 20000900  Ship-To: 20000911     x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqq Sold-To qqqqqqqqqqqqqqqklqqqqqqqqqqqqqq Ship-To qqqqqqqqqqqqqqqk
+ 6 | x 株式会社ﾀｶﾗ                          xx 株式会社ｶｸｴｲ                         x
+ 7 | x 神奈川県横浜市青葉区あざみ野         xx 東京都練馬区高松6-36-12              x
+ 8 | x １-4-13         lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                  x
+ 9 | x 横浜市          x            Tax Usage:                   x       179-0075   x
+10 | x JAPAN           x      Tax Environment: 10%consumption    x                  x
+11 | mqqqqqqqqqqqqqqqqqx            Tax Class: 10                xqqqqqqqqqqqqqqqqqqj
+12 | lqqqqqqqqqqqqqqqqqx              Taxable: Yes               xqqqqqqqqqqqqqqqqqqk
+13 | x    Order Date: 0x               Tax In: No                xes                x
+14 | x Required Date: 0mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjPY  Language:     x
+15 | x  Promise Date:                  Site: CB2        Taxable: Yes  10            x
+16 | x      Due Date: 10/01/26      Channel:                  Fixed Price: Yes      x
+17 | x  Perform Date:               Project:                 Credit Terms: J20115   x
+18 | x  Pricing Date:                             Credit Terms Interest %: 0.00     x
+19 | xPurchase Order: test2                                       Reprice: No       x
+20 | x       Remarks: test2                                    Entered By: takehik  x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:20] Step 3: Tax popup detected, confirming with F1...
+[2026-09-29 03:57:20] 
+================================================================================
+ 06_STEP3_AFTER_TAX (Cursor: row=13, col=18)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Order: SO199401  Sold-To: 20000900  Bill To: 20000900  Ship-To: 20000911     x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqq Sold-To qqqqqqqqqqqqqqqklqqqqqqqqqqqqqq Ship-To qqqqqqqqqqqqqqqk
+ 6 | x 株式会社ﾀｶﾗ                          xx 株式会社ｶｸｴｲ                         x
+ 7 | x 神奈川県横浜市青葉区あざみ野         xx 東京都練馬区高松6-36-12              x
+ 8 | x １-4-13                              xx                                      x
+ 9 | x 横浜市                    225-8522   xx 練馬区                    179-0075   x
+10 | x JAPAN                                xx JAPAN                                x
+11 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+12 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+13 | x Salesperson 1: S53      Freight List:                   Consignment: No      x
+14 | x      Multiple: No        Frt Min Wgt: 0            Consume Forecast: Yes     x
+15 | x  Commission 1: 0.00%   Freight Terms:            Detail Allocations: No      x
+16 | x                    Calculate Freight: Yes             Allocate Days: 0       x
+17 | x                      Display Weights: Yes                  Comments: Yes     x
+18 | x                                                       Import/Export: No      x
+19 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+20 |                                                                                 
+21 |                                                                                 
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Help 3=Ins 4=End 6=Menu 7=Rcl 8=Clr 11=Paste                            
+[2026-09-29 03:57:20] Step 4: Salesperson / Freight detected, confirming with F1...
+[2026-09-29 03:57:21] 
+================================================================================
+ 07_STEP4_AFTER_SALESPERSON (Cursor: row=4, col=21)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqq Transaction Comments qqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x             Page: 1                                                          x
+ 4 | x Master Reference: 20000900                                   Language:       x
+ 5 | x             Type:                                                Page: 1     x
+ 6 | x 【請求書】Email送付。郵送不要（タカラ●●）                                    x
+ 7 | x 【請求書】Email送付。郵送不要（タカラ大阪）：タカラ大阪+ｶﾝｻｲﾀｶﾗ印刷          x
+ 8 | x 【請求書】Email送付。郵送不要（タカラ東京）：タカラ東京+ﾀｶﾗ印刷              x
+ 9 | x *他営業所もメール送付（関東、名古屋、広島、京都、九州）SOﾄﾞｷｭﾒﾝﾄ参照         x
+10 | x                                                                              x
+11 | x BW0212C-2165*1000M を受注したら営業確認(INSP分を出荷+要連絡のため)          x
+12 | x 【大阪向けに出荷の際】名鉄を使用。                                           x
+13 | x 【CSメモ】                                                                   x
+14 | x ・営業所ごとのSOコメントを確認してください。                                 x
+15 | x ・複数注番がありPO欄に入らないときは省略せずにPO欄：34***** 他と記載し、　   x
+16 | x Item のLNコメントに追記する(納品書に印字される)                              x
+17 | x  ・協同工芸社の納品先工場名は似ているので要注意！                            x
+18 | x 【1FR-N02253】R07Y80350、R07Y80871 →　タカラ・カンサイタカラ向け　出荷不可   x
+19 | x                                                                              x
+20 | x                                                                              x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 | Adding new record                                                               
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:22] >>> Detected pattern for: Transaction Comments
+[2026-09-29 03:57:22] Step 5: Transaction Comments screen detected!
+[2026-09-29 03:57:22] 
+================================================================================
+ 08_STEP5_COMMENTS_INITIAL (Cursor: row=4, col=21)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqq Transaction Comments qqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x             Page: 1                                                          x
+ 4 | x Master Reference: 20000900                                   Language:       x
+ 5 | x             Type:                                                Page: 1     x
+ 6 | x 【請求書】Email送付。郵送不要（タカラ●●）                                    x
+ 7 | x 【請求書】Email送付。郵送不要（タカラ大阪）：タカラ大阪+ｶﾝｻｲﾀｶﾗ印刷          x
+ 8 | x 【請求書】Email送付。郵送不要（タカラ東京）：タカラ東京+ﾀｶﾗ印刷              x
+ 9 | x *他営業所もメール送付（関東、名古屋、広島、京都、九州）SOﾄﾞｷｭﾒﾝﾄ参照         x
+10 | x                                                                              x
+11 | x BW0212C-2165*1000M を受注したら営業確認(INSP分を出荷+要連絡のため)          x
+12 | x 【大阪向けに出荷の際】名鉄を使用。                                           x
+13 | x 【CSメモ】                                                                   x
+14 | x ・営業所ごとのSOコメントを確認してください。                                 x
+15 | x ・複数注番がありPO欄に入らないときは省略せずにPO欄：34***** 他と記載し、　   x
+16 | x Item のLNコメントに追記する(納品書に印字される)                              x
+17 | x  ・協同工芸社の納品先工場名は似ているので要注意！                            x
+18 | x 【1FR-N02253】R07Y80350、R07Y80871 →　タカラ・カンサイタカラ向け　出荷不可   x
+19 | x                                                                              x
+20 | x                                                                              x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 | Adding new record                                                               
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:22] Step 5: Inputting SO Comment: 'テスト用です'
+[2026-09-29 03:57:22] Step 5: Cursor before F1: row=4, col=21
+[2026-09-29 03:57:22] Step 5: Sending F1 to enter comment lines editor...
+[2026-09-29 03:57:23] 
+================================================================================
+ 09_STEP5_AFTER_F1 (Cursor: row=6, col=3)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqq Transaction Comments qqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x             Page: 1                                                          x
+ 4 | x Master Reference: 20000900                                   Language:       x
+ 5 | x             Type:                                                Page: 1     x
+ 6 | x 【請求書】Email送付。郵送不要（タカラ●●）                                    x
+ 7 | x 【請求書】Email送付。郵送不要（タカラ大阪）：タカラ大阪+ｶﾝｻｲﾀｶﾗ印刷          x
+ 8 | x 【請求書】Email送付。郵送不要（タカラ東京）：タカラ東京+ﾀｶﾗ印刷              x
+ 9 | x *他営業所もメール送付（関東、名古屋、広島、京都、九州）SOﾄﾞｷｭﾒﾝﾄ参照         x
+10 | x                                                                              x
+11 | x BW0212C-2165*1000M を受注したら営業確認(INSP分を出荷+要連絡のため)          x
+12 | x 【大阪向けに出荷の際】名鉄を使用。                                           x
+13 | x 【CSメモ】                                                                   x
+14 | x ・営業所ごとのSOコメントを確認してください。                                 x
+15 | x ・複数注番がありPO欄に入らないときは省略せずにPO欄：34***** 他と記載し、　   x
+16 | x Item のLNコメントに追記する(納品書に印字される)                              x
+17 | x  ・協同工芸社の納品先工場名は似ているので要注意！                            x
+18 | x 【1FR-N02253】R07Y80350、R07Y80871 →　タカラ・カンサイタカラ向け　出荷不可   x
+19 | x                                                                              x
+20 | x                                                                              x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear                              
+[2026-09-29 03:57:23] Step 5: Cursor after F1: row=6, col=3
+[2026-09-29 03:57:23] Step 5: Typing line: 'テスト用です' + Enter...
+[2026-09-29 03:57:23] 
+================================================================================
+ 10_STEP5_TYPED_テスト用です (Cursor: row=7, col=3)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqq Transaction Comments qqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x             Page: 1                                                          x
+ 4 | x Master Reference: 20000900                                   Language:       x
+ 5 | x             Type:                                                Page: 1     x
+ 6 | x テスト用ですmail送付。郵送不要（タカラ●●）                                   x
+ 7 | x 【請求書】Email送付。郵送不要（タカラ大阪）：タカラ大阪+ｶﾝｻｲﾀｶﾗ印刷          x
+ 8 | x 【請求書】Email送付。郵送不要（タカラ東京）：タカラ東京+ﾀｶﾗ印刷              x
+ 9 | x *他営業所もメール送付（関東、名古屋、広島、京都、九州）SOﾄﾞｷｭﾒﾝﾄ参照         x
+10 | x                                                                              x
+11 | x BW0212C-2165*1000M を受注したら営業確認(INSP分を出荷+要連絡のため)          x
+12 | x 【大阪向けに出荷の際】名鉄を使用。                                           x
+13 | x 【CSメモ】                                                                   x
+14 | x ・営業所ごとのSOコメントを確認してください。                                 x
+15 | x ・複数注番がありPO欄に入らないときは省略せずにPO欄：34***** 他と記載し、　   x
+16 | x Item のLNコメントに追記する(納品書に印字される)                              x
+17 | x  ・協同工芸社の納品先工場名は似ているので要注意！                            x
+18 | x 【1FR-N02253】R07Y80350、R07Y80871 →　タカラ・カンサイタカラ向け　出荷不可   x
+19 | x                                                                              x
+20 | x                                                                              x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear                              
+[2026-09-29 03:57:23] Step 5: Confirming comment body with F1...
+[2026-09-29 03:57:24] 
+================================================================================
+ 11_STEP5_AFTER_COMMENT_F1 (Cursor: row=9, col=51)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqq Transaction Comments qqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x             Page: 1                                                          x
+ 4 | x Master Reference: 20000900                                   Language:       x
+ 5 | x             Type:                                                Page: 1     x
+ 6 | x テスト用ですmail送付。郵送不要（タカラ●●）                                   x
+ 7 | x 【請求書】Email送付。郵送不要（タカラ大阪）：タカラ大阪+ｶﾝｻｲﾀｶﾗ印刷          x
+ 8 | x 【請求書】Email送付。lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk +ﾀｶﾗ印刷              x
+ 9 | x *他営業所もメール送付x          Print On Quote: Yes  x SOﾄﾞｷｭﾒﾝﾄ参照         x
+10 | x                      x    Print On Sales Order: Yes  x                       x
+11 | x BW0212C-2165*1000M をx        Print On Invoice: Yes  x要連絡のため)          x
+12 | x 【大阪向けに出荷の際 x   Print On Packing List: Yes  x                       x
+13 | x 【CSメモ】           mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                       x
+14 | x ・営業所ごとのSOコメントを確認してください。                                 x
+15 | x ・複数注番がありPO欄に入らないときは省略せずにPO欄：34***** 他と記載し、　   x
+16 | x Item のLNコメントに追記する(納品書に印字される)                              x
+17 | x  ・協同工芸社の納品先工場名は似ているので要注意！                            x
+18 | x 【1FR-N02253】R07Y80350、R07Y80871 →　タカラ・カンサイタカラ向け　出荷不可   x
+19 | x                                                                              x
+20 | x                                                                              x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear                              
+[2026-09-29 03:57:24] Step 5: 'Print On Quote:' detected, confirming with F1...
+[2026-09-29 03:57:25] 
+================================================================================
+ 12_STEP5_AFTER_PRINT_QUOTE_F1 (Cursor: row=3, col=21)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqq Transaction Comments qqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x             Page: 1                                                          x
+ 4 | x Master Reference: 20000900                                   Language:       x
+ 5 | x             Type:                                                Page: 1     x
+ 6 | x テスト用ですmail送付。郵送不要（タカラ●●）                                   x
+ 7 | x 【請求書】Email送付。郵送不要（タカラ大阪）：タカラ大阪+ｶﾝｻｲﾀｶﾗ印刷          x
+ 8 | x 【請求書】Email送付。郵送不要（タカラ東京）：タカラ東京+ﾀｶﾗ印刷              x
+ 9 | x *他営業所もメール送付（関東、名古屋、広島、京都、九州）SOﾄﾞｷｭﾒﾝﾄ参照         x
+10 | x                                                                              x
+11 | x BW0212C-2165*1000M をを受注したら営業確認(INSP分を出荷要連絡のため)          x
+12 | x 【大阪向けに出荷の際】名鉄を使用。                                           x
+13 | x 【CSメモ】                                                                   x
+14 | x ・営業所ごとのSOコメントを確認してください。                                 x
+15 | x ・複数注番がありPO欄に入らないときは省略せずにPO欄：34***** 他と記載し、　   x
+16 | x Item のLNコメントに追記する(納品書に印字される)                              x
+17 | x  ・協同工芸社の納品先工場名は似ているので要注意！                            x
+18 | x 【1FR-N02253】R07Y80350、R07Y80871 →　タカラ・カンサイタカラ向け　出荷不可   x
+19 | x                                                                              x
+20 | x                                                                              x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:25] Step 5: Sending F4 to exit comments and proceed to Line Items...
+[2026-09-29 03:57:26] 
+================================================================================
+ 13_STEP5_AFTER_F4_EXIT (Cursor: row=8, col=4)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Sold-To: 20000900 Ln Format S/M: Single                x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x
+ 7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x
+ 8 | x  1                            0.0              0.00      0.0            0.00 x
+ 9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+11 | xDesc:                          Sales Acct:                                    x
+12 | x Loc:           Site:           Disc Acct:                                    x
+13 | x       Cost:                    Confirmed: No    Credit Terms Int:            x
+14 | x Lot/Serial:                     Required:              Ship Type:            x
+15 | x Qty Allocated:                  Promised:          UM Conversion:            x
+16 | x    Qty Picked:                  Due Date:           Consume Fcst: No         x
+17 | x   Qty Shipped:              Perform Date:           Detail Alloc: No         x
+18 | xQty to Invoice:              Pricing Date:                Taxable: No         x
+19 | x Salesperson 1:                  Multiple: No        Freight List:            x
+20 | x  Commission 1:          Category:           Fixed Price: No   Comments: No   x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:26] >>> Detected pattern for: Line Items Screen
+[2026-09-29 03:57:26] 
+================================================================================
+[2026-09-29 03:57:26] Entering Line 1: BW0100D, Price 130, Length 600m x Width 250mm x 1 roll
+[2026-09-29 03:57:26] ================================================================================
+[2026-09-29 03:57:26] Line 1: Pressing Enter to acquire Ln 1...
+[2026-09-29 03:57:27] 
+================================================================================
+ 14_LINE1_AFTER_LN_ENTER (Cursor: row=6, col=22)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Sold-To: 20000900 Ln Format S/M: Single                x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqlqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkr Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | x Ln ItemxCreate WO: Y Rework: Y Exact: Yx List Price Discount           Price x
+ 7 | xqqq qqqqmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x
+ 8 | x  1                            0.0              0.00      0.0            0.00 x
+ 9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+11 | xDesc:                          Sales Acct:                                    x
+12 | x Loc:           Site:           Disc Acct:                                    x
+13 | x       Cost:                    Confirmed: No    Credit Terms Int:            x
+14 | x Lot/Serial:                     Required:              Ship Type:            x
+15 | x Qty Allocated:                  Promised:          UM Conversion:            x
+16 | x    Qty Picked:                  Due Date:           Consume Fcst: No         x
+17 | x   Qty Shipped:              Perform Date:           Detail Alloc: No         x
+18 | xQty to Invoice:              Pricing Date:                Taxable: No         x
+19 | x Salesperson 1:                  Multiple: No        Freight List:            x
+20 | x  Commission 1:          Category:           Fixed Price: No   Comments: No   x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 | Category=Strat Hipo                                                             
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:27] Line 1: Create WO popup detected, confirming with F1...
+[2026-09-29 03:57:28] 
+================================================================================
+ 15_LINE1_AFTER_CREATE_WO (Cursor: row=8, col=6)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Sold-To: 20000900 Ln Format S/M: Single                x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x
+ 7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x
+ 8 | x  1                            0.0              0.00      0.0            0.00 x
+ 9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+11 | xDesc:                          Sales Acct:                                    x
+12 | x Loc:           Site: CB2       Disc Acct:                                    x
+13 | x   JPY Cost: 0.00               Confirmed: Yes   Credit Terms Int: 0.00       x
+14 | x Lot/Serial:                     Required: 09/30/26     Ship Type:            x
+15 | x Qty Allocated: 0.0              Promised: 10/02/26 UM Conversion: 1.0000     x
+16 | x    Qty Picked: 0.0              Due Date: 10/01/26  Consume Fcst: Yes        x
+17 | x   Qty Shipped: 0.0          Perform Date:           Detail Alloc: No         x
+18 | xQty to Invoice: 0.0          Pricing Date: 09/29/26       Taxable: Yes  10    x
+19 | x Salesperson 1: S53              Multiple: No        Freight List:            x
+20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:28] Line 1: Inputting Item Number 'BW0100D' + F1...
+[2026-09-29 03:57:29] 
+================================================================================
+ 16_LINE1_AFTER_ITEM_INPUT (Cursor: row=8, col=18)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Sold-To: 20000900 Ln Format S/M: Single                x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqlqqqqqqqqqqkqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | x Ln Item Numbex Site     x Ordered UM     List Price Discount           Price x
+ 7 | xqqq qqqqqqqqqqx qqqqqqqq xqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x
+ 8 | x  1 BW0100D   x CB2      x     0.0 M2           0.00      0.0            0.00 x
+ 9 | mqqqqqqqqqqqqqqmqqqqqqqqqqjqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+11 | xDesc: SemiCLOPP18/S692N/BG40W  Sales Acct:                                    x
+12 | x Loc:           Site: CB2       Disc Acct:                                    x
+13 | x   JPY Cost: 0.00               Confirmed: Yes   Credit Terms Int: 0.00       x
+14 | x Lot/Serial:                     Required: 09/30/26     Ship Type:            x
+15 | x Qty Allocated: 0.0              Promised: 10/02/26 UM Conversion: 1.0000     x
+16 | x    Qty Picked: 0.0              Due Date: 10/01/26  Consume Fcst: Yes        x
+17 | x   Qty Shipped: 0.0          Perform Date:           Detail Alloc: No         x
+18 | xQty to Invoice: 0.0          Pricing Date: 09/29/26       Taxable: Yes  10    x
+19 | x Salesperson 1: S53              Multiple: No        Freight List:            x
+20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear                              
+[2026-09-29 03:57:29] Line 1: Inputting Site CB2 + F1...
+[2026-09-29 03:57:30] 
+================================================================================
+ 17_LINE1_AFTER_SITE_INPUT (Cursor: row=24, col=79)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Sold-To: 20000900 Ln Format S/M: Single                x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqlqqqqqqqqqqkqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | x Ln Item Numbex Site     x Ordered UM     List Price Discount           Price x
+ 7 | xqqq qqqqqqqqqqx qqqqqqqq xqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x
+ 8 | x  1 BW0100D   x CB2      x     0.0 M2           0.00      0.0            0.00 x
+ 9 | mqqqqqqqqqqqqqqmqqqqqqqqqqjqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+11 | xDesc: SemiCLOPP18/S692N/BG40W  Sales Acct:                                    x
+12 | x Loc:           Site: CB2       Disc Acct:                                    x
+13 | x   JPY Cost: 0.00               Confirmed: Yes   Credit Terms Int: 0.00       x
+14 | x Lot/Serial:                     Required: 09/30/26     Ship Type:            x
+15 | x Qty Allocated: 0.0              Promised: 10/02/26 UM Conversion: 1.0000     x
+16 | x    Qty Picked: 0.0              Due Date: 10/01/26  Consume Fcst: Yes        x
+17 | x   Qty Shipped: 0.0          Perform Date:           Detail Alloc: No         x
+18 | xQty to Invoice: 0.0          Pricing Date: 09/29/26       Taxable: Yes  10    x
+19 | x Salesperson 1: S53              Multiple: No        Freight List:            x
+20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 | SemiCLOPP18/S692N/BG40W                                                         
+23 | On Hand: 72437.52000261  On Order: 152591.035  Avail. to Allocate:              
+24 | Press space bar to continue.                                                    
+[2026-09-29 03:57:30] Line 1: Skipping Qty Ordered UM with F1...
+[2026-09-29 03:57:31] 
+================================================================================
+ 18_LINE1_AFTER_QTY_ORDERED (Cursor: row=8, col=33)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Sold-To: 20000900 Ln Format S/M: Single                x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x
+ 7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x
+ 8 | x  1 BW0100D                    0.0 M2           0.00      0.0            0.00 x
+ 9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+11 | xDesc: SemiCLOPP18/S692N/BG40W  Sales Acct:                                    x
+12 | x Loc:           Site: CB2       Disc Acct:                                    x
+13 | x   JPY Cost: 0.00               Confirmed: Yes   Credit Terms Int: 0.00       x
+14 | x Lot/Serial:                     Required: 09/30/26     Ship Type:            x
+15 | x Qty Allocated: 0.0              Promised: 10/02/26 UM Conversion: 1.0000     x
+16 | x    Qty Picked: 0.0              Due Date: 10/01/26  Consume Fcst: Yes        x
+17 | x   Qty Shipped: 0.0          Perform Date:           Detail Alloc: No         x
+18 | xQty to Invoice: 0.0          Pricing Date: 09/29/26       Taxable: Yes  10    x
+19 | x Salesperson 1: S53              Multiple: No        Freight List:            x
+20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 | 73324.52000261                                                                  
+23 |                                                                                 
+24 | F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear                              
+[2026-09-29 03:57:31] Line 1 [SL 1]: Opening Len(m) prompt...
+[2026-09-29 03:57:33] 
+================================================================================
+ 19_LINE1_SL1_LEN_PROMPT (Cursor: row=13, col=16)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Sold-To: 20000900 Ln Format S/M: Single                x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x
+ 7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x
+ 8 | x  1 BW0100D                    0.0 M2           0.00      0.0            0.00 x
+ 9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+10 | lqqqqqqqqqqqItem Width(mm):1065 Exact:yes TOTAL QTY (M2) 0qqqqqqqqqqqk          
+11 | x SL Run     Len(m) Exact Cum Width(mm) Cum Tot Qty(M2)              x          
+12 | xqqq qqq qqqqqqqqqq qqqqq qqqqqqqqqqqqq qqqqqqqqqqqqqqq              x          
+13 | x  1   1       0.00 yes            0.00            0.00              x          
+14 | x                                                                    x          
+15 | x                                                                    x          
+16 | x                                                                    x          
+17 | x                                                                    x          
+18 | x                                                                    x          
+19 | x                                                                    x          
+20 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj          
+21 |                                                                                 
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:33] Line 1 [SL 1]: Inputting Length '600' + Enter...
+[2026-09-29 03:57:34] 
+================================================================================
+ 20_LINE1_SL1_ROLL_POPUP (Cursor: row=4, col=31)
+================================================================================
+ 1 | xxsosomt.p b+            99lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk     09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqxSer T    Rolls Width(mm) Tot Qty(M2)xqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Solxqqq q qqqqqqqq qqqqqqqqq qqqqqqqqqqqx              x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqx                                    xqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqx                                    xqqqqqqqqqqqqqqk
+ 6 | x Ln Item Number        Qtyx                                    x        Price x
+ 7 | xqqq qqqqqqqqqqqqqqqqqq qqqx                                    xqqqqqqqqqqqqq x
+ 8 | x  1 BW0100D               x                                    x         0.00 x
+ 9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjqqqqqqqqqqqqqqj
+10 | lqqqqqqqqqqqItem Width(mm):1065 Exact:yes TOTAL QTY (M2) 0qqqqqqqqqqqk          
+11 | x SL Run     Len(m) Exact Cum Width(mm) Cum Tot Qty(M2)              x          
+12 | xqqq qqq qqqqqqqqqq qqqqq qqqqqqqqqqqqq qqqqqqqqqqqqqqq              x          
+13 | x  1   1     600.00 yes            0.00            0.00              x          
+14 | x                                                                    x          
+15 | x                                                                    x          
+16 | x                                                                    x          
+17 | x                                                                    x          
+18 | x                                                                    x          
+19 | x                                                                    x          
+20 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj          
+21 |                                                                                 
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:34] Line 1 [SL 1 Roll 1]: Ser -> Enter, Rolls -> 1, Width -> 250
+[2026-09-29 03:57:36] 
+================================================================================
+ 21_LINE1_SL1_R1_DONE (Cursor: row=5, col=31)
+================================================================================
+ 1 | xxsosomt.p b+            99lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk     09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqxSer T    Rolls Width(mm) Tot Qty(M2)xqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Solxqqq q qqqqqqqq qqqqqqqqq qqqqqqqqqqqx              x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqx  1 C        1    250.00      150.00xqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqx                                    xqqqqqqqqqqqqqqk
+ 6 | x Ln Item Number        Qtyx                                    x        Price x
+ 7 | xqqq qqqqqqqqqqqqqqqqqq qqqx                                    xqqqqqqqqqqqqq x
+ 8 | x  1 BW0100D               x                                    x         0.00 x
+ 9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjqqqqqqqqqqqqqqj
+10 | lqqqqqqqqqqItem Width(mm):1065 Exact:yes TOTAL QTY (M2) 150qqqqqqqqqqk          
+11 | x SL Run     Len(m) Exact Cum Width(mm) Cum Tot Qty(M2)              x          
+12 | xqqq qqq qqqqqqqqqq qqqqq qqqqqqqqqqqqq qqqqqqqqqqqqqqq              x          
+13 | x  1   1     600.00 yes          250.00          150.00              x          
+14 | x                                                                    x          
+15 | x                                                                    x          
+16 | x                                                                    x          
+17 | x                                                                    x          
+18 | x                                                                    x          
+19 | x                                                                    x          
+20 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj          
+21 |                                                                                 
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:36] Line 1 [SL 1]: Finishing rolls with F4...
+[2026-09-29 03:57:37] Line 1 [SL 1]: Confirm update (Rolls) with F1...
+[2026-09-29 03:57:38] 
+================================================================================
+ 22_LINE1_SL1_ROLLS_CONFIRMED (Cursor: row=14, col=4)
+================================================================================
+ 1 | xxsosomt.p b+            99lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk     09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqxSer T    Rolls Width(mm) Tot Qty(M2)xqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Solxqqq q qqqqqqqq qqqqqqqqq qqqqqqqqqqqx              x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqx  1 C        1    250.00      150.00xqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqx                                    xqqqqqqqqqqqqqqk
+ 6 | x Ln Item Number        Qtyx                                    x        Price x
+ 7 | xqqq qqqqqqqqqqqqqqqqqq qqqx                                    xqqqqqqqqqqqqq x
+ 8 | x  1 BW0100D               x                                    x         0.00 x
+ 9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjqqqqqqqqqqqqqqj
+10 | lqqqqqqqqqqItem Width(mm):1065 Exact:yes TOTAL QTY (M2) 150qqqqqqqqqqk          
+11 | x SL Run     Len(m) Exact Cum Width(mm) Cum Tot Qty(M2)              x          
+12 | xqqq qqq qqqqqqqqqq qqqqq qqqqqqqqqqqqq qqqqqqqqqqqqqqq              x          
+13 | x  1   1     600.00 yes          250.00          150.00              x          
+14 | x                                                                    x          
+15 | x                                                                    x          
+16 | x                                                                    x          
+17 | x                                                                    x          
+18 | x                                                                    x          
+19 | x                                                                    x          
+20 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj          
+21 |                                                                                 
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:38] Line 1: Finishing ALL SL with F4...
+[2026-09-29 03:57:39] Line 1: Confirm update (ALL SL) with F1...
+[2026-09-29 03:57:40] 
+================================================================================
+ 23_LINE1_AFTER_ALL_SL_CONFIRM (Cursor: row=6, col=27)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Sold-To: 20000900 Ln Format S/M: Single                x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqlqqqqqqqqqqqqqqqqqqqqqqqqqqqqkrder Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | x Ln ItemxOrig Order Qty: 150.0       x    List Price Discount           Price x
+ 7 | xqqq qqqqmqqqqqqqqqqqqqqqqqqqqqqqqqqqqjqqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x
+ 8 | x  1 BW0100D                  150.0 M2           0.00      0.0            0.00 x
+ 9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+10 |                                                                                 
+11 |                                                                                 
+12 |                                                                                 
+13 |                                                                                 
+14 |                                                                                 
+15 |                                                                                 
+16 |                                                                                 
+17 |                                                                                 
+18 |                                                                                 
+19 |                                                                                 
+20 |                                                                                 
+21 |                                                                                 
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Help 3=Ins 4=End 6=Menu 7=Rcl 8=Clr 11=Paste                            
+[2026-09-29 03:57:42] Line 1: Advancing past List Price with F1...
+[2026-09-29 03:57:42] 
+================================================================================
+ 24_LINE1_PRICE_PROMPT (Cursor: row=8, col=73)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Sold-To: 20000900 Ln Format S/M: Single                x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x
+ 7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x
+ 8 | x  1 BW0100D                  150.0 M2         130.00      0.0          130.00 x
+ 9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+11 | xDesc: SemiCLOPP18/S692N/BG40W  Sales Acct:                                    x
+12 | x Loc:           Site: CB2       Disc Acct:                                    x
+13 | x   JPY Cost: 54.5301            Confirmed: Yes   Credit Terms Int: 0.00       x
+14 | x Lot/Serial:                     Required: 09/30/26     Ship Type:            x
+15 | x Qty Allocated: 0.0              Promised: 10/02/26 UM Conversion: 1.0000     x
+16 | x    Qty Picked: 0.0              Due Date: 10/01/26  Consume Fcst: Yes        x
+17 | x   Qty Shipped: 0.0          Perform Date:           Detail Alloc: No         x
+18 | xQty to Invoice: 0.0          Pricing Date: 09/29/26       Taxable: Yes  10    x
+19 | x Salesperson 1: S53              Multiple: No        Freight List:            x
+20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Help 3=Ins 4=End 6=Menu 7=Rcl 8=Clr 11=Paste                            
+[2026-09-29 03:57:42] Line 1: Inputting Price '130' + Enter -> F1...
+[2026-09-29 03:57:44] 
+================================================================================
+ 25_LINE1_AFTER_PRICE (Cursor: row=14, col=45)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Sold-To: 20000900 Ln Format S/M: Single                x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x
+ 7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x
+ 8 | x  1 BW0100D                  150.0 M2         130.00      0.0          130.00 x
+ 9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+11 | xDesc: SemiCLOPP18/S692N/BG40W  Sales Acct: 400000                             x
+12 | x Loc:           Site: CB2       Disc Acct: 403100                             x
+13 | x   JPY Cost: 54.lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkInt: 0.00       x
+14 | x Lot/Serial:    x               Tax Usage:                   xype:            x
+15 | x Qty Allocated: x         Tax Environment: 10%consumption    xion: 1.0000     x
+16 | x    Qty Picked: x               Tax Class: 10                xcst: Yes        x
+17 | x   Qty Shipped: x                 Taxable: Yes               xloc: No         x
+18 | xQty to Invoice: x                  Tax In: No                xble: Yes  10    x
+19 | x Salesperson 1: mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjist:            x
+20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Help 3=Ins 4=End 6=Menu 7=Rcl 8=Clr 11=Paste                            
+[2026-09-29 03:57:44] Line 1: Line Tax popup detected, confirming with F1...
+[2026-09-29 03:57:45] Line 1: Line Comments detected, skipping with F4...
+[2026-09-29 03:57:46] 
+================================================================================
+ 26_LINE1_AFTER_LINE_COMMENTS (Cursor: row=11, col=18)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Sold-To: 20000900 Ln Format S/M: Single                x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x
+ 7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x
+ 8 | x  1 BW0100D                  150.0 M2         130.00      0.0          130.00 x
+ 9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+10 | lqqqqqqReason Codeqqqqqqqk                                                      
+11 | x    List Price:         x                                                      
+12 | x  Request Date:         x                                                      
+13 | x  Promise Date:         x                                                      
+14 | mqqqqqqqqqqqqqqqqqqqqqqqqj                                                      
+15 |                                                                                 
+16 |                                                                                 
+17 |                                                                                 
+18 |                                                                                 
+19 |                                                                                 
+20 |                                                                                 
+21 |                                                                                 
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Help 3=Ins 4=End 6=Menu 7=Rcl 8=Clr 11=Paste                            
+[2026-09-29 03:57:46] Line 1: Reason Code popup detected! Inputting 70, 28, 28...
+[2026-09-29 03:57:48] 
+================================================================================
+ 27_LINE1_AFTER_REASON_CODE (Cursor: row=6, col=22)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Sales Order: SO199401 Sold-To: 20000900 Ln Format S/M: Single                x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqlqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkr Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | x Ln ItemxCreate WO: Y Rework: Y Exact: Yx List Price Discount           Price x
+ 7 | xqqq qqqqmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x
+ 8 | x  2                            0.0              0.00      0.0            0.00 x
+ 9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+11 | xDesc: SemiCLOPP18/S692N/BG40W  Sales Acct: 400000                             x
+12 | x Loc:           Site: CB2       Disc Acct: 403100                             x
+13 | x   JPY Cost: 54.5301            Confirmed: Yes   Credit Terms Int: 0.00       x
+14 | x Lot/Serial:                     Required: 09/30/26     Ship Type:            x
+15 | x Qty Allocated: 0.0              Promised: 10/02/26 UM Conversion: 1.0000     x
+16 | x    Qty Picked: 0.0              Due Date: 10/01/26  Consume Fcst: Yes        x
+17 | x   Qty Shipped: 0.0          Perform Date:           Detail Alloc: No         x
+18 | xQty to Invoice: 0.0          Pricing Date: 09/29/26       Taxable: Yes  10    x
+19 | x Salesperson 1: S53              Multiple: No        Freight List:            x
+20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 | Category=Strat Hipo                                                             
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:48] >>> Create WO popup detected on Line 2, dismissing with F1...
+[2026-09-29 03:57:49] Navigating to Step 6.3.0 Totals screen...
+[2026-09-29 03:57:49] >>> Sending F4 (stage 1)...
+[2026-09-29 03:57:50] >>> Sending F4 (stage 2)...
+[2026-09-29 03:57:51] >>> Sending F4 (stage 3)...
+[2026-09-29 03:57:52] >>> Reached Step 6.3.0 Totals screen successfully!
+[2026-09-29 03:57:52] 
+================================================================================
+ 28_STEP630_TOTALS_SCREEN (Cursor: row=7, col=44)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Order: SO199401  Sold-To: 20000900  Bill To: 20000900  Ship-To: 20000911     x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | xNon-Taxable: 0                 Currency: JPY     Line Total:           19,500 x
+ 7 | x    Taxable: 19,500                       0.00%    Discount:                0 x
+ 8 | x   Tax Date:                                  Service   10 :                0 x
+ 9 | x  Containers: 0                               Freight   20 :                0 x
+10 | xLine Charges: 0                               Special   30 :                0 x
+11 | x                                                  Total Tax:            1,950 x
+12 | x         View/Edit Tax Detail: No                     Total:           21,450 x
+13 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+14 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+15 | x   CR Initials:      Print Sales Order: Yes AR Acct: 120000                   x
+16 | x   Credit Card:        Print Pack List: Yes     Prepaid:                 0    x
+17 | x Action Status:         Print Inv Hist: Yes   FOB Point:                      x
+18 | x      Revision: 0         EDI Inv Hist: No     Ship Via:                      x
+19 | x    EDI PO Ack: No          Partial OK: No          BOL:                      x
+20 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+21 |                                                                                 
+22 | WARNING: Invalid freight terms #.                                               
+23 |                                                                                 
+24 | Enter data or press F4 to end.                                                  
+[2026-09-29 03:57:52] >>> Detected pattern for: Totals Screen
+[2026-09-29 03:57:52] Step 6.3.0: On Totals Screen. Sending F1 to advance to Frame 2+...
+[2026-09-29 03:57:53] 
+================================================================================
+ 29_STEP630_FRAME_2PLUS (Cursor: row=24, col=79)
+================================================================================
+ 1 | xxsosomt.p 2+            99.7.1.1 Sales Order Maintenance             09/29/26  
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Order: SO199401  Sold-To: 20000900  Bill To: 20000900  Ship-To: 20000911     x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | xNon-Taxable: 0                 Currency: JPY     Line Total:           19,500 x
+ 7 | x    Taxable: 19,500                       0.00%    Discount:                0 x
+ 8 | x   Tax Date:                                  Service   10 :                0 x
+ 9 | x  Containers: 0                               Freight   20 :                0 x
+10 | xLine Charges: 0                               Special   30 :                0 x
+11 | x                                                  Total Tax:            1,950 x
+12 | x         View/Edit Tax Detail: No                     Total:           21,450 x
+13 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+14 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+15 | x   CR Initials:      Print Sales Order: Yes AR Acct: 120000                   x
+16 | x   Credit Card:        Print Pack List: Yes     Prepaid:                 0    x
+17 | x Action Status:         Print Inv Hist: Yes   FOB Point:                      x
+18 | x      Revision: 0         EDI Inv Hist: No     Ship Via:                      x
+19 | x    EDI PO Ack: No          Partial OK: No          BOL:                      x
+20 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+21 |                                                                                 
+22 | Order on Hold:  Cust BL: 52422750  Ord Bl: 5599940  Cr Lmt: 61000000  Cr        
+23 | Tolerance: 0                                                                    
+24 | Press space bar to continue.                                                    
+[2026-09-29 03:57:53] Step 6.3.0: Sending F4 to commit and trigger hold/credit check...
+[2026-09-29 03:57:54] 
+================================================================================
+ 30_STEP630_AFTER_F4_COMMIT (Cursor: row=3, col=10)
+================================================================================
+ 1 |                                                                                 
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Order:           Sold-To:           Bill To:           Ship-To:              x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqq Sold-To qqqqqqqqqqqqqqqklqqqqqqqqqqqqqq Ship-To qqqqqqqqqqqqqqqk
+ 6 | x                                      xx                                      x
+ 7 | x                                      xx                                      x
+ 8 | x                                      xx                                      x
+ 9 | x                                      xx                                      x
+10 | x                                      xx                                      x
+11 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+12 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+13 | x    Order Date:          Line Pricing: No       Confirmed: No                 x
+14 | x Required Date:                Manual:           Currency:      Language:     x
+15 | x  Promise Date:                  Site:            Taxable: No                 x
+16 | x      Due Date:               Channel:                  Fixed Price: No       x
+17 | x  Perform Date:               Project:                 Credit Terms:          x
+18 | x  Pricing Date:                             Credit Terms Interest %:          x
+19 | xPurchase Order:                                             Reprice: No       x
+20 | x       Remarks:                                          Entered By:          x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                 
+[2026-09-29 03:57:54] Step 6.3.0: Sending final F4 to complete order and return to initial screen...
+[2026-09-29 03:57:56] 
+================================================================================
+ 32_STEP630_INITIAL_SCREEN (Cursor: row=20, col=51)
+================================================================================
+ 1 | lqqqqqqqqqqqqqqqqqqqqｴｲﾌﾞﾘｨ･ﾃﾞﾆｿﾝ･ｼﾞｬﾊﾟﾝ株式会社 : livejpdbqqqqqqqqqqqqqqqqqqqqk
+ 2 | xmfmenu                             Main Menu                          09/29/26x
+ 3 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 4 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 5 | x       DISTRIBUTION              MANUFACTURING               FINANCIAL        x
+ 6 | x  1. Items/Sites           13. Product Structures    25. General Ledger       x
+ 7 | x  2. Addresses/Taxes       14. Routings/Work Center  26. Multiple Currency    x
+ 8 | x  3. Inventory Control     15. Formula/Process       27. Accounts Receivable  x
+ 9 | x  4.                       16. Work Orders           28. Accounts Payable     x
+10 | x  5. Purchasing            17. Shop Floor Control    29.                      x
+11 | x  6.                       18. Repetitive            30. Cost Management      x
+12 | x  7. Sales Orders/Invoice  19.                       31. Cash Management      x
+13 | x  8.                       20.                       32. Fixed Assets         x
+14 | x  9.                       21.                       33.                      x
+15 | x 10.                       22. Forecast/Master Plan  34.                      x
+16 | x 11.                       23. Materials Rqmts Plan  35.                      x
+17 | x 12. Distribution Plan     24.                       36. Manager Functions    x
+18 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+19 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+20 | xPlease select a function.  F4 or blank to EXIT                                x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 |                                                                                 
+23 |                                                                                 
+24 | Press F2 for Help                                                               
+[2026-09-29 03:57:56] ================================================================================
+[2026-09-29 03:57:56] *** ORDER SO199401 CREATION & COMMIT FLOW COMPLETED SUCCESSFULLY! ***
+[2026-09-29 03:57:56] ================================================================================
+[2026-09-29 03:57:57] Querying database to verify commit...
+[2026-09-29 03:58:55] === DB VERIFICATION RESULT ===
+[2026-09-29 03:58:55] === SO_MSTR ===
+"SO199401" "20000900" "20000911" 09/29/2026 09/30/2026 10/01/2026 "test2" "" yes "10%consumption" 1703237
+=== CMT_DET ===
+0 "" "テスト用ですmail送付。郵送不要（タカラ●●）" "【請求書】Email送付。郵送不要（タカラ大阪）：タカラ大阪+ｶﾝｻｲﾀｶﾗ印刷" "【請求書】Email送付。郵送不要（タカラ東京）：タカラ東京+ﾀｶﾗ印刷" "*他営業所もメール送付（関東、名古屋、広島、京都、九州）SOﾄﾞｷｭﾒﾝﾄ参照" "" "BW0212C-2165*1000M を受注したら営業確認(INSP分を出荷+要連絡のため)" "【大阪向けに出荷の際】名鉄を使用。" "【CSメモ】" "・営業所ごとのSOコメントを確認してください。" "・複数注番がありPO欄に入らないときは省略せずにPO欄：34***** 他と記載し、　" "Item のLNコメントに追記する(納品書に印字される)" " ・協同工芸社の納品先工場名は似ているので要注意！" "【1FR-N02253】R07Y80350、R07Y80871 →　タカラ・カンサイタカラ向け　出荷不可" "" ""
+=== SOD_DET ===
+"SO199401" 1 "BW0100D" 150 "M2" 130 "CB2" ""
+

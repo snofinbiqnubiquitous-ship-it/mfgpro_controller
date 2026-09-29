@@ -1,0 +1,756 @@
+[2026-09-29 02:56:36] Connecting to SSH mfg03...
+[2026-09-29 02:56:39] Step 0: Logging in to QAD main menu...
+[2026-09-29 02:56:43] 
+================================================================================
+ 01_MAIN_MENU (Cursor: row=20, col=51)
+================================================================================
+[2026-09-29 02:56:43]  1 | lqqqqqqqqqqqqqqqqqqqq????ب???ƿݥ?qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:43]  2 | xmfmenu                             Main Menu                          09/29/26x                                                    
+[2026-09-29 02:56:43]  3 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:43]  4 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:43]  5 | x       DISTRIBUTION              MANUFACTURING               FINANCIAL        x                                                    
+[2026-09-29 02:56:43]  6 | x  1. Items/Sites           13. Product Structures    25. General Ledger       x                                                    
+[2026-09-29 02:56:43]  7 | x  2. Addresses/Taxes       14. Routings/Work Center  26. Multiple Currency    x                                                    
+[2026-09-29 02:56:43]  8 | x  3. Inventory Control     15. Formula/Process       27. Accounts Receivable  x                                                    
+[2026-09-29 02:56:43]  9 | x  4.                       16. Work Orders           28. Accounts Payable     x                                                    
+[2026-09-29 02:56:43] 10 | x  5. Purchasing            17. Shop Floor Control    29.                      x                                                    
+[2026-09-29 02:56:43] 11 | x  6.                       18. Repetitive            30. Cost Management      x                                                    
+[2026-09-29 02:56:43] 12 | x  7. Sales Orders/Invoice  19.                       31. Cash Management      x                                                    
+[2026-09-29 02:56:43] 13 | x  8.                       20.                       32. Fixed Assets         x                                                    
+[2026-09-29 02:56:43] 14 | x  9.                       21.                       33.                      x                                                    
+[2026-09-29 02:56:43] 15 | x 10.                       22. Forecast/Master Plan  34.                      x                                                    
+[2026-09-29 02:56:43] 16 | x 11.                       23. Materials Rqmts Plan  35.                      x                                                    
+[2026-09-29 02:56:43] 17 | x 12. Distribution Plan     24.                       36. Manager Functions    x                                                    
+[2026-09-29 02:56:43] 18 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:43] 19 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:43] 20 | xPlease select a function.  F4 or blank to EXIT                                x                                                    
+[2026-09-29 02:56:43] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:43] 22 |                                                                                                                                     
+[2026-09-29 02:56:43] 23 |                                                                                                                                     
+[2026-09-29 02:56:43] 24 | Press F2 for Help                                                                                                                   
+[2026-09-29 02:56:43] ================================================================================
+
+[2026-09-29 02:56:43] Step 1: Launching 99.7.1.1...
+[2026-09-29 02:56:44] 
+================================================================================
+ 02_STEP1_ORDER_PROMPT (Cursor: row=3, col=10)
+================================================================================
+[2026-09-29 02:56:44]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:56:44]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:44]  3 | x Order:           Sold-To:           Bill To:           Ship-To:              x                                                    
+[2026-09-29 02:56:44]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:44]  5 | lqqqqqqqqqqqqqq Sold-To qqqqqqqqqqqqqqqklqqqqqqqqqqqqqq Ship-To qqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:44]  6 | x                                      xx                                      x                                                    
+[2026-09-29 02:56:44]  7 | x                                      xx                                      x                                                    
+[2026-09-29 02:56:44]  8 | x                                      xx                                      x                                                    
+[2026-09-29 02:56:44]  9 | x                                      xx                                      x                                                    
+[2026-09-29 02:56:44] 10 | x                                      xx                                      x                                                    
+[2026-09-29 02:56:44] 11 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:44] 12 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:44] 13 | x    Order Date:          Line Pricing: No       Confirmed: No                 x                                                    
+[2026-09-29 02:56:44] 14 | x Required Date:                Manual:           Currency:      Language:     x                                                    
+[2026-09-29 02:56:44] 15 | x  Promise Date:                  Site:            Taxable: No                 x                                                    
+[2026-09-29 02:56:44] 16 | x      Due Date:               Channel:                  Fixed Price: No       x                                                    
+[2026-09-29 02:56:44] 17 | x  Perform Date:               Project:                 Credit Terms:          x                                                    
+[2026-09-29 02:56:44] 18 | x  Pricing Date:                             Credit Terms Interest %:          x                                                    
+[2026-09-29 02:56:44] 19 | xPurchase Order:                                             Reprice: No       x                                                    
+[2026-09-29 02:56:44] 20 | x       Remarks:                                          Entered By:          x                                                    
+[2026-09-29 02:56:44] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:44] 22 |                                                                                                                                     
+[2026-09-29 02:56:44] 23 |                                                                                                                                     
+[2026-09-29 02:56:44] 24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                                                                     
+[2026-09-29 02:56:44] ================================================================================
+
+[2026-09-29 02:56:44] Step 1: Pressing Enter to acquire auto-generated Order ID (ONCE ONLY)...
+[2026-09-29 02:56:45] *** NEW ORDER ID ACQUIRED: SO199397 ***
+[2026-09-29 02:56:45] 
+================================================================================
+ 03_STEP1_AFTER_AUTO_ORDER (Cursor: row=3, col=29)
+================================================================================
+[2026-09-29 02:56:45]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:56:45]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:45]  3 | x Order: SO199397  Sold-To:           Bill To:           Ship-To:              x                                                    
+[2026-09-29 02:56:45]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:45]  5 | lqqqqqqqqqqqqqq Sold-To qqqqqqqqqqqqqqqklqqqqqqqqqqqqqq Ship-To qqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:45]  6 | x                                      xx                                      x                                                    
+[2026-09-29 02:56:45]  7 | x                                      xx                                      x                                                    
+[2026-09-29 02:56:45]  8 | x                                      xx                                      x                                                    
+[2026-09-29 02:56:45]  9 | x                                      xx                                      x                                                    
+[2026-09-29 02:56:45] 10 | x                                      xx                                      x                                                    
+[2026-09-29 02:56:45] 11 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:45] 12 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:45] 13 | x    Order Date: 09/29/26 Line Pricing: Yes      Confirmed: Yes                x                                                    
+[2026-09-29 02:56:45] 14 | x Required Date:                Manual:           Currency:      Language:     x                                                    
+[2026-09-29 02:56:45] 15 | x  Promise Date:                  Site:            Taxable: No                 x                                                    
+[2026-09-29 02:56:45] 16 | x      Due Date: 09/29/26      Channel:                  Fixed Price: Yes      x                                                    
+[2026-09-29 02:56:45] 17 | x  Perform Date:               Project:                 Credit Terms:          x                                                    
+[2026-09-29 02:56:45] 18 | x  Pricing Date:                             Credit Terms Interest %: 0.00     x                                                    
+[2026-09-29 02:56:45] 19 | xPurchase Order:                                             Reprice: No       x                                                    
+[2026-09-29 02:56:45] 20 | x       Remarks:                                          Entered By: takehik  x                                                    
+[2026-09-29 02:56:45] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:45] 22 | Adding new record                                                                                                                   
+[2026-09-29 02:56:45] 23 |                                                                                                                                     
+[2026-09-29 02:56:45] 24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                                                                     
+[2026-09-29 02:56:45] ================================================================================
+
+[2026-09-29 02:56:45] Step 2: Entering Order Header for SO199397...
+[2026-09-29 02:56:46] >>> Category prompt after Sold-To, clearing with Space...
+[2026-09-29 02:56:50] 
+================================================================================
+ 04_STEP2_HEADER_INPUT_DONE (Cursor: row=13, col=41)
+================================================================================
+[2026-09-29 02:56:50]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:56:50]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:50]  3 | x Order: SO199397  Sold-To: 20000900  Bill To: 20000900  Ship-To: 20000911     x                                                    
+[2026-09-29 02:56:50]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:50]  5 | lqqqqqqqqqqqqqq Sold-To qqqqqqqqqqqqqqqklqqqqqqqqqqqqqq Ship-To qqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:50]  6 | x ??????????                           xx ??????ж???                           x                                                    
+[2026-09-29 02:56:50]  7 | x ?_?ސ쌧???l?s?                        xx ?????s???n?捂??6-36-12               x                                                    
+[2026-09-29 02:56:50]  8 | x ?P-4-13                              xx                                      x                                                    
+[2026-09-29 02:56:50]  9 | x ???l?s                    225-8522   xx ???n??                    179-0075   x                                                    
+[2026-09-29 02:56:50] 10 | x JAPAN                                xx JAPAN                                x                                                    
+[2026-09-29 02:56:50] 11 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:50] 12 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:50] 13 | x    Order Date: 09/29/26 Line Pricing: Yes      Confirmed: Yes                x                                                    
+[2026-09-29 02:56:50] 14 | x Required Date: 09/30/26       Manual:           Currency: JPY  Language:     x                                                    
+[2026-09-29 02:56:50] 15 | x  Promise Date:   /  /           Site: CB2        Taxable: Yes  10     /  /   x                                                    
+[2026-09-29 02:56:50] 16 | x      Due Date: 10/01/26      Channel:                  Fixed Price: Yes      x                                                    
+[2026-09-29 02:56:50] 17 | x  Perform Date:   /  /        Project:                 Credit Terms: J20115   x                                                    
+[2026-09-29 02:56:50] 18 | x  Pricing Date:   /  /                      Credit Terms Interest %: 0.00     x                                                    
+[2026-09-29 02:56:50] 19 | xPurchase Order: test2                                       Reprice: No       x                                                    
+[2026-09-29 02:56:50] 20 | x       Remarks: test2                                    Entered By: takehik  x                                                    
+[2026-09-29 02:56:50] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:50] 22 |                                                                                                                                     
+[2026-09-29 02:56:50] 23 |                                                                                                                                     
+[2026-09-29 02:56:50] 24 | F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear                                                                                  
+[2026-09-29 02:56:50] ================================================================================
+
+[2026-09-29 02:56:50] Step 2: Confirming Header with F1...
+[2026-09-29 02:56:51] 
+================================================================================
+ 05_STEP2_CONFIRMED (Cursor: row=9, col=43)
+================================================================================
+[2026-09-29 02:56:51]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:56:51]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:51]  3 | x Order: SO199397  Sold-To: 20000900  Bill To: 20000900  Ship-To: 20000911     x                                                    
+[2026-09-29 02:56:51]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:51]  5 | lqqqqqqqqqqqqqq Sold-To qqqqqqqqqqqqqqqklqqqqqqqqqqqqqq Ship-To qqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:51]  6 | x ??????????                           xx ??????ж???                           x                                                    
+[2026-09-29 02:56:51]  7 | x ?_?ސ쌧???l?s?                        xx ?????s???n?捂??6-36-12               x                                                    
+[2026-09-29 02:56:51]  8 | x ?P-4-13         lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                  x                                                    
+[2026-09-29 02:56:51]  9 | x ???l?s          x            Tax Usage:                   x       179-0075   x                                                    
+[2026-09-29 02:56:51] 10 | x JAPAN           x      Tax Environment: 10%consumption    x                  x                                                    
+[2026-09-29 02:56:51] 11 | mqqqqqqqqqqqqqqqqqx            Tax Class: 10                xqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:51] 12 | lqqqqqqqqqqqqqqqqqx              Taxable: Yes               xqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:51] 13 | x    Order Date: 0x               Tax In: No                xes                x                                                    
+[2026-09-29 02:56:51] 14 | x Required Date: 0mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjPY  Language:     x                                                    
+[2026-09-29 02:56:51] 15 | x  Promise Date:                  Site: CB2        Taxable: Yes  10            x                                                    
+[2026-09-29 02:56:51] 16 | x      Due Date: 10/01/26      Channel:                  Fixed Price: Yes      x                                                    
+[2026-09-29 02:56:51] 17 | x  Perform Date:               Project:                 Credit Terms: J20115   x                                                    
+[2026-09-29 02:56:51] 18 | x  Pricing Date:                             Credit Terms Interest %: 0.00     x                                                    
+[2026-09-29 02:56:51] 19 | xPurchase Order: test2                                       Reprice: No       x                                                    
+[2026-09-29 02:56:51] 20 | x       Remarks: test2                                    Entered By: takehik  x                                                    
+[2026-09-29 02:56:51] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:51] 22 |                                                                                                                                     
+[2026-09-29 02:56:51] 23 |                                                                                                                                     
+[2026-09-29 02:56:51] 24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                                                                     
+[2026-09-29 02:56:51] ================================================================================
+
+[2026-09-29 02:56:51] Step 3: Tax popup detected, confirming with F1...
+[2026-09-29 02:56:52] 
+================================================================================
+ 06_STEP3_AFTER_TAX (Cursor: row=13, col=18)
+================================================================================
+[2026-09-29 02:56:52]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:56:52]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:52]  3 | x Order: SO199397  Sold-To: 20000900  Bill To: 20000900  Ship-To: 20000911     x                                                    
+[2026-09-29 02:56:52]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:52]  5 | lqqqqqqqqqqqqqq Sold-To qqqqqqqqqqqqqqqklqqqqqqqqqqqqqq Ship-To qqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:52]  6 | x ??????????                           xx ??????ж???                           x                                                    
+[2026-09-29 02:56:52]  7 | x ?_?ސ쌧???l?s?                        xx ?????s???n?捂??6-36-12               x                                                    
+[2026-09-29 02:56:52]  8 | x ?P-4-13                              xx                                      x                                                    
+[2026-09-29 02:56:52]  9 | x ???l?s                    225-8522   xx ???n??                    179-0075   x                                                    
+[2026-09-29 02:56:52] 10 | x JAPAN                                xx JAPAN                                x                                                    
+[2026-09-29 02:56:52] 11 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:52] 12 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:52] 13 | x Salesperson 1: S53      Freight List:                   Consignment: No      x                                                    
+[2026-09-29 02:56:52] 14 | x      Multiple: No        Frt Min Wgt: 0            Consume Forecast: Yes     x                                                    
+[2026-09-29 02:56:52] 15 | x  Commission 1: 0.00%   Freight Terms:            Detail Allocations: No      x                                                    
+[2026-09-29 02:56:52] 16 | x                    Calculate Freight: Yes             Allocate Days: 0       x                                                    
+[2026-09-29 02:56:52] 17 | x                      Display Weights: Yes                  Comments: Yes     x                                                    
+[2026-09-29 02:56:52] 18 | x                                                       Import/Export: No      x                                                    
+[2026-09-29 02:56:52] 19 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:52] 20 |                                                                                                                                     
+[2026-09-29 02:56:52] 21 |                                                                                                                                     
+[2026-09-29 02:56:52] 22 |                                                                                                                                     
+[2026-09-29 02:56:52] 23 |                                                                                                                                     
+[2026-09-29 02:56:52] 24 | F1=Go 2=Help 3=Ins 4=End 6=Menu 7=Rcl 8=Clr 11=Paste                                                                                
+[2026-09-29 02:56:52] ================================================================================
+
+[2026-09-29 02:56:52] Step 4: Salesperson / Freight detected, confirming with F1...
+[2026-09-29 02:56:53] 
+================================================================================
+ 07_STEP4_AFTER_SALESPERSON (Cursor: row=4, col=21)
+================================================================================
+[2026-09-29 02:56:53]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:56:53]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqq Transaction Comments qqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:53]  3 | x             Page: 1                                                          x                                                    
+[2026-09-29 02:56:53]  4 | x Master Reference: 20000900                                   Language:       x                                                    
+[2026-09-29 02:56:53]  5 | x             Type:                                                Page: 1     x                                                    
+[2026-09-29 02:56:53]  6 | x ?y???????zEmail???t?B?X???s?v?i?^?J???????j                                  x                                                    
+[2026-09-29 02:56:53]  7 | x ?y???????zEmail???t?B?X???s?v?i?^?J?????j?F?^?J?????+?ݻ??????                x                                                    
+[2026-09-29 02:56:53]  8 | x ?y???????zEmail???t?B?X???s?v?i?^?J???????j?F?^?J??????+?????                x                                                    
+[2026-09-29 02:56:53]  9 | x *???c?Ə??????[?????t?i?֓??A???É??A?L???A???s?A??B?jSO?????ĎQ??                x                                                    
+[2026-09-29 02:56:53] 10 | x                                                                              x                                                    
+[2026-09-29 02:56:53] 11 | x ??BW0212C-2165*1000M ?????????c?Ɗm?F(INSP?????o??+?v?A???̂???)                x                                                    
+[2026-09-29 02:56:53] 12 | x ?y???????ɏo?ׂ̍ہz???S???g?p?B                                                   x                                                    
+[2026-09-29 02:56:53] 13 | x ?yCS?????z                                                                   x                                                    
+[2026-09-29 02:56:53] 14 | x ?E?c?Ə????Ƃ?SO?R?????g???m?F???Ă????????B                                    x                                                    
+[2026-09-29 02:56:53] 15 | x ?E???????Ԃ?????PO???ɓ???Ȃ??Ƃ??                                               x                                                    
+[2026-09-29 02:56:53] 16 | x Item ??LN?R?????g?ɒǋL????(?[?i???Ɉ?????)                                     x                                                    
+[2026-09-29 02:56:53] 17 | x  ?E?????H?|?Ђ̔[?i??H?ꖼ?͎??Ă???̂ŗv???ӁI                                          x                                                    
+[2026-09-29 02:56:53] 18 | x ?y1FR-N02253?zR07Y80350?AR07Y80871 ???@?^?J???E?J???T?C?^?J???????@?o?וs??   x                                                    
+[2026-09-29 02:56:53] 19 | x                                                                              x                                                    
+[2026-09-29 02:56:53] 20 | x                                                                              x                                                    
+[2026-09-29 02:56:53] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:53] 22 | Adding new record                                                                                                                   
+[2026-09-29 02:56:53] 23 |                                                                                                                                     
+[2026-09-29 02:56:53] 24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                                                                     
+[2026-09-29 02:56:53] ================================================================================
+
+[2026-09-29 02:56:53] Step 5: Transaction Comments detected, pressing F4 to advance to Line Items...
+[2026-09-29 02:56:54] 
+================================================================================
+ 08_STEP5_AFTER_COMMENTS (Cursor: row=8, col=4)
+================================================================================
+[2026-09-29 02:56:54]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:56:54]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:54]  3 | x Sales Order: SO199397 Sold-To: 20000900 Ln Format S/M: Single                x                                                    
+[2026-09-29 02:56:54]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:54]  5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:54]  6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x                                                    
+[2026-09-29 02:56:54]  7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:56:54]  8 | x  1                            0.0              0.00      0.0            0.00 x                                                    
+[2026-09-29 02:56:54]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:54] 10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:54] 11 | xDesc:                          Sales Acct:                                    x                                                    
+[2026-09-29 02:56:54] 12 | x Loc:           Site:           Disc Acct:                                    x                                                    
+[2026-09-29 02:56:54] 13 | x       Cost:                    Confirmed: No    Credit Terms Int:            x                                                    
+[2026-09-29 02:56:54] 14 | x Lot/Serial:                     Required:              Ship Type:            x                                                    
+[2026-09-29 02:56:54] 15 | x Qty Allocated:                  Promised:          UM Conversion:            x                                                    
+[2026-09-29 02:56:54] 16 | x    Qty Picked:                  Due Date:           Consume Fcst: No         x                                                    
+[2026-09-29 02:56:54] 17 | x   Qty Shipped:              Perform Date:           Detail Alloc: No         x                                                    
+[2026-09-29 02:56:54] 18 | xQty to Invoice:              Pricing Date:                Taxable: No         x                                                    
+[2026-09-29 02:56:54] 19 | x Salesperson 1:                  Multiple: No        Freight List:            x                                                    
+[2026-09-29 02:56:54] 20 | x  Commission 1:          Category:           Fixed Price: No   Comments: No   x                                                    
+[2026-09-29 02:56:54] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:54] 22 |                                                                                                                                     
+[2026-09-29 02:56:54] 23 |                                                                                                                                     
+[2026-09-29 02:56:54] 24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                                                                     
+[2026-09-29 02:56:54] ================================================================================
+
+[2026-09-29 02:56:54] Step 6.1.0: At Sales Order Line screen. Creating Ln 1 with Enter...
+[2026-09-29 02:56:55] 
+================================================================================
+ 09_STEP6_AFTER_LN_ENTER (Cursor: row=6, col=22)
+================================================================================
+[2026-09-29 02:56:55]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:56:55]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:55]  3 | x Sales Order: SO199397 Sold-To: 20000900 Ln Format S/M: Single                x                                                    
+[2026-09-29 02:56:55]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:55]  5 | lqqqqqqqqlqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkr Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:55]  6 | x Ln ItemxCreate WO: Y Rework: Y Exact: Yx List Price Discount           Price x                                                    
+[2026-09-29 02:56:55]  7 | xqqq qqqqmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:56:55]  8 | x  1                            0.0              0.00      0.0            0.00 x                                                    
+[2026-09-29 02:56:55]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:55] 10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:55] 11 | xDesc:                          Sales Acct:                                    x                                                    
+[2026-09-29 02:56:55] 12 | x Loc:           Site:           Disc Acct:                                    x                                                    
+[2026-09-29 02:56:55] 13 | x       Cost:                    Confirmed: No    Credit Terms Int:            x                                                    
+[2026-09-29 02:56:55] 14 | x Lot/Serial:                     Required:              Ship Type:            x                                                    
+[2026-09-29 02:56:55] 15 | x Qty Allocated:                  Promised:          UM Conversion:            x                                                    
+[2026-09-29 02:56:55] 16 | x    Qty Picked:                  Due Date:           Consume Fcst: No         x                                                    
+[2026-09-29 02:56:55] 17 | x   Qty Shipped:              Perform Date:           Detail Alloc: No         x                                                    
+[2026-09-29 02:56:55] 18 | xQty to Invoice:              Pricing Date:                Taxable: No         x                                                    
+[2026-09-29 02:56:55] 19 | x Salesperson 1:                  Multiple: No        Freight List:            x                                                    
+[2026-09-29 02:56:55] 20 | x  Commission 1:          Category:           Fixed Price: No   Comments: No   x                                                    
+[2026-09-29 02:56:55] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:55] 22 | Category=Strat Hipo                                                                                                                 
+[2026-09-29 02:56:55] 23 |                                                                                                                                     
+[2026-09-29 02:56:55] 24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                                                                     
+[2026-09-29 02:56:55] ================================================================================
+
+[2026-09-29 02:56:55] Step 6.1.1: Create WO popup detected, confirming with F1...
+[2026-09-29 02:56:56] 
+================================================================================
+ 10_STEP6_AFTER_CREATE_WO (Cursor: row=8, col=6)
+================================================================================
+[2026-09-29 02:56:56]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:56:56]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:56]  3 | x Sales Order: SO199397 Sold-To: 20000900 Ln Format S/M: Single                x                                                    
+[2026-09-29 02:56:56]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:56]  5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:56]  6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x                                                    
+[2026-09-29 02:56:56]  7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:56:56]  8 | x  1                            0.0              0.00      0.0            0.00 x                                                    
+[2026-09-29 02:56:56]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:56] 10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:56] 11 | xDesc:                          Sales Acct:                                    x                                                    
+[2026-09-29 02:56:56] 12 | x Loc:           Site: CB2       Disc Acct:                                    x                                                    
+[2026-09-29 02:56:56] 13 | x   JPY Cost: 0.00               Confirmed: Yes   Credit Terms Int: 0.00       x                                                    
+[2026-09-29 02:56:56] 14 | x Lot/Serial:                     Required: 09/30/26     Ship Type:            x                                                    
+[2026-09-29 02:56:56] 15 | x Qty Allocated: 0.0              Promised: 10/02/26 UM Conversion: 1.0000     x                                                    
+[2026-09-29 02:56:56] 16 | x    Qty Picked: 0.0              Due Date: 10/01/26  Consume Fcst: Yes        x                                                    
+[2026-09-29 02:56:56] 17 | x   Qty Shipped: 0.0          Perform Date:           Detail Alloc: No         x                                                    
+[2026-09-29 02:56:56] 18 | xQty to Invoice: 0.0          Pricing Date: 09/29/26       Taxable: Yes  10    x                                                    
+[2026-09-29 02:56:56] 19 | x Salesperson 1: S53              Multiple: No        Freight List:            x                                                    
+[2026-09-29 02:56:56] 20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x                                                    
+[2026-09-29 02:56:56] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:56] 22 |                                                                                                                                     
+[2026-09-29 02:56:56] 23 |                                                                                                                                     
+[2026-09-29 02:56:56] 24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                                                                     
+[2026-09-29 02:56:56] ================================================================================
+
+[2026-09-29 02:56:56] Step 6.1.3: Inputting Item Number BW0100D + F1...
+[2026-09-29 02:56:57] 
+================================================================================
+ 11_STEP6_AFTER_ITEM_INPUT (Cursor: row=8, col=18)
+================================================================================
+[2026-09-29 02:56:57]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:56:57]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:57]  3 | x Sales Order: SO199397 Sold-To: 20000900 Ln Format S/M: Single                x                                                    
+[2026-09-29 02:56:57]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:57]  5 | lqqqqqqqqqqqqqqlqqqqqqqqqqkqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:57]  6 | x Ln Item Numbex Site     x Ordered UM     List Price Discount           Price x                                                    
+[2026-09-29 02:56:57]  7 | xqqq qqqqqqqqqqx qqqqqqqq xqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:56:57]  8 | x  1 BW0100D   x CB2      x     0.0 M2           0.00      0.0            0.00 x                                                    
+[2026-09-29 02:56:57]  9 | mqqqqqqqqqqqqqqmqqqqqqqqqqjqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:57] 10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:57] 11 | xDesc: SemiCLOPP18/S692N/BG40W  Sales Acct:                                    x                                                    
+[2026-09-29 02:56:57] 12 | x Loc:           Site: CB2       Disc Acct:                                    x                                                    
+[2026-09-29 02:56:57] 13 | x   JPY Cost: 0.00               Confirmed: Yes   Credit Terms Int: 0.00       x                                                    
+[2026-09-29 02:56:57] 14 | x Lot/Serial:                     Required: 09/30/26     Ship Type:            x                                                    
+[2026-09-29 02:56:57] 15 | x Qty Allocated: 0.0              Promised: 10/02/26 UM Conversion: 1.0000     x                                                    
+[2026-09-29 02:56:57] 16 | x    Qty Picked: 0.0              Due Date: 10/01/26  Consume Fcst: Yes        x                                                    
+[2026-09-29 02:56:57] 17 | x   Qty Shipped: 0.0          Perform Date:           Detail Alloc: No         x                                                    
+[2026-09-29 02:56:57] 18 | xQty to Invoice: 0.0          Pricing Date: 09/29/26       Taxable: Yes  10    x                                                    
+[2026-09-29 02:56:57] 19 | x Salesperson 1: S53              Multiple: No        Freight List:            x                                                    
+[2026-09-29 02:56:57] 20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x                                                    
+[2026-09-29 02:56:57] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:57] 22 |                                                                                                                                     
+[2026-09-29 02:56:57] 23 |                                                                                                                                     
+[2026-09-29 02:56:57] 24 | F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear                                                                                  
+[2026-09-29 02:56:57] ================================================================================
+
+[2026-09-29 02:56:57] Step 6.1.3: Inputting Site CB2 + F1...
+[2026-09-29 02:56:58] 
+================================================================================
+ 12_STEP6_AFTER_SITE_INPUT (Cursor: row=24, col=79)
+================================================================================
+[2026-09-29 02:56:58]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:56:58]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:58]  3 | x Sales Order: SO199397 Sold-To: 20000900 Ln Format S/M: Single                x                                                    
+[2026-09-29 02:56:58]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:58]  5 | lqqqqqqqqqqqqqqlqqqqqqqqqqkqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:58]  6 | x Ln Item Numbex Site     x Ordered UM     List Price Discount           Price x                                                    
+[2026-09-29 02:56:58]  7 | xqqq qqqqqqqqqqx qqqqqqqq xqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:56:58]  8 | x  1 BW0100D   x CB2      x     0.0 M2           0.00      0.0            0.00 x                                                    
+[2026-09-29 02:56:58]  9 | mqqqqqqqqqqqqqqmqqqqqqqqqqjqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:58] 10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:58] 11 | xDesc: SemiCLOPP18/S692N/BG40W  Sales Acct:                                    x                                                    
+[2026-09-29 02:56:58] 12 | x Loc:           Site: CB2       Disc Acct:                                    x                                                    
+[2026-09-29 02:56:58] 13 | x   JPY Cost: 0.00               Confirmed: Yes   Credit Terms Int: 0.00       x                                                    
+[2026-09-29 02:56:58] 14 | x Lot/Serial:                     Required: 09/30/26     Ship Type:            x                                                    
+[2026-09-29 02:56:58] 15 | x Qty Allocated: 0.0              Promised: 10/02/26 UM Conversion: 1.0000     x                                                    
+[2026-09-29 02:56:58] 16 | x    Qty Picked: 0.0              Due Date: 10/01/26  Consume Fcst: Yes        x                                                    
+[2026-09-29 02:56:58] 17 | x   Qty Shipped: 0.0          Perform Date:           Detail Alloc: No         x                                                    
+[2026-09-29 02:56:58] 18 | xQty to Invoice: 0.0          Pricing Date: 09/29/26       Taxable: Yes  10    x                                                    
+[2026-09-29 02:56:58] 19 | x Salesperson 1: S53              Multiple: No        Freight List:            x                                                    
+[2026-09-29 02:56:58] 20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x                                                    
+[2026-09-29 02:56:58] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:58] 22 | SemiCLOPP18/S692N/BG40W                                                                                                             
+[2026-09-29 02:56:58] 23 | On Hand: 72437.52000261  On Order: 152591.035  Avail. to Allocate:                                                                  
+[2026-09-29 02:56:58] 24 | Press space bar to continue.                                                                                                        
+[2026-09-29 02:56:58] ================================================================================
+
+[2026-09-29 02:56:58] Step 6.1.4: Skipping Qty Ordered UM with F1...
+[2026-09-29 02:56:59] 
+================================================================================
+ 13_STEP6_AFTER_QTY_ORDERED (Cursor: row=8, col=33)
+================================================================================
+[2026-09-29 02:56:59]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:56:59]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:59]  3 | x Sales Order: SO199397 Sold-To: 20000900 Ln Format S/M: Single                x                                                    
+[2026-09-29 02:56:59]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:59]  5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:59]  6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x                                                    
+[2026-09-29 02:56:59]  7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:56:59]  8 | x  1 BW0100D                    0.0 M2           0.00      0.0            0.00 x                                                    
+[2026-09-29 02:56:59]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:59] 10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:56:59] 11 | xDesc: SemiCLOPP18/S692N/BG40W  Sales Acct:                                    x                                                    
+[2026-09-29 02:56:59] 12 | x Loc:           Site: CB2       Disc Acct:                                    x                                                    
+[2026-09-29 02:56:59] 13 | x   JPY Cost: 0.00               Confirmed: Yes   Credit Terms Int: 0.00       x                                                    
+[2026-09-29 02:56:59] 14 | x Lot/Serial:                     Required: 09/30/26     Ship Type:            x                                                    
+[2026-09-29 02:56:59] 15 | x Qty Allocated: 0.0              Promised: 10/02/26 UM Conversion: 1.0000     x                                                    
+[2026-09-29 02:56:59] 16 | x    Qty Picked: 0.0              Due Date: 10/01/26  Consume Fcst: Yes        x                                                    
+[2026-09-29 02:56:59] 17 | x   Qty Shipped: 0.0          Perform Date:           Detail Alloc: No         x                                                    
+[2026-09-29 02:56:59] 18 | xQty to Invoice: 0.0          Pricing Date: 09/29/26       Taxable: Yes  10    x                                                    
+[2026-09-29 02:56:59] 19 | x Salesperson 1: S53              Multiple: No        Freight List:            x                                                    
+[2026-09-29 02:56:59] 20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x                                                    
+[2026-09-29 02:56:59] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:56:59] 22 | 73324.52000261                                                                                                                      
+[2026-09-29 02:56:59] 23 |                                                                                                                                     
+[2026-09-29 02:56:59] 24 | F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear                                                                                  
+[2026-09-29 02:56:59] ================================================================================
+
+[2026-09-29 02:56:59] Step 6.1.4: SL Menu. Acquiring SL 1 with F1 -> Enter -> Enter...
+[2026-09-29 02:57:00] 
+================================================================================
+ 14_STEP6_LEN_PROMPT (Cursor: row=13, col=16)
+================================================================================
+[2026-09-29 02:57:00]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:57:00]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:00]  3 | x Sales Order: SO199397 Sold-To: 20000900 Ln Format S/M: Single                x                                                    
+[2026-09-29 02:57:00]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:00]  5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:00]  6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x                                                    
+[2026-09-29 02:57:00]  7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:57:00]  8 | x  1 BW0100D                    0.0 M2           0.00      0.0            0.00 x                                                    
+[2026-09-29 02:57:00]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:00] 10 | lqqqqqqqqqqqItem Width(mm):1065 Exact:yes TOTAL QTY (M2) 0qqqqqqqqqqqk                                                              
+[2026-09-29 02:57:00] 11 | x SL Run     Len(m) Exact Cum Width(mm) Cum Tot Qty(M2)              x                                                              
+[2026-09-29 02:57:00] 12 | xqqq qqq qqqqqqqqqq qqqqq qqqqqqqqqqqqq qqqqqqqqqqqqqqq              x                                                              
+[2026-09-29 02:57:00] 13 | x  1   1       0.00 yes            0.00            0.00              x                                                              
+[2026-09-29 02:57:00] 14 | x                                                                    x                                                              
+[2026-09-29 02:57:00] 15 | x                                                                    x                                                              
+[2026-09-29 02:57:00] 16 | x                                                                    x                                                              
+[2026-09-29 02:57:00] 17 | x                                                                    x                                                              
+[2026-09-29 02:57:00] 18 | x                                                                    x                                                              
+[2026-09-29 02:57:00] 19 | x                                                                    x                                                              
+[2026-09-29 02:57:00] 20 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                              
+[2026-09-29 02:57:00] 21 |                                                                                                                                     
+[2026-09-29 02:57:00] 22 |                                                                                                                                     
+[2026-09-29 02:57:00] 23 |                                                                                                                                     
+[2026-09-29 02:57:00] 24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                                                                     
+[2026-09-29 02:57:00] ================================================================================
+
+[2026-09-29 02:57:00] Step 6.2.0: Inputting Length: 600 + Enter...
+[2026-09-29 02:57:01] 
+================================================================================
+ 15_STEP6_ROLL_POPUP (Cursor: row=4, col=31)
+================================================================================
+[2026-09-29 02:57:01]  1 | xxsosomt.p b+            99lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk     09/29/26                                                      
+[2026-09-29 02:57:01]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqxSer T    Rolls Width(mm) Tot Qty(M2)xqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:01]  3 | x Sales Order: SO199397 Solxqqq q qqqqqqqq qqqqqqqqq qqqqqqqqqqqx              x                                                    
+[2026-09-29 02:57:01]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqx                                    xqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:01]  5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqx                                    xqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:01]  6 | x Ln Item Number        Qtyx                                    x        Price x                                                    
+[2026-09-29 02:57:01]  7 | xqqq qqqqqqqqqqqqqqqqqq qqqx                                    xqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:57:01]  8 | x  1 BW0100D               x                                    x         0.00 x                                                    
+[2026-09-29 02:57:01]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:01] 10 | lqqqqqqqqqqqItem Width(mm):1065 Exact:yes TOTAL QTY (M2) 0qqqqqqqqqqqk                                                              
+[2026-09-29 02:57:01] 11 | x SL Run     Len(m) Exact Cum Width(mm) Cum Tot Qty(M2)              x                                                              
+[2026-09-29 02:57:01] 12 | xqqq qqq qqqqqqqqqq qqqqq qqqqqqqqqqqqq qqqqqqqqqqqqqqq              x                                                              
+[2026-09-29 02:57:01] 13 | x  1   1     600.00 yes            0.00            0.00              x                                                              
+[2026-09-29 02:57:01] 14 | x                                                                    x                                                              
+[2026-09-29 02:57:01] 15 | x                                                                    x                                                              
+[2026-09-29 02:57:01] 16 | x                                                                    x                                                              
+[2026-09-29 02:57:01] 17 | x                                                                    x                                                              
+[2026-09-29 02:57:01] 18 | x                                                                    x                                                              
+[2026-09-29 02:57:01] 19 | x                                                                    x                                                              
+[2026-09-29 02:57:01] 20 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                              
+[2026-09-29 02:57:01] 21 |                                                                                                                                     
+[2026-09-29 02:57:01] 22 |                                                                                                                                     
+[2026-09-29 02:57:01] 23 |                                                                                                                                     
+[2026-09-29 02:57:01] 24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                                                                     
+[2026-09-29 02:57:01] ================================================================================
+
+[2026-09-29 02:57:01] Step 6.2.1: Ser -> Enter...
+[2026-09-29 02:57:02] Step 6.2.1: Rolls -> 1 + Enter...
+[2026-09-29 02:57:02] Step 6.2.1: Width -> 250 + Enter...
+[2026-09-29 02:57:03] 
+================================================================================
+ 16_STEP6_AFTER_WIDTH_INPUT (Cursor: row=5, col=31)
+================================================================================
+[2026-09-29 02:57:03]  1 | xxsosomt.p b+            99lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk     09/29/26                                                      
+[2026-09-29 02:57:03]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqxSer T    Rolls Width(mm) Tot Qty(M2)xqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:03]  3 | x Sales Order: SO199397 Solxqqq q qqqqqqqq qqqqqqqqq qqqqqqqqqqqx              x                                                    
+[2026-09-29 02:57:03]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqx  1 C        1    250.00      150.00xqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:03]  5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqx                                    xqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:03]  6 | x Ln Item Number        Qtyx                                    x        Price x                                                    
+[2026-09-29 02:57:03]  7 | xqqq qqqqqqqqqqqqqqqqqq qqqx                                    xqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:57:03]  8 | x  1 BW0100D               x                                    x         0.00 x                                                    
+[2026-09-29 02:57:03]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:03] 10 | lqqqqqqqqqqItem Width(mm):1065 Exact:yes TOTAL QTY (M2) 150qqqqqqqqqqk                                                              
+[2026-09-29 02:57:03] 11 | x SL Run     Len(m) Exact Cum Width(mm) Cum Tot Qty(M2)              x                                                              
+[2026-09-29 02:57:03] 12 | xqqq qqq qqqqqqqqqq qqqqq qqqqqqqqqqqqq qqqqqqqqqqqqqqq              x                                                              
+[2026-09-29 02:57:03] 13 | x  1   1     600.00 yes          250.00          150.00              x                                                              
+[2026-09-29 02:57:03] 14 | x                                                                    x                                                              
+[2026-09-29 02:57:03] 15 | x                                                                    x                                                              
+[2026-09-29 02:57:03] 16 | x                                                                    x                                                              
+[2026-09-29 02:57:03] 17 | x                                                                    x                                                              
+[2026-09-29 02:57:03] 18 | x                                                                    x                                                              
+[2026-09-29 02:57:03] 19 | x                                                                    x                                                              
+[2026-09-29 02:57:03] 20 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                              
+[2026-09-29 02:57:03] 21 |                                                                                                                                     
+[2026-09-29 02:57:03] 22 |                                                                                                                                     
+[2026-09-29 02:57:03] 23 |                                                                                                                                     
+[2026-09-29 02:57:03] 24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                                                                     
+[2026-09-29 02:57:03] ================================================================================
+
+[2026-09-29 02:57:03] Step 6.2.1: Finishing rolls with F4...
+[2026-09-29 02:57:04] Step 6.2.1: Confirm update (Rolls) with F1...
+[2026-09-29 02:57:05] 
+================================================================================
+ 17_STEP6_AFTER_ROLLS_CONFIRM (Cursor: row=14, col=4)
+================================================================================
+[2026-09-29 02:57:05]  1 | xxsosomt.p b+            99lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk     09/29/26                                                      
+[2026-09-29 02:57:05]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqxSer T    Rolls Width(mm) Tot Qty(M2)xqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:05]  3 | x Sales Order: SO199397 Solxqqq q qqqqqqqq qqqqqqqqq qqqqqqqqqqqx              x                                                    
+[2026-09-29 02:57:05]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqx  1 C        1    250.00      150.00xqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:05]  5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqx                                    xqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:05]  6 | x Ln Item Number        Qtyx                                    x        Price x                                                    
+[2026-09-29 02:57:05]  7 | xqqq qqqqqqqqqqqqqqqqqq qqqx                                    xqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:57:05]  8 | x  1 BW0100D               x                                    x         0.00 x                                                    
+[2026-09-29 02:57:05]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:05] 10 | lqqqqqqqqqqItem Width(mm):1065 Exact:yes TOTAL QTY (M2) 150qqqqqqqqqqk                                                              
+[2026-09-29 02:57:05] 11 | x SL Run     Len(m) Exact Cum Width(mm) Cum Tot Qty(M2)              x                                                              
+[2026-09-29 02:57:05] 12 | xqqq qqq qqqqqqqqqq qqqqq qqqqqqqqqqqqq qqqqqqqqqqqqqqq              x                                                              
+[2026-09-29 02:57:05] 13 | x  1   1     600.00 yes          250.00          150.00              x                                                              
+[2026-09-29 02:57:05] 14 | x                                                                    x                                                              
+[2026-09-29 02:57:05] 15 | x                                                                    x                                                              
+[2026-09-29 02:57:05] 16 | x                                                                    x                                                              
+[2026-09-29 02:57:05] 17 | x                                                                    x                                                              
+[2026-09-29 02:57:05] 18 | x                                                                    x                                                              
+[2026-09-29 02:57:05] 19 | x                                                                    x                                                              
+[2026-09-29 02:57:05] 20 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                              
+[2026-09-29 02:57:05] 21 |                                                                                                                                     
+[2026-09-29 02:57:05] 22 |                                                                                                                                     
+[2026-09-29 02:57:05] 23 |                                                                                                                                     
+[2026-09-29 02:57:05] 24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                                                                     
+[2026-09-29 02:57:05] ================================================================================
+
+[2026-09-29 02:57:05] Step 6.2.1: Finishing SL with F4...
+[2026-09-29 02:57:06] Step 6.2.1: Confirm update (SL) with F1...
+[2026-09-29 02:57:07] 
+================================================================================
+ 18_STEP6_AFTER_SL_CONFIRM (Cursor: row=6, col=27)
+================================================================================
+[2026-09-29 02:57:07]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:57:07]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:07]  3 | x Sales Order: SO199397 Sold-To: 20000900 Ln Format S/M: Single                x                                                    
+[2026-09-29 02:57:07]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:07]  5 | lqqqqqqqqlqqqqqqqqqqqqqqqqqqqqqqqqqqqqkrder Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:07]  6 | x Ln ItemxOrig Order Qty: 150.0       x    List Price Discount           Price x                                                    
+[2026-09-29 02:57:07]  7 | xqqq qqqqmqqqqqqqqqqqqqqqqqqqqqqqqqqqqjqqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:57:07]  8 | x  1 BW0100D                  150.0 M2           0.00      0.0            0.00 x                                                    
+[2026-09-29 02:57:07]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:07] 10 |                                                                                                                                     
+[2026-09-29 02:57:07] 11 |                                                                                                                                     
+[2026-09-29 02:57:07] 12 |                                                                                                                                     
+[2026-09-29 02:57:07] 13 |                                                                                                                                     
+[2026-09-29 02:57:07] 14 |                                                                                                                                     
+[2026-09-29 02:57:07] 15 |                                                                                                                                     
+[2026-09-29 02:57:07] 16 |                                                                                                                                     
+[2026-09-29 02:57:07] 17 |                                                                                                                                     
+[2026-09-29 02:57:07] 18 |                                                                                                                                     
+[2026-09-29 02:57:07] 19 |                                                                                                                                     
+[2026-09-29 02:57:07] 20 |                                                                                                                                     
+[2026-09-29 02:57:07] 21 |                                                                                                                                     
+[2026-09-29 02:57:07] 22 |                                                                                                                                     
+[2026-09-29 02:57:07] 23 |                                                                                                                                     
+[2026-09-29 02:57:07] 24 | F1=Go 2=Help 3=Ins 4=End 6=Menu 7=Rcl 8=Clr 11=Paste                                                                                
+[2026-09-29 02:57:07] ================================================================================
+
+[2026-09-29 02:57:07] Step 6.2.3: Skipping Orig Order Qty with F1...
+[2026-09-29 02:57:08] Step 6.2.3: Skipping Pricing Date popup with F1...
+[2026-09-29 02:57:09] Step 6.2.4: Advancing past List Price with F1...
+[2026-09-29 02:57:09] 
+================================================================================
+ 19_STEP6_PRICE_PROMPT (Cursor: row=8, col=73)
+================================================================================
+[2026-09-29 02:57:09]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:57:09]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:09]  3 | x Sales Order: SO199397 Sold-To: 20000900 Ln Format S/M: Single                x                                                    
+[2026-09-29 02:57:09]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:09]  5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:09]  6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x                                                    
+[2026-09-29 02:57:09]  7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:57:09]  8 | x  1 BW0100D                  150.0 M2         130.00      0.0          130.00 x                                                    
+[2026-09-29 02:57:09]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:09] 10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:09] 11 | xDesc: SemiCLOPP18/S692N/BG40W  Sales Acct:                                    x                                                    
+[2026-09-29 02:57:09] 12 | x Loc:           Site: CB2       Disc Acct:                                    x                                                    
+[2026-09-29 02:57:09] 13 | x   JPY Cost: 54.5301            Confirmed: Yes   Credit Terms Int: 0.00       x                                                    
+[2026-09-29 02:57:09] 14 | x Lot/Serial:                     Required: 09/30/26     Ship Type:            x                                                    
+[2026-09-29 02:57:09] 15 | x Qty Allocated: 0.0              Promised: 10/02/26 UM Conversion: 1.0000     x                                                    
+[2026-09-29 02:57:09] 16 | x    Qty Picked: 0.0              Due Date: 10/01/26  Consume Fcst: Yes        x                                                    
+[2026-09-29 02:57:09] 17 | x   Qty Shipped: 0.0          Perform Date:           Detail Alloc: No         x                                                    
+[2026-09-29 02:57:09] 18 | xQty to Invoice: 0.0          Pricing Date: 09/29/26       Taxable: Yes  10    x                                                    
+[2026-09-29 02:57:09] 19 | x Salesperson 1: S53              Multiple: No        Freight List:            x                                                    
+[2026-09-29 02:57:09] 20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x                                                    
+[2026-09-29 02:57:09] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:09] 22 |                                                                                                                                     
+[2026-09-29 02:57:09] 23 |                                                                                                                                     
+[2026-09-29 02:57:09] 24 | F1=Go 2=Help 3=Ins 4=End 6=Menu 7=Rcl 8=Clr 11=Paste                                                                                
+[2026-09-29 02:57:09] ================================================================================
+
+[2026-09-29 02:57:09] Step 6.2.4: Inputting Price 130 + Enter...
+[2026-09-29 02:57:10] Step 6.2.4: Sending F1 after Price...
+[2026-09-29 02:57:11] 
+================================================================================
+ 20_STEP6_AFTER_PRICE (Cursor: row=14, col=45)
+================================================================================
+[2026-09-29 02:57:11]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:57:11]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:11]  3 | x Sales Order: SO199397 Sold-To: 20000900 Ln Format S/M: Single                x                                                    
+[2026-09-29 02:57:11]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:11]  5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:11]  6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x                                                    
+[2026-09-29 02:57:11]  7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:57:11]  8 | x  1 BW0100D                  150.0 M2         130.00      0.0          130.00 x                                                    
+[2026-09-29 02:57:11]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:11] 10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:11] 11 | xDesc: SemiCLOPP18/S692N/BG40W  Sales Acct: 400000                             x                                                    
+[2026-09-29 02:57:11] 12 | x Loc:           Site: CB2       Disc Acct: 403100                             x                                                    
+[2026-09-29 02:57:11] 13 | x   JPY Cost: 54.lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkInt: 0.00       x                                                    
+[2026-09-29 02:57:11] 14 | x Lot/Serial:    x               Tax Usage:                   xype:            x                                                    
+[2026-09-29 02:57:11] 15 | x Qty Allocated: x         Tax Environment: 10%consumption    xion: 1.0000     x                                                    
+[2026-09-29 02:57:11] 16 | x    Qty Picked: x               Tax Class: 10                xcst: Yes        x                                                    
+[2026-09-29 02:57:11] 17 | x   Qty Shipped: x                 Taxable: Yes               xloc: No         x                                                    
+[2026-09-29 02:57:11] 18 | xQty to Invoice: x                  Tax In: No                xble: Yes  10    x                                                    
+[2026-09-29 02:57:11] 19 | x Salesperson 1: mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjist:            x                                                    
+[2026-09-29 02:57:11] 20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x                                                    
+[2026-09-29 02:57:11] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:11] 22 |                                                                                                                                     
+[2026-09-29 02:57:11] 23 |                                                                                                                                     
+[2026-09-29 02:57:11] 24 | F1=Go 2=Help 3=Ins 4=End 6=Menu 7=Rcl 8=Clr 11=Paste                                                                                
+[2026-09-29 02:57:11] ================================================================================
+
+[2026-09-29 02:57:11] Step 6.2.5: Line Tax popup detected, confirming with F1...
+[2026-09-29 02:57:12] Step 6.2.5: Line Comments detected, skipping with F4...
+[2026-09-29 02:57:13] 
+================================================================================
+ 21_STEP6_AFTER_LINE_COMMENTS (Cursor: row=11, col=18)
+================================================================================
+[2026-09-29 02:57:13]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:57:13]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:13]  3 | x Sales Order: SO199397 Sold-To: 20000900 Ln Format S/M: Single                x                                                    
+[2026-09-29 02:57:13]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:13]  5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:13]  6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x                                                    
+[2026-09-29 02:57:13]  7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:57:13]  8 | x  1 BW0100D                  150.0 M2         130.00      0.0          130.00 x                                                    
+[2026-09-29 02:57:13]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:13] 10 | lqqqqqqReason Codeqqqqqqqk                                                                                                          
+[2026-09-29 02:57:13] 11 | x    List Price:         x                                                                                                          
+[2026-09-29 02:57:13] 12 | x  Request Date:         x                                                                                                          
+[2026-09-29 02:57:13] 13 | x  Promise Date:         x                                                                                                          
+[2026-09-29 02:57:13] 14 | mqqqqqqqqqqqqqqqqqqqqqqqqj                                                                                                          
+[2026-09-29 02:57:13] 15 |                                                                                                                                     
+[2026-09-29 02:57:13] 16 |                                                                                                                                     
+[2026-09-29 02:57:13] 17 |                                                                                                                                     
+[2026-09-29 02:57:13] 18 |                                                                                                                                     
+[2026-09-29 02:57:13] 19 |                                                                                                                                     
+[2026-09-29 02:57:13] 20 |                                                                                                                                     
+[2026-09-29 02:57:13] 21 |                                                                                                                                     
+[2026-09-29 02:57:13] 22 |                                                                                                                                     
+[2026-09-29 02:57:13] 23 |                                                                                                                                     
+[2026-09-29 02:57:13] 24 | F1=Go 2=Help 3=Ins 4=End 6=Menu 7=Rcl 8=Clr 11=Paste                                                                                
+[2026-09-29 02:57:13] ================================================================================
+
+[2026-09-29 02:57:13] >>> Reason Code popup detected! Inputting 70, 28, 28...
+[2026-09-29 02:57:15] 
+================================================================================
+ 22_STEP6_AFTER_REASON_CODE (Cursor: row=6, col=22)
+================================================================================
+[2026-09-29 02:57:15]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:57:15]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:15]  3 | x Sales Order: SO199397 Sold-To: 20000900 Ln Format S/M: Single                x                                                    
+[2026-09-29 02:57:15]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:15]  5 | lqqqqqqqqlqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkr Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:15]  6 | x Ln ItemxCreate WO: Y Rework: Y Exact: Yx List Price Discount           Price x                                                    
+[2026-09-29 02:57:15]  7 | xqqq qqqqmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:57:15]  8 | x  2                            0.0              0.00      0.0            0.00 x                                                    
+[2026-09-29 02:57:15]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:15] 10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:15] 11 | xDesc: SemiCLOPP18/S692N/BG40W  Sales Acct: 400000                             x                                                    
+[2026-09-29 02:57:15] 12 | x Loc:           Site: CB2       Disc Acct: 403100                             x                                                    
+[2026-09-29 02:57:15] 13 | x   JPY Cost: 54.5301            Confirmed: Yes   Credit Terms Int: 0.00       x                                                    
+[2026-09-29 02:57:15] 14 | x Lot/Serial:                     Required: 09/30/26     Ship Type:            x                                                    
+[2026-09-29 02:57:15] 15 | x Qty Allocated: 0.0              Promised: 10/02/26 UM Conversion: 1.0000     x                                                    
+[2026-09-29 02:57:15] 16 | x    Qty Picked: 0.0              Due Date: 10/01/26  Consume Fcst: Yes        x                                                    
+[2026-09-29 02:57:15] 17 | x   Qty Shipped: 0.0          Perform Date:           Detail Alloc: No         x                                                    
+[2026-09-29 02:57:15] 18 | xQty to Invoice: 0.0          Pricing Date: 09/29/26       Taxable: Yes  10    x                                                    
+[2026-09-29 02:57:15] 19 | x Salesperson 1: S53              Multiple: No        Freight List:            x                                                    
+[2026-09-29 02:57:15] 20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x                                                    
+[2026-09-29 02:57:15] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:15] 22 | Category=Strat Hipo                                                                                                                 
+[2026-09-29 02:57:15] 23 |                                                                                                                                     
+[2026-09-29 02:57:15] 24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                                                                     
+[2026-09-29 02:57:15] ================================================================================
+
+[2026-09-29 02:57:15] Step 6.2.5: Reached Ln 2. Initiating 3-stage F4 exit to Totals screen...
+[2026-09-29 02:57:18] 
+================================================================================
+ 23_STEP630_TOTALS_SCREEN (Cursor: row=3, col=58)
+================================================================================
+[2026-09-29 02:57:18]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:57:18]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:18]  3 | x Sales Order: SO199397 Sold-To: 20000900 Ln Format S/M: Single                x                                                    
+[2026-09-29 02:57:18]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:18]  5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:18]  6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x                                                    
+[2026-09-29 02:57:18]  7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:57:18]  8 | x  2                            0.0              0.00      0.0            0.00 x                                                    
+[2026-09-29 02:57:18]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:18] 10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:18] 11 | xDesc:                          Sales Acct:                                    x                                                    
+[2026-09-29 02:57:18] 12 | x Loc:           Site: CB2       Disc Acct:                                    x                                                    
+[2026-09-29 02:57:18] 13 | x   JPY Cost: 0.00               Confirmed: Yes   Credit Terms Int: 0.00       x                                                    
+[2026-09-29 02:57:18] 14 | x Lot/Serial:                     Required: 09/30/26     Ship Type:            x                                                    
+[2026-09-29 02:57:18] 15 | x Qty Allocated: 0.0              Promised: 10/02/26 UM Conversion: 1.0000     x                                                    
+[2026-09-29 02:57:18] 16 | x    Qty Picked: 0.0              Due Date: 10/01/26  Consume Fcst: Yes        x                                                    
+[2026-09-29 02:57:18] 17 | x   Qty Shipped: 0.0          Perform Date:           Detail Alloc: No         x                                                    
+[2026-09-29 02:57:18] 18 | xQty to Invoice: 0.0          Pricing Date: 09/29/26       Taxable: Yes  10    x                                                    
+[2026-09-29 02:57:18] 19 | x Salesperson 1: S53              Multiple: No        Freight List:            x                                                    
+[2026-09-29 02:57:18] 20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x                                                    
+[2026-09-29 02:57:18] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:18] 22 |                                                                                                                                     
+[2026-09-29 02:57:18] 23 |                                                                                                                                     
+[2026-09-29 02:57:18] 24 | F1=Go 2=Help 3=Ins 4=End 6=Menu 7=Rcl 8=Clr 11=Paste                                                                                
+[2026-09-29 02:57:18] ================================================================================
+
+[2026-09-29 02:57:26] TIMEOUT waiting for: Totals Screen
+[2026-09-29 02:57:26] 
+================================================================================
+ TIMEOUT_Totals Screen (Cursor: row=3, col=58)
+================================================================================
+[2026-09-29 02:57:26]  1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/29/26                                                      
+[2026-09-29 02:57:26]  2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:26]  3 | x Sales Order: SO199397 Sold-To: 20000900 Ln Format S/M: Single                x                                                    
+[2026-09-29 02:57:26]  4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:26]  5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq Sales Order Line qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:26]  6 | x Ln Item Number        Qty Ordered UM     List Price Discount           Price x                                                    
+[2026-09-29 02:57:26]  7 | xqqq qqqqqqqqqqqqqqqqqq qqqqqqqqqqq qq qqqqqqqqqqqqqq qqqqqqqq qqqqqqqqqqqqqqq x                                                    
+[2026-09-29 02:57:26]  8 | x  2                            0.0              0.00      0.0            0.00 x                                                    
+[2026-09-29 02:57:26]  9 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:26] 10 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                                                    
+[2026-09-29 02:57:26] 11 | xDesc:                          Sales Acct:                                    x                                                    
+[2026-09-29 02:57:26] 12 | x Loc:           Site: CB2       Disc Acct:                                    x                                                    
+[2026-09-29 02:57:26] 13 | x   JPY Cost: 0.00               Confirmed: Yes   Credit Terms Int: 0.00       x                                                    
+[2026-09-29 02:57:26] 14 | x Lot/Serial:                     Required: 09/30/26     Ship Type:            x                                                    
+[2026-09-29 02:57:26] 15 | x Qty Allocated: 0.0              Promised: 10/02/26 UM Conversion: 1.0000     x                                                    
+[2026-09-29 02:57:26] 16 | x    Qty Picked: 0.0              Due Date: 10/01/26  Consume Fcst: Yes        x                                                    
+[2026-09-29 02:57:26] 17 | x   Qty Shipped: 0.0          Perform Date:           Detail Alloc: No         x                                                    
+[2026-09-29 02:57:26] 18 | xQty to Invoice: 0.0          Pricing Date: 09/29/26       Taxable: Yes  10    x                                                    
+[2026-09-29 02:57:26] 19 | x Salesperson 1: S53              Multiple: No        Freight List:            x                                                    
+[2026-09-29 02:57:26] 20 | x  Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  x                                                    
+[2026-09-29 02:57:26] 21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj                                                    
+[2026-09-29 02:57:26] 22 |                                                                                                                                     
+[2026-09-29 02:57:26] 23 |                                                                                                                                     
+[2026-09-29 02:57:26] 24 | F1=Go 2=Help 3=Ins 4=End 6=Menu 7=Rcl 8=Clr 11=Paste                                                                                
+[2026-09-29 02:57:26] ================================================================================
+
+[2026-09-29 02:57:26] ERROR: Did not reach Step 6.3.0 Totals screen!

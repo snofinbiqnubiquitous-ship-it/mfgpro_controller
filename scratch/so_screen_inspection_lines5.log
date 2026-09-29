@@ -1,0 +1,57 @@
+================================================================================
+ 01_LINE_ITEMS_SCREEN (Cursor: row=3, col=21)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/27/26
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqq Transaction Comments qqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x             Page: 1                                                          x
+ 4 | x Master Reference: 20019500                                   Language:       x
+ 5 | x             Type:                                                Page:       x
+ 6 | x �y�������z�X���s�v�i���v�������̂�Email���M�@������K�v�j                       x
+ 7 | x �y�[�i���z��߰ �� ���i�ɓY�t�B���{ �� �R�c����֓n���B(1�����܂Ƃ߂�Ұّ��M              x
+ 8 | x �y��̏��z�X���s�v�B���[���s�v�B                                                x
+ 9 | x �y��گďo�ׂ̏ꍇ �z�����ڂŏo��                   ߐ{�����s                            x
+10 | x �y�Z�ځz�Z�ډ� 800M�m��                                                        x
+11 | x �y�o�ׂ̍ہz���ؑ܂����ق�\�t�B���قɂ͒��Ԃ��L�ځB                      xqqqqqqqqqqqqqqqqqj
+12 | x 105x500x2-�������ԍ��FYPW284 /                                                x
+13 | x                                                                              x
+14 | x                                                                              x
+15 | x                                                                              x
+16 | x                                                                              x
+17 | x                                                                              x
+18 | x                                                                              x
+19 | x                                                                              x
+20 | x                                                                              x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 | 
+23 | 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf
+================================================================================
+
+================================================================================
+ 03_SAFE_EXIT (Cursor: row=7, col=44)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/27/26
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Order: SO199302  Sold-To: 20019500  Bill To: 20019500  Ship-To: 20019583     x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 6 | xNon-Taxable: 0                 Currency: JPY     Line Total:           33,600 x
+ 7 | x    Taxable: 33,600                       0.00%    Discount:                0 x
+ 8 | x   Tax Date:                                  Service   10 :                0 x
+ 9 | x  Containers: 0                               Freight   20 :                0 x
+10 | xLine Charges: 0                               Special   30 :                0 x
+11 | x                                                  Total Tax:            3,360 x
+12 | x         View/Edit Tax Detail: No                     Total:           36,960 x
+13 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+14 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+15 | x   CR Initials:      Print Sales Order: Yes AR Acct: 120000                   x
+16 | x   Credit Card:        Print Pack List: Yes     Prepaid:                 0    x
+17 | x Action Status:         Print Inv Hist: Yes   FOB Point:                      x
+18 | x      Revision: 0         EDI Inv Hist: No     Ship Via:                      x
+19 | x    EDI PO Ack: No          Partial OK: No          BOL:                      x
+20 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+21 | 
+22 | 
+23 | 
+24 | Enter data or press F4 to end.
+================================================================================

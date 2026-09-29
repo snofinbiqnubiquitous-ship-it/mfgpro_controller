@@ -1,0 +1,86 @@
+================================================================================
+ 01_AFTER_SHIP_TO_F1 (Cursor: row=13, col=18)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/27/26
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Order: SO199302  Sold-To: 20019500  Bill To: 20019500  Ship-To: 20019583     x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqq Sold-To qqqqqqqqqqqqqqqklqqqqqqqqqqqqqq Ship-To qqqqqqqqqqqqqqqk
+ 6 | x �ɓ���������ߊ������                   xx ��㼰 �ݸވ�����Ȗؑ�1                      x
+ 7 | x �����s��������{����`�n��             xx �Ȗ،��ߐ{�����s���1190-6               x
+ 8 | x 1-4�쑺 �s���Y���{����`�n��            xx ��O���Ə��i�Ȗؑ��H�ꕪ�j                  x
+ 9 | x ������                    103-8415   xx �ߐ{�����s                 329-2763   x
+10 | x JAPAN                                xx JAPAN                                x
+11 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+12 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+13 | x    Order Date: 09/26/26 Line Pricing: No       Confirmed: Yes  09/26/26      x
+14 | x Required Date: 10/09/26       Manual:           Currency: JPY  Language:     x
+15 | x  Promise Date:   /  /           Site: CB2        Taxable: Yes  10     /  /   x
+16 | x      Due Date: 10/07/26      Channel:                  Fixed Price: Yes      x
+17 | x  Perform Date:   /  /        Project:                 Credit Terms: J31131   x
+18 | x  Pricing Date: 09/26/26                    Credit Terms Interest %: 0.00     x
+19 | xPurchase Order: YPW284                                      Reprice: No       x
+20 | x       Remarks: 10/9 DC                                  Entered By: hirokok  x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 | 
+23 | 
+24 | F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear
+================================================================================
+
+================================================================================
+ 03_NEXT_STEP (Cursor: row=9, col=43)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/27/26
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Order: SO199302  Sold-To: 20019500  Bill To: 20019500  Ship-To: 20019583     x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqq Sold-To qqqqqqqqqqqqqqqklqqqqqqqqqqqqqq Ship-To qqqqqqqqqqqqqqqk
+ 6 | x �ɓ���������ߊ������                   xx ��㼰 �ݸވ�����Ȗؑ�1                      x
+ 7 | x �����s��������{����`�n��             xx �Ȗ،��ߐ{�����s���1190-6               x
+ 8 | x 1-4�쑺 �s���Y��� lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk                  x
+ 9 | x ������          x            Tax Usage:                   x       329-2763   x
+10 | x JAPAN           x      Tax Environment: 10%consumption    x                  x
+11 | mqqqqqqqqqqqqqqqqqx            Tax Class: 10                xqqqqqqqqqqqqqqqqqqj
+12 | lqqqqqqqqqqqqqqqqqx              Taxable: Yes               xqqqqqqqqqqqqqqqqqqk
+13 | x    Order Date: 0x               Tax In: No                xes  09/26/26      x
+14 | x Required Date: 1mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjPY  Language:     x
+15 | x  Promise Date:                  Site: CB2        Taxable: Yes  10            x
+16 | x      Due Date: 10/07/26      Channel:                  Fixed Price: Yes      x
+17 | x  Perform Date:               Project:                 Credit Terms: J31131   x
+18 | x  Pricing Date: 09/26/26                    Credit Terms Interest %: 0.00     x
+19 | xPurchase Order: YPW284                                      Reprice: No       x
+20 | x       Remarks: 10/9 DC                                  Entered By: hirokok  x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 | 
+23 | 
+24 | F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf
+================================================================================
+
+================================================================================
+ 05_SAFE_EXIT (Cursor: row=22, col=21)
+================================================================================
+ 1 | lqqqqqqqqqqqqqqqqqqqq����ب���ƿݥ�qqqqqqqqqqqqqqqqqqqqk
+ 2 | xmfmenu                             Main Menu                          09/27/26x
+ 3 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 4 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 5 | x       DISTRIBUTION              MANUFACTURING               FINANCIAL        x
+ 6 | x  1. Items/Sites           13. Product Structures    25. General Ledger       x
+ 7 | x  2. Addresses/Taxes       14. Routings/Work Center  26. Multiple Currency    x
+ 8 | x  3. Inventory Control     15. Formula/Process       27. Accounts Receivable  x
+ 9 | x  4.                       16. Work Orders           28. Accounts Payable     x
+10 | x  5. Purchasing            17. Shop Floor Control    29.                      x
+11 | x  6.                       18. Repetitive            30. Cost Management      x
+12 | x  7. Sales Orders/Invoice  19.                       31. Cash Management      x
+13 | x  8.                       20.                       32. Fixed Assets         x
+14 | x  9.                       21.                       33.                      x
+15 | x 10.                       22. Forecast/Master Plan  34.                      x
+16 | x 11.                       23. Materials Rqmts Plan  35.                      x
+17 | x 12. Distribution Plan     24.                       36. Manager Functions    x
+18 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+19 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+20 | xPlease select a function.  F4 or blank to EXIT                                x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 | Please confirm exit N
+23 | 
+24 | Press F2 for Help
+================================================================================

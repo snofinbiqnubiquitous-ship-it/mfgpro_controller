@@ -1,0 +1,57 @@
+================================================================================
+ 01_AFTER_TAX_F1 (Cursor: row=13, col=18)
+================================================================================
+ 1 | xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/27/26
+ 2 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 3 | x Order: SO199302  Sold-To: 20019500  Bill To: 20019500  Ship-To: 20019583     x
+ 4 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 5 | lqqqqqqqqqqqqqq Sold-To qqqqqqqqqqqqqqqklqqqqqqqqqqqqqq Ship-To qqqqqqqqqqqqqqqk
+ 6 | x �ɓ���������ߊ������                   xx ��㼰 �ݸވ�����Ȗؑ�1                      x
+ 7 | x �����s��������{����`�n��             xx �Ȗ،��ߐ{�����s���1190-6               x
+ 8 | x 1-4�쑺 �s���Y����{����`�n��          xx ��O���Ə��i�Ȗؑ��qqqqqk                  x
+ 9 | x ������                    103-8415   xx �ߐ{�����s                 329-2763   x
+10 | x JAPAN                                xx JAPAN                                x
+11 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqjmqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+12 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+13 | x Salesperson 1: S71      Freight List:                   Consignment: No      x
+14 | x      Multiple: No        Frt Min Wgt: 0            Consume Forecast: Yes     x
+15 | x  Commission 1: 0.00%   Freight Terms:            Detail Allocations: No      x
+16 | x                    Calculate Freight: No              Allocate Days: 0       x
+17 | x                      Display Weights: Yes                  Comments: Yes     x
+18 | x                                                       Import/Export: No      x
+19 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+20 | 
+21 | 
+22 | 
+23 | 
+24 | F1=Go 2=Help 3=Ins 4=End 6=Menu 7=Rcl 8=Clr 11=Paste
+================================================================================
+
+================================================================================
+ 03_SAFE_EXIT (Cursor: row=22, col=21)
+================================================================================
+ 1 | lqqqqqqqqqqqqqqqqqqqq����ب���ƿݥ�qqqqqqqqqqqqqqqqqqqqk
+ 2 | xmfmenu                             Main Menu                          09/27/26x
+ 3 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+ 4 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+ 5 | x       DISTRIBUTION              MANUFACTURING               FINANCIAL        x
+ 6 | x  1. Items/Sites           13. Product Structures    25. General Ledger       x
+ 7 | x  2. Addresses/Taxes       14. Routings/Work Center  26. Multiple Currency    x
+ 8 | x  3. Inventory Control     15. Formula/Process       27. Accounts Receivable  x
+ 9 | x  4.                       16. Work Orders           28. Accounts Payable     x
+10 | x  5. Purchasing            17. Shop Floor Control    29.                      x
+11 | x  6.                       18. Repetitive            30. Cost Management      x
+12 | x  7. Sales Orders/Invoice  19.                       31. Cash Management      x
+13 | x  8.                       20.                       32. Fixed Assets         x
+14 | x  9.                       21.                       33.                      x
+15 | x 10.                       22. Forecast/Master Plan  34.                      x
+16 | x 11.                       23. Materials Rqmts Plan  35.                      x
+17 | x 12. Distribution Plan     24.                       36. Manager Functions    x
+18 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+19 | lqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqk
+20 | xPlease select a function.  F4 or blank to EXIT                                x
+21 | mqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj
+22 | Please confirm exit N
+23 | 
+24 | Press F2 for Help
+================================================================================

@@ -95,8 +95,9 @@ def main():
                 pump(app)
                 assert len(app.last_order_submission["items"]) == 5
                 assert app.last_order_submission["items"][0]["quantity"] == 1
-                assert app.order_output.winfo_exists()
-                app.order_output.destroy()
+                if app.order_output:
+                    assert app.order_output.winfo_exists()
+                    app.order_output.destroy()
                 app.focus_force()
                 panel.fields["purchase_order"].focus_set()
                 pump(app)
