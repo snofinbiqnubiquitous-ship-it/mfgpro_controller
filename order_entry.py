@@ -1128,10 +1128,26 @@ def build_order_header_fields(payload):
     ]
 
 
+def is_space_prompt(clean_lower_text: str) -> bool:
+    """明示的な Space 要求プロンプト（Press space bar to continue 等）が存在するか判定する。
+    単なる 'category=' 等の文字列単体では Space 要求と判定しない。
+    """
+    if not clean_lower_text:
+        return False
+    return (
+        "press space" in clean_lower_text
+        or "space bar" in clean_lower_text
+        or "spacebar" in clean_lower_text
+        or "space to continue" in clean_lower_text
+    )
+
+
 class SalesOrderAutomationController:
     """QAD 99.7.1.1 (Sales Order Maintenance) の同期式・画面検知型自動入力コントローラ。
     画面のプロンプト・ポップアップ・表示変化を待機して、正確なタイミングでキーストロークを送信します。
     """
+
+    is_space_prompt = staticmethod(is_space_prompt)
 
     def __init__(self, session, get_screen_text, payload, status_callback=None, logger=None, sleep_func=time.sleep, default_timeout: float = 12.0):
         self.session = session
@@ -1196,10 +1212,13 @@ class SalesOrderAutomationController:
 
     def wait_for_screen(self, predicate, timeout: float = None, poll_interval: float = 0.05, desc: str = ""):
         """指定した条件 (predicate(clean_lower_text)) を満たすまで待機する。
-        途中、'Press space bar to continue' が出現した場合は自動で Space を送信して対処する。
+        途中、'Press space bar to continue' 等のアクティブな警告・プロンプトが出現した場合は
+        最優先で検知し、同一警告に対して重複送信しないよう制御しつつ Space を送信して対処する。
         """
         to = timeout if timeout is not None else self.default_timeout
         start_t = time.monotonic()
+        last_handled_warning_sig = None
+
         while time.monotonic() - start_t < to:
             if getattr(self.session, "stop_event", None) and self.session.stop_event.is_set():
                 raise InterruptedError("ターミナルセッションが切断・終了されました")
@@ -1209,15 +1228,31 @@ class SalesOrderAutomationController:
             raw_txt = self.get_screen_text()
             clean_txt = clean_screen_text(raw_txt).lower()
 
+            # B2: 背景ラベル検知よりも手前のアクティブな警告・Space要求プロンプト検知を最優先する
+            # B3: 単なる category= 文字列ではなく、明示的な入力要求プロンプトが伴う場合のみ Space 送信
+            if is_space_prompt(clean_txt):
+                # 警告行（警告理由・プロンプト文面）のシグネチャを抽出して背景描画揺れや時計更新による誤重複送信を抑止
+                warning_lines = [
+                    l.strip()
+                    for l in clean_txt.splitlines()
+                    if is_space_prompt(l) or any(k in l for k in ("warning", "order on hold", "hold:", "category="))
+                ]
+                warning_sig = tuple(warning_lines) if warning_lines else (clean_txt,)
+
+                # C3: Space送信後、警告が消えるまでの遅延中に同一警告要求へ Space を重複送信しない
+                # C4: 警告内容が変化した場合は新たな警告としてSpace送信
+                if warning_sig != last_handled_warning_sig:
+                    self.log(f"画面待機中 ({desc}): アクティブな警告/Space要求プロンプトを検知。Spaceキーを送信します。")
+                    self.send(" ")
+                    last_handled_warning_sig = warning_sig
+                self.sleep(poll_interval)
+                continue
+
+            # 警告プロンプトが画面から消去された場合はハンドラ履歴をリセット
+            last_handled_warning_sig = None
+
             if predicate(clean_txt):
                 return clean_txt
-
-            # 途中での「Press space bar to continue」および「Category=...」検知と自動 Space 送信
-            if "press space" in clean_txt or "space bar" in clean_txt or "category=" in clean_txt:
-                self.log(f"画面待機中 ({desc}): 'Press space' / 'Category=' プロンプトを検知。Spaceキーを送信します。")
-                self.send(" ")
-                self.sleep(0.4)
-                continue
 
             self.sleep(poll_interval)
 
@@ -1511,41 +1546,28 @@ class SalesOrderAutomationController:
         self.log("6.3.0: 最終合計画面の表示を確認しました")
         self._extract_order_id()
 
-        # ユーザー実機検証仕様: F1 x 2回 ＋ Space x 1回 で注文確定・完了
-        self.set_status("Step 6.3.0: 注文確定処理中 (F1 x 2回 + Space)...", "working")
+        # ユーザー実機検証仕様: F1 x 2回 (警告時は1回) ＋ 必要に応じて Space で注文確定・完了
+        self.set_status("Step 6.3.0: 注文確定処理中...", "working")
         self.log("6.3.0: 1回目の F1 送信 (下段フレームへ移動)")
         self.send(KEY_SEQUENCES["F1"])
         self.sleep(0.5)
 
-        self.log(f"6.3.0: 2回目の {ORDER_TOTALS_COMMIT_KEY} 送信 (注文データ確定・コミット)")
-        self.send(KEY_SEQUENCES[ORDER_TOTALS_COMMIT_KEY])
-        self.sleep(0.6)
-
-        # 与信警告・残高警告等 (Press space to continue) の解除
-        self.log("6.3.0: Space 送信 (与信警告・完了プロンプト解除)")
-        self.send(" ")
-        self.sleep(0.5)
-
-        # 念のため追加の Press space プロンプトがあればループで解除
-        for _ in range(3):
-            curr_txt = clean_screen_text(self.get_screen_text()).lower()
-            if "press space" in curr_txt or "space bar" in curr_txt:
-                self.log("6.3.0: 追加の与信警告検知。スペースキー送信")
-                self.send(" ")
-                self.sleep(0.4)
-            else:
-                break
-
-        # もし合計画面に残っている場合は F4 を送信して確実に初期画面へ抜ける
         curr_txt = clean_screen_text(self.get_screen_text()).lower()
-        if "line total:" in curr_txt or "total tax:" in curr_txt:
-            self.log("6.3.0: 合計画面残留検知。F4 を送信して初期画面へ復帰")
-            self.send(KEY_SEQUENCES["F4"])
+        is_completed = lambda txt: "mfmenu" in txt or "main menu" in txt or ("order:" in txt and "sales order maintenance" in txt and "line total:" not in txt)
+
+        # C1: Totals画面で1回目のF1送信直後に警告が出現した場合、2回目のF1を送信せず直ちにSpace送信へ分岐する
+        if is_space_prompt(curr_txt):
+            self.log("6.3.0: 1回目の F1 送信直後に警告/Space要求を検知。2回目 F1 をスキップします。")
+        elif not is_completed(curr_txt):
+            # C2: 2回目F1送信で警告が出ずにメインメニュー等へ復帰した場合、不要なSpaceを送らず即時正常終了とする
+            self.log(f"6.3.0: 2回目の {ORDER_TOTALS_COMMIT_KEY} 送信 (注文データ確定・コミット)")
+            self.send(KEY_SEQUENCES[ORDER_TOTALS_COMMIT_KEY])
             self.sleep(0.5)
 
-        # メインメニュー (mfmenu) または初期画面復帰確認
+        # メインメニュー (mfmenu) または初期画面復帰確認（警告があれば自動で Space 送信して解除）
+        # C2: 警告が出ずに完了画面へ復帰した場合は不要な Space を送らず即時正常終了
         self.wait_for_screen(
-            lambda txt: "mfmenu" in txt or "main menu" in txt or ("order:" in txt and "sales order maintenance" in txt and "line total:" not in txt),
+            is_completed,
             desc="受注完了・初期画面復帰"
         )
         self._extract_order_id()
@@ -1576,12 +1598,16 @@ class SalesOrderAutomationController:
             self.log("Step 1: Order番号自動採番 (空欄で F1 送信)")
             self.send(KEY_SEQUENCES["F1"])
             self.sleep(0.5)
-
-        # Step 2: Order ID が採番され、Sold-To 欄へ着地したことを確実に検知
-        self.wait_for_screen(
-            lambda txt: self._has_valid_order_id(txt) and "sold-to" in txt,
-            desc="Step 2: 受注ヘッダー画面 (Sold-To 入力待ち)"
-        )
+            # Step 2: Order ID が採番され、Sold-To 欄へ着地したことを確実に検知
+            self.wait_for_screen(
+                lambda txt: self._has_valid_order_id(txt) and "sold-to" in txt,
+                desc="Step 2: 受注ヘッダー画面 (Sold-To 入力待ち)"
+            )
+        elif not (self._has_valid_order_id(curr_txt) and "sold-to" in curr_txt):
+            self.wait_for_screen(
+                lambda txt: self._has_valid_order_id(txt) and "sold-to" in txt,
+                desc="Step 2: 受注ヘッダー画面 (Sold-To 入力待ち)"
+            )
         self._extract_order_id()
         self.set_status("Step 2: 受注ヘッダー項目入力中...", "working")
 
@@ -1592,18 +1618,12 @@ class SalesOrderAutomationController:
         self.log(f"Step 2: Sold-To '{c_code}' 送信")
         self.send(f"{c_code}\r")
 
-        # Sold-To 送信後、サーバーが顧客マスタをロードし警告やBill-Toを表示するのを待機（最大2.5秒ポーリング）
-        for _ in range(25):
-            self.sleep(0.1)
-            curr_txt = clean_screen_text(self.get_screen_text()).lower()
-            if "press space" in curr_txt or "space bar" in curr_txt or "category=" in curr_txt:
-                self.log("Step 2: Sold-To 送信後の警告検知 ('category=' / 'press space') -> Space 送信")
-                self.send(" ")
-                self.sleep(0.5)
-                break
-            if c_code in curr_txt and ("bill to" in curr_txt or "bill-to" in curr_txt):
-                break
-
+        # A2: Sold-To送信後、警告（Category= 等）があれば解除しつつ、Bill-To 画面への遷移を確実に待機
+        # 画面が変わらない場合、タイムアウト後に次の Bill-To を送信せず直ちに例外を送出して安全停止する
+        self.wait_for_screen(
+            lambda txt: "bill to" in txt or "bill-to" in txt,
+            desc="Step 2: Sold-To 送信後の Bill-To 遷移待機"
+        )
         self.sleep(0.5)
 
         # 2-2: Bill-To 順次送信 (Sold-Toと同値)
@@ -1613,28 +1633,20 @@ class SalesOrderAutomationController:
 
         # もし Bill-To 送信後にも警告が出た場合のフェイルセーフ
         curr_txt = clean_screen_text(self.get_screen_text()).lower()
-        if "press space" in curr_txt or "space bar" in curr_txt or "category=" in curr_txt:
+        if is_space_prompt(curr_txt):
             self.log("Step 2: Bill-To 送信後の警告検知 -> Space 送信")
             self.send(" ")
-            self.sleep(0.5)
+            self.wait_for_screen(lambda txt: not is_space_prompt(txt), desc="Step 2: Bill-To 警告解除待機")
 
         # 2-3: Ship-To 順次送信
         self.log(f"Step 2: Ship-To '{s_code}' 送信")
         self.send(f"{s_code}\r")
-        self.sleep(0.6)
-
-        # もし Ship-To 送信後に警告が出た場合のフェイルセーフ
-        curr_txt = clean_screen_text(self.get_screen_text()).lower()
-        if "press space" in curr_txt or "space bar" in curr_txt or "category=" in curr_txt:
-            self.log("Step 2: Ship-To 送信後の警告検知 -> Space 送信")
-            self.send(" ")
-            self.sleep(0.5)
+        self.sleep(0.5)
 
         # 2-4: Ship-To 入力後に Order Date 着地を同期待ち受け
-        # 画面上の警告プロンプト（Category= 等）が消え、Order Date 入力可能状態であることを確認
+        # 画面上の警告プロンプトがあれば wait_for_screen が自動検知・重複抑止しながら解除し、Order Date 着地を待機
         self.wait_for_screen(
-            lambda txt: ("order date" in txt or "order:" in txt or s_code in txt)
-                        and "press space" not in txt and "space bar" not in txt and "category=" not in txt,
+            lambda txt: "order date" in txt or "order:" in txt or (s_code.lower() in txt if s_code else False),
             desc="Step 2: Sold-To/Bill-To/Ship-To 確定および Order Date 着地待機"
         )
         self.sleep(0.5)
@@ -1659,17 +1671,7 @@ class SalesOrderAutomationController:
         self.send(KEY_SEQUENCES["F1"])
         self.sleep(0.6)
 
-        # ヘッダー確定後のスペース警告チェック (Category=... 等)
-        for _ in range(10):
-            post_f1_txt = clean_screen_text(self.get_screen_text()).lower()
-            if "press space" in post_f1_txt or "space bar" in post_f1_txt or "category=" in post_f1_txt:
-                self.log("Step 2: ヘッダー確定後の警告検知 -> Space 送信")
-                self.send(" ")
-                self.sleep(0.5)
-            else:
-                break
-
-        # Step 3: Tax Usage ポップアップ
+        # Step 3: Tax Usage ポップアップ または Salesperson画面（警告があれば wait_for_screen が自動解除）
         self.wait_for_screen(
             lambda txt: "tax usage:" in txt or "tax environment:" in txt or "salesperson 1:" in txt,
             desc="Step 3: Tax ポップアップ または Salesperson画面"
