@@ -905,7 +905,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
             idx = screen_idx[0]
             if idx == 0 and data == KEY_SEQUENCES["F1"]:
                 screen_idx[0] = 1
-            elif idx == 1 and data in (KEY_SEQUENCES.get("F8", "\x1b[19~"), "\x1b[19~"):
+            elif idx == 1 and data in (KEY_SEQUENCES.get("F8", "\x1b[19"), "\x1b[19", "\x1b[19~"):
                 screen_idx[0] = 2
             elif idx == 2 and data == KEY_SEQUENCES["F1"]:
                 screen_idx[0] = 3
@@ -936,7 +936,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
 
         # Step 5 実行
         controller.send(KEY_SEQUENCES["F1"])
-        controller.send(KEY_SEQUENCES.get("F8", "\x1b[19~"))
+        controller.send(KEY_SEQUENCES.get("F8", "\x1b[19"))
         for c_line in so_comm.splitlines():
             controller.send(f"{c_line}\r")
         controller.send(KEY_SEQUENCES["F1"])
@@ -945,7 +945,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
 
         # キーストローク検証
         self.assertIn(KEY_SEQUENCES["F1"], sent)
-        self.assertIn(KEY_SEQUENCES.get("F8", "\x1b[19~"), sent)  # 案C: Clearキー
+        self.assertIn(KEY_SEQUENCES.get("F8", "\x1b[19"), sent)  # 案C: Clearキー
         self.assertIn("テスト用です\r", sent)
         self.assertIn("パレット指定\r", sent)
         self.assertIn(KEY_SEQUENCES["F4"], sent)
@@ -1221,7 +1221,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
                     screen_idx[0] = 4
                 elif idx == 4 and txt == KEY_SEQUENCES["F1"]:
                     screen_idx[0] = 5
-                elif idx == 5 and txt in (KEY_SEQUENCES.get("F8", "\x1b[19~"), "\x1b[19~"):
+                elif idx == 5 and txt in (KEY_SEQUENCES.get("F8", "\x1b[19"), "\x1b[19", "\x1b[19~"):
                     screen_idx[0] = 6
                 elif idx == 6 and txt == KEY_SEQUENCES["F1"]:
                     screen_idx[0] = 7
@@ -1288,7 +1288,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
 
         # 3. Step 5 特記事項の入力検証
         self.assertIn("test\r", sent)
-        self.assertIn(KEY_SEQUENCES.get("F8", "\x1b[19~"), sent)
+        self.assertIn(KEY_SEQUENCES.get("F8", "\x1b[19"), sent)
 
         # 4. 最終的に Step 6.1.0 明細画面まで到達したこと
         self.assertEqual(screen_idx[0], 9)
