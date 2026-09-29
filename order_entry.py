@@ -1497,23 +1497,62 @@ class SalesOrderAutomationController:
             self.send(f"{price_val}")
             self.sleep(0.3)
             self.send(KEY_SEQUENCES["F1"])
-            self.sleep(0.5)
+            self.sleep(0.45)
 
-            # 6.2.5 Tax 画面スキップ (Tax ポップアップまたは Transaction Comments 待機)
+            # 6.2.4-Detail: 明細詳細枠 (Loc: / Sales Acct:) または後続画面の待機
+            # 実機では単価確定後に画面中下段の詳細枠 (Desc: / Loc: / Sales Acct: 等) が展開され、
+            # カーソルが Loc: に着地するため F1 送信でスキップ・確定する
             self.wait_for_screen(
-                lambda txt: "tax usage:" in txt or "tax environment:" in txt or "tax class:" in txt or "transaction comments" in txt or "master reference:" in txt or "reason code" in txt,
+                lambda txt: (("sales acct:" in txt and "disc acct:" in txt) or "jpy cost:" in txt or ("loc:" in txt and "sales acct:" in txt)) or
+                            "tax usage:" in txt or "tax environment:" in txt or "tax class:" in txt or
+                            "transaction comments" in txt or "master reference:" in txt or
+                            "reason code" in txt or "create wo:" in txt or "rework:" in txt,
+                desc="6.2.4 単価確定後 (詳細枠 Loc: または次画面待機)"
+            )
+            curr_txt = clean_screen_text(self.get_screen_text()).lower()
+            if ("sales acct:" in curr_txt and "disc acct:" in curr_txt) or "jpy cost:" in curr_txt or ("loc:" in curr_txt and "sales acct:" in curr_txt):
+                self.log("6.2.4: 明細詳細枠 (Loc: / Sales Acct:) 検知 -> F1 送信でスキップ")
+                self.send(KEY_SEQUENCES["F1"])
+                self.sleep(0.45)
+                # 詳細枠が閉じる（または次画面へ遷移する）のを待機
+                self.wait_for_screen(
+                    lambda txt: ("sales acct:" not in txt and "jpy cost:" not in txt) or
+                                "tax usage:" in txt or "tax environment:" in txt or "tax class:" in txt or
+                                "transaction comments" in txt or "master reference:" in txt or
+                                "reason code" in txt or "create wo:" in txt or "rework:" in txt,
+                    desc="6.2.4 詳細枠スキップ確定待ち"
+                )
+
+            # 6.2.5 Tax 画面スキップ (Tax ポップアップまたは後続画面待機)
+            self.wait_for_screen(
+                lambda txt: (
+                    ("tax usage:" in txt or "tax environment:" in txt or "tax class:" in txt)
+                    or "transaction comments" in txt
+                    or "master reference:" in txt
+                    or "reason code" in txt
+                    or "create wo:" in txt
+                    or "rework:" in txt
+                    or (("sales order line" in txt or "ln item number" in txt) and "sales acct:" not in txt and "jpy cost:" not in txt)
+                ),
                 desc="6.2.5 Tax ポップアップ または 次画面"
             )
             curr_txt = clean_screen_text(self.get_screen_text()).lower()
-            if "tax usage:" in curr_txt or "tax environment:" in curr_txt or "tax class:" in curr_txt:
+            if ("tax usage:" in curr_txt or "tax environment:" in curr_txt or "tax class:" in curr_txt) and "transaction comments" not in curr_txt:
                 self.log("6.2.5: F1 送信 (Tax スキップ)")
                 self.send(KEY_SEQUENCES["F1"])
                 self.sleep(0.45)
 
             # 6.2.5 Transaction Comments 画面スキップ (背景の誤検知を防ぎ確実にコメントまたは理由コードを待機)
             self.wait_for_screen(
-                lambda txt: "transaction comments" in txt or "master reference:" in txt or "reason code" in txt,
-                desc="6.2.5 Transaction Comments または Reason Code 画面"
+                lambda txt: (
+                    "transaction comments" in txt
+                    or "master reference:" in txt
+                    or "reason code" in txt
+                    or "create wo:" in txt
+                    or "rework:" in txt
+                    or (("sales order line" in txt or "ln item number" in txt) and "sales acct:" not in txt and "jpy cost:" not in txt)
+                ),
+                desc="6.2.5 Transaction Comments または 次画面"
             )
             curr_txt = clean_screen_text(self.get_screen_text()).lower()
             if "transaction comments" in curr_txt or "master reference:" in curr_txt:
@@ -1523,7 +1562,12 @@ class SalesOrderAutomationController:
 
             # 6.2.5-Rsn: Reason Code ポップアップまたは メイン明細画面 (Sales Order Line / Ln Item Number) の出現を待機
             self.wait_for_screen(
-                lambda txt: "reason code" in txt or (("sales order line" in txt or "ln item number" in txt) and "transaction comments" not in txt),
+                lambda txt: (
+                    "reason code" in txt
+                    or "create wo:" in txt
+                    or "rework:" in txt
+                    or (("sales order line" in txt or "ln item number" in txt) and "transaction comments" not in txt and "sales acct:" not in txt and "jpy cost:" not in txt)
+                ),
                 desc="6.2.5 Reason Code または Sales Order Line 復帰"
             )
             curr_txt = clean_screen_text(self.get_screen_text()).lower()
@@ -1541,7 +1585,7 @@ class SalesOrderAutomationController:
             # 6.1.0 メイン明細一覧 (Sales Order Line 空のLn) への復帰待機
             self.wait_for_screen(
                 lambda txt: ("sales order line" in txt or "ln item number" in txt or "create wo:" in txt or "rework:" in txt)
-                            and "transaction comments" not in txt and "reason code" not in txt,
+                            and "transaction comments" not in txt and "reason code" not in txt and "sales acct:" not in txt and "jpy cost:" not in txt,
                 desc="6.1.0 メイン明細一覧復帰"
             )
 

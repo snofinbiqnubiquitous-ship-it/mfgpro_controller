@@ -145,6 +145,7 @@ flowchart TD
 | **Step 6.1.4 完** | 全スリット完了 | SL一覧画面 | `\x1bOS` (`<F4>`) ➔ `Please confirm update` に `\r` (`yes`) | 全スリット確定。 |
 | **Step 6.2.3** | Pricing Date | `r"pricing date:"` | `\x1bOP` (`<F1>`) | スキップ。 |
 | **Step 6.2.4** | 単価入力 | `r"list price"` / `r"price"` | `\x1bOP` (List Priceスキップ) ➔ 単価 (`price`) + `\x1bOP` | 単価を入力して確定。 |
+| **Step 6.2.4-Detail** | 明細詳細枠スキップ | `r"sales acct:"` ＆ `r"loc:"` | `\x1bOP` (`<F1>`) | 実機では単価確定後、下部に詳細枠（`Desc: ... / Loc: ... Site: CB2 / Sales Acct: 400000 / JPY Cost:`）が展開されカーソルが `Loc:` 欄に着地するため、初期値のまま `<F1>` を送信してスキップ・確定。 |
 | **Step 6.2.5** | 税・コメント | `r"tax usage:"` ➔ `r"transaction comments"` | Tax: `\x1bOP` ➔ Comments: `\x1bOS` (`<F4>`) | 明細コメントは不要なため `<F4>` でスキップ。 |
 | **Step 6.2.5-Rsn** | 理由コード解決 | `r"reason code"` または `r"rsn"` | 定価差異: `70\r` / 納期差異: `28\r` ➔ `\x1bOP` | 定価や納期がマスターと異なる場合の必須対応。 |
 | **Step 6.3.0** | 最終コミット | `r"line total:"` / `r"total tax:"` | `\x1bOP` (`<F1>` 下段へ) ➔ `\x1bOP` (`<F1>` 確定) ➔ `" "` (Space 警告解除) ➔ 初期画面復帰 | 実機検証仕様: Totals画面の0.00%で `<F1>` を2回押し（下段移動➔確定）、Spaceで与信警告を解除して受注完了。 |
@@ -160,10 +161,15 @@ flowchart TD
 2. **Step 2: Order Date からの8項目一括貼り付けへの分離**:
    - `Sold-To`, `Bill-To`, `Ship-To` の3項目はサーバー側の住所展開・検証を待つため順次送信（各ステップ間に0.5〜0.6秒のウェイトを確保）。
    - 下段の `Order Date` にカーソルが着地したことを確認してから、Order Date 〜 Remarks までの全8項目（Pricing Date 空スキップ含む）を一括貼り付け送信することで、入力バッファの混信（`Bill To` に `test` 等が誤入力される問題）を完全に防止します。
-3. **Step 6: 複数製品（Line 2+）の Create WO 重複 Enter 防止**:
+3. **Step 6.1.3: Item Number 欄への Site "CB2" 誤爆防止（ハイブリッド・スマートウェイト）**:
+   - 画面最下部に固定表示されている `Loc: Site: CB2 Disc Acct: 403100` 行を Site ポップアップと誤認しないよう、`loc:` を含まない行のアクティブ Site ポップアップのみを確実に待機してから "CB2" を送信。
+4. **Step 6.2.4: 単価入力後の明細詳細枠（Loc: / Sales Acct:）着地とスキップ**:
+   - 単価確定の `<F1>` 送信直後、画面中下段に詳細枠（`Desc: ... / Loc: ... Site: CB2 / Sales Acct: 400000 / JPY Cost: ...`）が展開され、カーソルが `Loc:` 欄に着地します。
+   - これを待機せず直ちに `tax usage:` や `transaction comments` の出現を待つとタイムアウトするため、詳細枠（`sales acct:` ＆ `loc:` または `jpy cost:`）を検知した場合は初期値のまま `<F1>` を送信して安全に確定・スキップします。
+5. **Step 6: 複数製品（Line 2+）の Create WO 重複 Enter 防止**:
    - 1品目目の Reason Code 確定（F1）直後、QADサーバー側で自動的に Line 2 が採番され、画面にはすでに `Create WO: Y Rework: Y Exact: Y` が表示されています。
    - ここで不要な Enter を送るとフォーカスがずれてしまうため、画面に `create wo:` が既に出現している場合は Enter をスキップし直ちに `<F1>` を送ります。
-4. **Step 6.3.0: 最終合計画面（Totals）の F1×2回 + Space 確定フロー**:
+6. **Step 6.3.0: 最終合計画面（Totals）の F1×2回 + Space 確定フロー**:
    - 画面が `0.00%`（Totals 画面）に到達した時点で、`<F1>`（下段へ） ➔ `<F1>`（確定） ➔ `<Space>`（与信警告解除） を送信して正式コミットします。
    - メインメニュー（`mfmenu`）へ復帰すると画面上の Order ID 文字列が消去されるため、Totals 画面到達時点で `self.order_id` を確定抽出して保持・返却します。
 

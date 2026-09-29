@@ -2064,6 +2064,257 @@ class AutomationControllerExecutionTests(unittest.TestCase):
         self.assertEqual(screen_idx[0], len(screens) - 1)
         self.assertEqual(res_order_id, "SO199400")
 
+    def test_line_detail_frame_loc_skip_execution(self):
+        """
+        実機検証仕様: 単価確定後に下部詳細枠 (Loc: / Sales Acct: / JPY Cost:) が展開された場合、
+        F1 を送信して詳細枠をスキップし、Transaction Comments / Reason Code / 次行へ正常に進行すること
+        """
+        sent_data = []
+        screen_idx = [0]
+
+        # 実際のQAD画面 (Loc: 停止が起きた画面を含むシーケンス)
+        screens = [
+            # 0: 6.1.0 メインメニュー
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "│ Sales Order: SO199526 Sold-To: 20000600 Ln Format S/M: Single                │\n"
+            "│ Ln Item Number        Qty Ordered UM     List Price Discount           Price │\n"
+            "│ Loc:           Site: CB2       Disc Acct: 403100                             │\n"
+            "F1=Go 2=Hlp 3=Ins 4=End",
+
+            # 1: 6.1.1 Create WO ポップアップ
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "│ Ln Item│Create WO: Y Rework: Y Exact: Y│ List Price Discount           Price │\n"
+            "│ Loc:           Site: CB2       Disc Acct: 403100                             │\n"
+            "F1=Go 2=Hlp 3=Ins 4=End",
+
+            # 2: 6.1.3 Item Number 入力欄
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "│ Ln Item Number        Qty Ordered UM     List Price Discount           Price │\n"
+            "│  1                                                                           │\n"
+            "│ Loc:           Site: CB2       Disc Acct: 403100                             │\n"
+            "F1=Go 2=Help 3=Ins 4=End 5=Delete",
+
+            # 3: 6.1.3 Site ポップアップ出現
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "│ Ln Item Numbe│ Site     │ Ordered UM     List Price Discount           Price │\n"
+            "│─── ──────────│ ──────── │──────── ── ────────────── ──────── ─────────────── │\n"
+            "│  1 BW0100D   │ CB2      │                                                    │\n"
+            "│ Loc:           Site: CB2       Disc Acct: 403100                             │\n"
+            "F1=Go 2=Help 3=Ins 4=End",
+
+            # 4: 6.1.4 Qty Ordered UM 入力
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "│ Ln Item Number        Qty Ordered UM     List Price Discount           Price │\n"
+            "│  1 BW0100D                  120.0 M2                                         │\n"
+            "│ Loc:           Site: CB2       Disc Acct: 403100                             │\n"
+            "On Hand: 1000.0  Avail. to Allocate: 1000.0\n"
+            "F1=Go 2=Help 3=Ins 4=End",
+
+            # 5: 6.1.4 No1 スリット設定画面 (Item Width)
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "┌──────────Item Width(mm):1530 Exact:yes TOTAL QTY (M2) 120──────────┐\n"
+            "│ SL Run     Len(m) Exact Cum Width(mm) Cum Tot Qty(M2)              │\n"
+            "│─── ─── ────────── ───── ───────────── ───────────────              │\n"
+            "F1=Go 2=Help 3=Ins 4=End",
+
+            # 6: 6.2.0 Len(m) 入力欄
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "┌──────────Item Width(mm):1530 Exact:yes TOTAL QTY (M2) 120──────────┐\n"
+            "│ SL Run     Len(m) Exact Cum Width(mm) Cum Tot Qty(M2)              │\n"
+            "│  1   1                                                             │\n"
+            "F1=Go 2=Help 3=Ins 4=End",
+
+            # 7: 6.2.1 ロール明細ポップアップ
+            "┌────────────────────────────────────────────────────────┐\n"
+            "│  Ser T Rolls Width(mm)                                 │\n"
+            "│──── ─ ───── ─────────                                  │\n"
+            "│                                                        │\n"
+            "└────────────────────────────────────────────────────────┘\n"
+            "F1=Go 2=Help 3=Ins 4=End",
+
+            # 8: 6.2.1 ロール入力後の Please confirm update
+            "Please confirm update yes\n"
+            "F1=Go 2=Help 3=Ins 4=End",
+
+            # 9: 6.1.4 全SL完了前の SL一覧復帰画面
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "┌──────────Item Width(mm):1530 Exact:yes TOTAL QTY (M2) 120──────────┐\n"
+            "│ SL Run     Len(m) Exact Cum Width(mm) Cum Tot Qty(M2)              │\n"
+            "│─── ─── ────────── ───── ───────────── ───────────────              │\n"
+            "│  1   1      600.0   yes         200.0             120.0             │\n"
+            "F1=Go 2=Help 3=Ins 4=End",
+
+            # 10: 6.1.4 全スリット完了後の Please confirm update
+            "Please confirm update yes\n"
+            "F1=Go 2=Help 3=Ins 4=End",
+
+            # 11: 6.2.3 Pricing Date 画面
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "│ Sales Order: SO199526 Sold-To: 20000600 Ln Format S/M: Single                │\n"
+            "┌────────────────────────────── Sales Order Line ──────────────────────────────┐\n"
+            "│ Ln Item Number        Qty Ordered UM     List Price Discount           Price │\n"
+            "│  1 BW0100D                  120.0 M2                                         │\n"
+            "│                        ┌─────────────────────────────┐                       │\n"
+            "│                        │      Pricing Date: 09/30/26 │                       │\n"
+            "│                        └─────────────────────────────┘                       │\n"
+            "F1=Go 2=Help 3=Ins 4=End",
+
+            # 12: 6.2.4 List Price / Price 入力画面
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "│ Sales Order: SO199526 Sold-To: 20000600 Ln Format S/M: Single                │\n"
+            "│ Ln Item Number        Qty Ordered UM     List Price Discount           Price │\n"
+            "│  1 BW0100D                  120.0 M2          77.00      0.0            0.00 │\n"
+            "│ Loc:           Site: CB2       Disc Acct: 403100                             │\n"
+            "F1=Go 2=Help 3=Ins 4=End",
+
+            # 13: 6.2.4-Detail 【実機で停止した明細詳細枠】
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "│Sales Order: SO199526 Sold-To: 20000600 Ln Format S/M: Single                │\n"
+            "│Ln Item Number        Qty Ordered UM     List Price Discount           Price │\n"
+            "│─── ────────────────── ─────────── ── ────────────── ──────── ─────────────── │\n"
+            "│ 1 BW0100D                  120.0 M2          77.00  -159.74          200.00 │\n"
+            "┌──────────────────────────────────────────────────────────────────────────────┐\n"
+            "│Desc: SemiCLOPP18/S692N/BG40W  Sales Acct: 400000                             │\n"
+            "│Loc:           Site: CB2       Disc Acct: 403100                             │\n"
+            "│  JPY Cost: 54.5301            Confirmed: Yes   Credit Terms Int: 0.00       │\n"
+            "│Lot/Serial:                     Required: 10/01/26     Ship Type:            │\n"
+            "│Qty Allocated: 0.0              Promised: 10/01/26 UM Conversion: 1.0000     │\n"
+            "│   Qty Picked: 0.0              Due Date: 09/30/26  Consume Fcst: Yes        │\n"
+            "│  Qty Shipped: 0.0          Perform Date:   /  /    Detail Alloc: No         │\n"
+            "│Qty to Invoice: 0.0          Pricing Date: 09/30/26       Taxable: Yes  10    │\n"
+            "│Salesperson 1: S53              Multiple: No        Freight List:            │\n"
+            "│ Commission 1: 0.00%    Category:           Fixed Price: Yes  Comments: Yes  │\n"
+            "└──────────────────────────────────────────────────────────────────────────────┘\n"
+            "F1=Go 2=Help 3=Ins 4=End",
+
+            # 14: 6.2.5 Transaction Comments 画面
+            "┌──────────────────────────── Transaction Comments ────────────────────────────┐\n"
+            "│ Master Reference: BW0100D                                                    │\n"
+            "Adding new record\n"
+            "F1=Go 2=Hlp 3=Ins 4=End",
+
+            # 15: 6.2.5 Reason Code 画面 (定価差異・納期差異)
+            "┌─────────────────────────────── Reason Code ──────────────────────────────────┐\n"
+            "│ Reason Code:                                                                 │\n"
+            "└──────────────────────────────────────────────────────────────────────────────┘\n"
+            "F1=Go 2=Help 3=Ins 4=End",
+
+            # 16: 6.1.0 次行 Create WO 出現 (Line 2 へ)
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "│ Sales Order: SO199526 Sold-To: 20000600 Ln Format S/M: Single                │\n"
+            "│ Ln Item│Create WO: Y Rework: Y Exact: Y│ List Price Discount           Price │\n"
+            "│ Loc:           Site: CB2       Disc Acct: 403100                             │\n"
+            "F1=Go 2=Hlp 3=Ins 4=End",
+
+            # 17: Step 6.3.0 最終合計画面 (Totals)
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "│ Sales Order: SO199526 Sold-To: 20000600                                      │\n"
+            "│ Line Total: 24,000.00   Total Tax: 2,400.00   Trailer: 0.00                  │\n"
+            "│ Disc Pct: 0.00%                                                              │\n"
+            "Enter data or press F4 to end.\n"
+            "F1=Go 2=Help 3=Ins 4=End",
+
+            # 18: 受注完了・初期画面復帰
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "Order:          Sold-To:                                                       \n"
+            "F1=Go 2=Help 3=Ins 4=End",
+        ]
+
+        def get_screen():
+            return screens[screen_idx[0]]
+
+        f1_totals_count = [0]
+        f1_price_count = [0]
+
+        def custom_send(data):
+            sent_data.append(data)
+            idx = screen_idx[0]
+            advanced = False
+
+            if idx == 0 and data == "\r":
+                advanced = True
+            elif idx == 1 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 2 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 3 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 4 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 5 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 6 and data == "600\r":
+                advanced = True
+            elif idx == 7 and data == KEY_SEQUENCES["F4"]:
+                advanced = True
+            elif idx == 8 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 9 and data == KEY_SEQUENCES["F4"]:
+                # 全SL完了の F4 送信
+                advanced = True
+            elif idx == 10 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 11 and data == KEY_SEQUENCES["F1"]:
+                advanced = True
+            elif idx == 12 and data == KEY_SEQUENCES["F1"]:
+                f1_price_count[0] += 1
+                if f1_price_count[0] >= 2:
+                    # List Price スキップ + 単価確定 F1 で実機明細詳細枠 (idx 13) へ
+                    advanced = True
+            elif idx == 13 and data == KEY_SEQUENCES["F1"]:
+                # 【最重要】詳細枠 (Loc: / Sales Acct:) に対し F1 送信で Comments (idx 14) へ
+                advanced = True
+            elif idx == 14 and data == KEY_SEQUENCES["F4"]:
+                # Comments 画面で F4 送信して Reason Code (idx 15) へ
+                advanced = True
+            elif idx == 15 and data == KEY_SEQUENCES["F1"]:
+                # Reason Code 確定で次行 Create WO (idx 16) へ
+                advanced = True
+            elif idx == 16 and data in (KEY_SEQUENCES["F1"], KEY_SEQUENCES["F4"]):
+                # 6.3.0: 次行 Create WO 解除 (F1) または F4 脱出で Totals (idx 17) へ
+                advanced = True
+            elif idx == 17:
+                if data == KEY_SEQUENCES["F1"]:
+                    f1_totals_count[0] += 1
+                    if f1_totals_count[0] >= 2:
+                        advanced = True
+                elif data == " ":
+                    advanced = True
+                elif data == KEY_SEQUENCES["F4"]:
+                    advanced = True
+            elif idx == 18:
+                pass
+
+            if advanced and screen_idx[0] < len(screens) - 1:
+                screen_idx[0] += 1
+
+        class MockSession:
+            stop_event = MagicMock()
+            stop_event.is_set.return_value = False
+            def send(self, data):
+                custom_send(data)
+
+        payload = {
+            "items": [
+                {"product_name": "BW0100D", "width": "200", "length": "600", "quantity": 1, "price": "200"}
+            ]
+        }
+
+        controller = SalesOrderAutomationController(
+            session=MockSession(),
+            get_screen_text=get_screen,
+            payload=payload,
+            sleep_func=lambda s: None,
+            default_timeout=2.0,
+        )
+
+        res_order_id = controller.execute_step6()
+
+        # 詳細枠 (Loc:) のスキップ F1 が送信されたこと
+        self.assertIn("200", sent_data)
+        self.assertEqual(res_order_id, "SO199526")
+        self.assertEqual(screen_idx[0], len(screens) - 1)
+
 
 if __name__ == "__main__":
     unittest.main()
