@@ -45,7 +45,7 @@ Order欄が空の場合、F1で採番を要求する。受注番号とSold-Toの
 
 ### Step 2: ヘッダー
 
-Sold-Toへ顧客コードとEnterを送り、警告やBill-Toの表示をポーリングする。警告応答の後、Bill-Toへ顧客コード（Sold-Toと同値）、Ship-Toへ納品先コードを、それぞれEnter付きで送る。
+Sold-Toへ顧客コード（Enter付き）およびF1（Go）を送り、警告プロンプト（Press space bar to continue等）が出現した場合はSpaceで解除してBill-To欄をアクティブ化する。その後、Bill-Toへ顧客コード（Sold-Toと同値）、Ship-Toへ納品先コードを、それぞれEnter付きで送る。
 
 続く8項目は以下の順でCR結合して送信し、F1で次へ進む。結合末尾に追加のCRは付けない。
 

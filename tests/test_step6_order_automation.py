@@ -978,6 +978,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
 
         sent = []
 
+        f1_step2_count = [0]
         class MockSession:
             def send(self, data):
                 sent.append(data)
@@ -986,7 +987,9 @@ class AutomationControllerExecutionTests(unittest.TestCase):
                     if txt == " ":
                         screens[0] = screens[0].replace("Category=Strat Hipo  Press space bar to continue.", "")
                     elif txt == KEY_SEQUENCES["F1"]:
-                        screen_idx[0] = 1
+                        f1_step2_count[0] += 1
+                        if f1_step2_count[0] >= 2:
+                            screen_idx[0] = 1
                 elif txt == KEY_SEQUENCES["F1"]:
                     if screen_idx[0] > 0:
                         screen_idx[0] += 1
@@ -1196,6 +1199,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
 
         sent = []
 
+        f1_step2_count = [0]
         class MockSession:
             def send(self, data):
                 sent.append(data)
@@ -1207,7 +1211,9 @@ class AutomationControllerExecutionTests(unittest.TestCase):
                     if txt == " ":
                         screens[1] = screens[1].replace("Category=Strat Hipo  Press space bar to continue.", "")
                     elif txt == KEY_SEQUENCES["F1"]:
-                        screen_idx[0] = 2
+                        f1_step2_count[0] += 1
+                        if f1_step2_count[0] >= 2:
+                            screen_idx[0] = 2
                 elif idx == 2 and txt == KEY_SEQUENCES["F1"]:
                     screen_idx[0] = 3
                 elif idx == 3 and txt == KEY_SEQUENCES["F1"]:
@@ -1316,6 +1322,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
 
         sent = []
 
+        f1_step2_count = [0]
         class MockSession:
             def send(self, data):
                 sent.append(data)
@@ -1324,7 +1331,9 @@ class AutomationControllerExecutionTests(unittest.TestCase):
                     if txt == " ":
                         screens[0] = screens[0].replace("Category=Strat Hipo  Press space bar to continue.", "")
                     elif txt == KEY_SEQUENCES["F1"]:
-                        screen_idx[0] = 1
+                        f1_step2_count[0] += 1
+                        if f1_step2_count[0] >= 2:
+                            screen_idx[0] = 1
                 elif txt == KEY_SEQUENCES["F1"]:
                     if screen_idx[0] > 0:
                         screen_idx[0] += 1

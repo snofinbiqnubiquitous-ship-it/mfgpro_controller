@@ -5,7 +5,7 @@ scripts/verify_order.py --acceptance で明示的に実行する。
 
 import unittest
 from unittest.mock import patch
-from order_entry import SalesOrderAutomationController
+from order_entry import SalesOrderAutomationController, KEY_SEQUENCES
 from tests.order_replay import StrictReplay, ExpectedSend, step6_replay
 
 
@@ -35,7 +35,7 @@ class AcceptanceTests(unittest.TestCase):
 
     def test_missing_bill_to_transition_must_stop_before_next_field(self):
         replay = StrictReplay("Sales Order Maintenance\nOrder: SO123456 Sold-To:",
-                              [ExpectedSend("TESTCUSTOMER\r")])
+                              [ExpectedSend("TESTCUSTOMER\r"), ExpectedSend(KEY_SEQUENCES["F1"])])
         controller = SalesOrderAutomationController(
             replay, replay.get_screen_text,
             {"customer_code": "TESTCUSTOMER", "ship_to_code": "TESTDEST"},

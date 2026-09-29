@@ -1614,15 +1614,20 @@ class SalesOrderAutomationController:
         c_code = str(self.payload.get("customer_code", "")).strip()
         s_code = str(self.payload.get("ship_to_code", "")).strip()
 
-        # 2-1: Sold-To 順次送信
+        # 2-1: Sold-To 順次送信 ＋ F1 確定
         self.log(f"Step 2: Sold-To '{c_code}' 送信")
         self.send(f"{c_code}\r")
+        self.sleep(0.2)
 
-        # A2: Sold-To送信後、警告（Category= 等）があれば解除しつつ、Bill-To 画面への遷移を確実に待機
-        # 画面が変わらない場合、タイムアウト後に次の Bill-To を送信せず直ちに例外を送出して安全停止する
+        # 実機仕様: Sold-To 入力後に F1 送信でマスタ検証を実行し、警告プロンプト (Category=... Press space bar) を出させる
+        self.log("Step 2: Sold-To 確定のため F1 送信")
+        self.send(KEY_SEQUENCES["F1"])
+
+        # A2: Sold-To送信・F1確定後、警告（Category= 等）があれば wait_for_screen が自動解除しつつ、
+        # Bill-To 欄がアクティブになったことを確実に待機。画面が変わらない場合はタイムアウトで安全停止。
         self.wait_for_screen(
-            lambda txt: "bill to" in txt or "bill-to" in txt,
-            desc="Step 2: Sold-To 送信後の Bill-To 遷移待機"
+            lambda txt: ("bill to" in txt or "bill-to" in txt) and not is_space_prompt(txt),
+            desc="Step 2: Sold-To 送信・F1・警告解除後の Bill-To 遷移待機"
         )
         self.sleep(0.5)
 
@@ -3082,8 +3087,8 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         # Step 2
         tb.insert("end", " >> [STEP 2] 受注ヘッダー項目入力（Sold-To/Bill-To/Ship-To 個別入力 ＋ Order Date から一括貼り付け）\n", "term_step")
         tb.insert("end", "   2-1. Sold-To 順次入力: ", "term_label")
-        tb.insert("end", f"{c_code} + <Enter>\n", "term_key")
-        tb.insert("end", "        注意点  : 'Category=... Press space bar' 警告が出た場合は <Space> で続行\n", "term_comment")
+        tb.insert("end", f"{c_code} + <Enter> ➔ <F1>\n", "term_key")
+        tb.insert("end", "        注意点  : F1送信後に 'Category=... Press space bar' 警告が出た場合は <Space> で続行し Bill-To をアクティブ化\n", "term_comment")
         tb.insert("end", "   2-2. Bill-To 順次入力: ", "term_label")
         tb.insert("end", f"{c_code} + <Enter>\n", "term_key")
         tb.insert("end", "        コメント: Sold-To と同一の顧客コードを入力\n", "term_comment")

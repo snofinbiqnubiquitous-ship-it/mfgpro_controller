@@ -117,7 +117,7 @@ QAD（Progress 4GL）のキーマッピングは、社内環境の `protermcap`�
 
 ```mermaid
 flowchart TD
-    S1["STEP 1: 99.7.1.1 遷移 ＆ 空Enter/F1で最新Order ID自動採番"] --> S2["STEP 2: Sold-To/Bill-To/Ship-To 順次入力 ➔ Order Date着地 ➔ 8項目一括貼り付け ➔ F1"]
+    S1["STEP 1: 99.7.1.1 遷移 ＆ 空Enter/F1で最新Order ID自動採番"] --> S2["STEP 2: Sold-To ➔ F1 ➔ Space(警告解除) ➔ Bill-To/Ship-To ➔ Order Date着地 ➔ 8項目一括貼り付け ➔ F1"]
     S2 --> S3["STEP 3: Tax Usage ポップアップ検知 ➔ F1 スキップ"]
     S3 --> S4["STEP 4: Salesperson 画面検知 ➔ F1 スキップ"]
     S4 --> S5["STEP 5: Transaction Comments 検知 ➔ 案C: F1 ➔ F8(Clear)全消去 ➔ 本文入力 ➔ F1 ➔ F1 ➔ F4"]
@@ -131,7 +131,7 @@ flowchart TD
 | ステップ | 画面名 / 状態 | 待機文字列・検知条件 (正規表現) | 送信キー・データ | 留意事項・フェイルセーフ |
 | :--- | :--- | :--- | :--- | :--- |
 | **Step 1** | Order番号採番 | `r"order:"` を検知 | `\r` (空Enter) または `<F1>` | 空のままEnter/F1でサーバーがOrder ID（例: `SO199401`）を自動採番。 |
-| **Step 2** | ヘッダー項目入力 | カーソルが Sold-To (Row 3, Col 29) または `r"sold-to:"` | `Sold-To + \r` ➔ (警告時 `" "`) ➔ `Bill-To + \r` ➔ `Ship-To + \r` ➔ Order Date着地待機 ➔ Order Dateから8項目改行結合一括送信 ➔ `<F1>` | Sold-To/Bill-To/Ship-To を順次確定後、Order Date 着地を待ってから全8項目（OrderDate, ReqDate, Promise, DueDate, Perform, PricingDate, PO, Remarks）を一括送信。Pricing Date の空スキップ必須。送信後に `<F1>` で確定。`Category=... Press space bar` 検知時は `" "` (Space) 送信。 |
+| **Step 2** | ヘッダー項目入力 | カーソルが Sold-To (Row 3, Col 29) または `r"sold-to:"` | `Sold-To + \r` ➔ `<F1>` ➔ (警告時 `" "`) ➔ `Bill-To + \r` ➔ `Ship-To + \r` ➔ Order Date着地待機 ➔ Order Dateから8項目改行結合一括送信 ➔ `<F1>` | 実機仕様: Sold-To 入力後に F1 送信でマスタ検証を実行し、警告プロンプト (Category=... 等) が出た場合は Space 送信で解除して住所枠を展開・Bill-To 欄をアクティブ化。Bill-To/Ship-To 確定後、Order Date 着地を待ってから全8項目（OrderDate, ReqDate, Promise, DueDate, Perform, PricingDate, PO, Remarks）を一括送信。送信後に `<F1>` で確定。 |
 | **Step 3** | 税金設定 | `r"tax usage:"` または `r"tax environment:"` | `\x1bOP` (`<F1>`) | ポップアップを無変更でスキップ。 |
 | **Step 4** | 営業担当者 | `r"salesperson 1:"` または `r"freight list:"` | `\x1bOP` (`<F1>`) | 無変更でスキップ。 |
 | **Step 5** | 特記事項 (案C) | `r"transaction comments"` | **有**: `\x1bOP` ➔ `\x1b[19~` (`<F8>`) ➔ 本文行 + `\r` ➔ `\x1bOP` ➔ `\x1bOP` ➔ `\x1bOS` (`<F4>`)<br>**無**: `\x1bOS` (`<F4>`) | `<F8>` (Clear) で得意先マスタ引用の既定13行等を一括消去。確認プロンプト時は `y\r`。Quoteポップアップ確定後に `<F4>` で明細へ。 |
