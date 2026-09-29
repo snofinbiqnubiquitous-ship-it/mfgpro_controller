@@ -1321,7 +1321,7 @@ class SalesOrderAutomationController:
                 if "create wo:" not in curr_txt and "rework:" not in curr_txt:
                     self.log(f"6.1.0: Enter 送信 (Line {prod['line_no']} 自動採番)")
                     self.send("\r")
-                    self.sleep(0.3)
+                    self.sleep(0.5)
 
             # 6.1.1 Create WO ポップアップスキップ (出現時のみ F1 送信)
             # 【重要】静的ヘッダー "Ln Item Number" の "item number" に誤即時マッチしないよう判定を厳格化
@@ -1347,7 +1347,7 @@ class SalesOrderAutomationController:
             if "create wo:" in curr_txt or "rework:" in curr_txt:
                 self.log(f"6.1.1: F1 送信 (Line {prod['line_no']} Create WO ポップアップスキップ)")
                 self.send(KEY_SEQUENCES["F1"])
-                self.sleep(0.3)
+                self.sleep(0.5)
 
             # 6.1.3 Item Number 入力欄への着地待機
             # Create WO ポップアップが確実に閉じ、カーソルが Item Number 欄にあることを待機
@@ -1365,11 +1365,12 @@ class SalesOrderAutomationController:
                 _is_item_number_ready,
                 desc=f"6.1.3 Item Number 入力欄 (Line {prod['line_no']})"
             )
+            self.sleep(0.3)
             self.log(f"6.1.3: 品番 '{p_name}' + F1 送信")
             self.send(f"{p_name}")
-            self.sleep(0.2)
-            self.send(KEY_SEQUENCES["F1"])
             self.sleep(0.3)
+            self.send(KEY_SEQUENCES["F1"])
+            self.sleep(0.5)
 
             # 6.1.3 Site ポップアップ入力（ハイブリッド・スマートウェイト）
             # 【重要】画面下部の固定枠 "Loc: Site: CB2" に誤爆しないよう、
