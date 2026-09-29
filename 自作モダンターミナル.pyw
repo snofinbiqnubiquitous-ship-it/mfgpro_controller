@@ -1,5 +1,6 @@
 import base64
 import codecs
+import copy
 import csv
 import datetime
 import gzip
@@ -2721,7 +2722,7 @@ class TerminalApp(ctk.CTk):
             self._show_input_error("現在受注登録の自動入力が実行中です。完了までお待ちください。")
             return
 
-        target_payload = payload or self.last_order_submission
+        target_payload = copy.deepcopy(payload or self.last_order_submission)
         if not target_payload or not target_payload.get("items"):
             self._show_input_error("送信対象の注文データ（明細）がありません。サイドバーで注文を入力してください。")
             return
@@ -2730,11 +2731,14 @@ class TerminalApp(ctk.CTk):
         log_info("=== QAD 99.7.1.1 受注入力自動化を開始します ===")
         self.set_status("🚀 QAD 99.7.1.1 受注登録自動化を開始します...", "working")
 
+        # 判定する画面も送信先に固定し、タブ切替・GUI描画の遅延から独立させる。
+        screen_reader = active_session.get_screen_text
+
         def _worker():
             try:
                 controller = SalesOrderAutomationController(
                     session=active_session,
-                    get_screen_text=self._get_current_screen_text,
+                    get_screen_text=screen_reader,
                     payload=target_payload,
                     status_callback=lambda msg, st="working", cd=None: self.after(0, lambda: self.set_status(msg, st, cd)),
                     logger=log_info,
@@ -2742,7 +2746,7 @@ class TerminalApp(ctk.CTk):
                 self._current_order_controller = controller
 
                 # 画面状態判定: すでに Step 6 (Sales Order Line) にいる場合は Step 6 のみ実行
-                curr_txt = clean_screen_text(self._get_current_screen_text()).lower()
+                curr_txt = clean_screen_text(screen_reader()).lower()
                 if ("sales order line" in curr_txt or "ln item number" in curr_txt) and "transaction comments" not in curr_txt:
                     log_info("現在の画面が明細画面 (Step 6) であることを検出。Step 6以降を直接実行します。")
                     order_id = controller.execute_step6(target_payload.get("items", []))
@@ -2764,12 +2768,12 @@ class TerminalApp(ctk.CTk):
                 self.after(0, lambda: self.set_status("⚠️ 受注入力自動化が中断されました", "warning", clear_delay=5))
             except TimeoutError as te:
                 log_error(f"受注入力自動化タイムアウト: {te}")
-                self.after(0, lambda: self.set_status(f"❌ 画面待機タイムアウト: {te}", "error", clear_delay=8))
-                self.after(0, lambda: self._show_input_error(f"自動入力待機タイムアウト:\n{te}"))
+                self.after(0, lambda message=str(te): self.set_status(f"❌ 画面待機タイムアウト: {message}", "error", clear_delay=8))
+                self.after(0, lambda message=str(te): self._show_input_error(f"自動入力待機タイムアウト:\n{message}"))
             except Exception as ex:
                 log_error(f"受注入力自動化エラー: {ex}", exc_info=True)
-                self.after(0, lambda: self.set_status(f"❌ 自動入力エラー: {ex}", "error", clear_delay=8))
-                self.after(0, lambda: self._show_input_error(f"自動入力中にエラーが発生しました:\n{ex}"))
+                self.after(0, lambda message=str(ex): self.set_status(f"❌ 自動入力エラー: {message}", "error", clear_delay=8))
+                self.after(0, lambda message=str(ex): self._show_input_error(f"自動入力中にエラーが発生しました:\n{message}"))
             finally:
                 self._is_running_order_automation = False
                 self._current_order_controller = None

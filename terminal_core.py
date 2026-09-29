@@ -150,6 +150,11 @@ class TerminalSession:
         with self.lock:
             self.stream.feed(self.decoder.decode(data, final=final))
 
+    def get_screen_text(self):
+        """当該接続の仮想画面を取得する。GUI用の差分フラグは消費しない。"""
+        with self.lock:
+            return "\n".join(self.screen.display)
+
     def snapshot(self):
         """Return only changed rows with text and style spans; idle calls return None."""
         with self.lock:

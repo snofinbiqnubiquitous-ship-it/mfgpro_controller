@@ -29,6 +29,9 @@ except ImportError:
     }
 
 
+# 実送信とF3表示で共有する現行の確定キー。実機ログとの相違は設計書7章参照。
+ORDER_TOTALS_COMMIT_KEY = "F1"
+
 WEEKDAYS = ("月", "火", "水", "木", "金", "土", "日")
 ITEM_FIELDS = ("product_name", "width", "length", "quantity", "price")
 ITEM_LABELS = ("製品名", "巾", "長さ", "本数", "価格")
@@ -1106,6 +1109,25 @@ def group_order_items(items: list[dict]) -> list[dict]:
     return products
 
 
+def build_order_header_fields(payload):
+    """実送信とF3表示で同じ8項目・空スキップ・日付変換を使用する。"""
+    def qad_date(value):
+        if not value:
+            return ""
+        try:
+            return date.fromisoformat(str(value)).strftime("%m/%d/%y")
+        except ValueError:
+            return str(value)
+
+    return [
+        date.today().strftime("%m/%d/%y"),
+        qad_date(payload.get("required_date", "")), "",
+        qad_date(payload.get("due_date", "")), "", "",
+        str(payload.get("purchase_order", "")).strip(),
+        str(payload.get("remarks", "")).strip(),
+    ]
+
+
 class SalesOrderAutomationController:
     """QAD 99.7.1.1 (Sales Order Maintenance) の同期式・画面検知型自動入力コントローラ。
     画面のプロンプト・ポップアップ・表示変化を待機して、正確なタイミングでキーストロークを送信します。
@@ -1495,8 +1517,8 @@ class SalesOrderAutomationController:
         self.send(KEY_SEQUENCES["F1"])
         self.sleep(0.5)
 
-        self.log("6.3.0: 2回目の F1 送信 (注文データ確定・コミット)")
-        self.send(KEY_SEQUENCES["F1"])
+        self.log(f"6.3.0: 2回目の {ORDER_TOTALS_COMMIT_KEY} 送信 (注文データ確定・コミット)")
+        self.send(KEY_SEQUENCES[ORDER_TOTALS_COMMIT_KEY])
         self.sleep(0.6)
 
         # 与信警告・残高警告等 (Press space to continue) の解除
@@ -1563,27 +1585,8 @@ class SalesOrderAutomationController:
         self._extract_order_id()
         self.set_status("Step 2: 受注ヘッダー項目入力中...", "working")
 
-        today_qad = date.today().strftime("%m/%d/%y")
-        req_d = self.payload.get("required_date", "")
-        req_qad = ""
-        if req_d:
-            try:
-                req_qad = date.fromisoformat(str(req_d)).strftime("%m/%d/%y")
-            except Exception:
-                req_qad = str(req_d)
-
-        due_d = self.payload.get("due_date", "")
-        due_qad = ""
-        if due_d:
-            try:
-                due_qad = date.fromisoformat(str(due_d)).strftime("%m/%d/%y")
-            except Exception:
-                due_qad = str(due_d)
-
         c_code = str(self.payload.get("customer_code", "")).strip()
         s_code = str(self.payload.get("ship_to_code", "")).strip()
-        po_val = str(self.payload.get("purchase_order", "")).strip()
-        rem_val = str(self.payload.get("remarks", "")).strip()
 
         # 2-1: Sold-To 順次送信
         self.log(f"Step 2: Sold-To '{c_code}' 送信")
@@ -1645,7 +1648,7 @@ class SalesOrderAutomationController:
         # Line 6: Pricing Date ("" 空Enterスキップ ★必須)
         # Line 7: Purchase Order (po_val)
         # Line 8: Remarks (rem_val)
-        paste_items = [today_qad, req_qad, "", due_qad, "", "", po_val, rem_val]
+        paste_items = build_order_header_fields(self.payload)
         paste_str = "\r".join(paste_items)
         self.log(f"Step 2: Order Dateからの一括貼り付けバッファ送信 ({len(paste_items)} 項目: Order Date〜Remarks)")
         self.send(paste_str)
@@ -3056,34 +3059,12 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         # -------------------------------------------------------------
         tb.insert("end", "\n [QAD 99.7.1.1 AUTOMATION SCRIPT / KEYSTROKE SIMULATION (STEP 1 - STEP 5)]\n", "term_section")
         tb.insert("end", " " + "-" * 78 + "\n", "term_dim")
-        tb.insert("end", " ※現在は調査・検証モードです。サーバーへ実送信は行わず、整形された出力を確認します。\n", "term_comment")
-        tb.insert("end", " ※キー操作・貼り付け順序・改行数が実際のQAD画面と合致しているか確認してください。\n", "term_comment")
+        tb.insert("end", " ※この表示は送信予定の説明で、サーバー応答や登録結果の検証ではありません。\n", "term_comment")
+        tb.insert("end", " ※注文入力の「送信」およびこの画面の実行ボタンは、サーバーへ実送信します。\n", "term_comment")
         tb.insert("end", " " + "-" * 78 + "\n\n", "term_dim")
-
-        # 日付フォーマット (MM/dd/yy)
-        today_obj = date.today()
-        today_qad = today_obj.strftime("%m/%d/%y")
-
-        req_d = payload.get("required_date", "")
-        req_qad = ""
-        if req_d:
-            try:
-                req_qad = date.fromisoformat(str(req_d)).strftime("%m/%d/%y")
-            except Exception:
-                req_qad = str(req_d)
-
-        due_d = payload.get("due_date", "")
-        due_qad = ""
-        if due_d:
-            try:
-                due_qad = date.fromisoformat(str(due_d)).strftime("%m/%d/%y")
-            except Exception:
-                due_qad = str(due_d)
 
         c_code = str(payload.get("customer_code", "")).strip()
         s_code = str(payload.get("ship_to_code", "")).strip()
-        po_val = str(payload.get("purchase_order", "")).strip()
-        rem_val = str(payload.get("remarks", "")).strip()
         so_comm = str(payload.get("so_comment", "")).strip()
 
         # Step 1
@@ -3111,16 +3092,16 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         tb.insert("end", "   2-4. 一括貼り付けバッファ（Order Date 入力欄から一括ペースト・全8項目）:\n", "term_label")
 
         # 貼り付けバッファの構築 (Order Date からの全8項目)
-        paste_items = [
-            (today_qad,"Line 1 : Order Date (当日日付 MM/dd/yy)"),
-            (req_qad,  "Line 2 : Required Date (要求納期 MM/dd/yy)"),
-            ("",       "Line 3 : Promise Date (Enterでスキップ)"),
-            (due_qad,  "Line 4 : Due Date (回答納期 MM/dd/yy)"),
-            ("",       "Line 5 : Perform Date (Enterでスキップ)"),
-            ("",       "Line 6 : Pricing Date (Enterでスキップ ★必須)"),
-            (po_val,   "Line 7 : Purchase Order (注文番号)"),
-            (rem_val,  "Line 8 : Remarks (備考)"),
-        ]
+        paste_items = list(zip(build_order_header_fields(payload), [
+            "Line 1 : Order Date (当日日付 MM/dd/yy)",
+            "Line 2 : Required Date (要求納期 MM/dd/yy)",
+            "Line 3 : Promise Date (Enterでスキップ)",
+            "Line 4 : Due Date (回答納期 MM/dd/yy)",
+            "Line 5 : Perform Date (Enterでスキップ)",
+            "Line 6 : Pricing Date (Enterでスキップ ★必須)",
+            "Line 7 : Purchase Order (注文番号)",
+            "Line 8 : Remarks (備考)",
+        ]))
         paste_raw = "\n".join(val for val, _ in paste_items)
 
         tb.insert("end", "   +" + "-" * 68 + "+\n", "term_dim")
@@ -3131,7 +3112,7 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         tb.insert("end", "   +" + "-" * 68 + "+\n\n", "term_dim")
 
         tb.insert("end", "   2-5. 【手動テスト用】一括貼り付けRAWテキスト (改行区切り):\n", "term_label")
-        tb.insert("end", "        (※Order Date欄にフォーカスして貼り付け検証できるデータです)\n", "term_comment")
+        tb.insert("end", "        (表示用はLF区切り。実送信はCR区切りで、末尾のEnterは追加せずF1で確定します)\n", "term_comment")
         tb.insert("end", "   ```\n" + paste_raw + "\n   ```\n\n", "term_json")
 
         tb.insert("end", "   2-6. ヘッダー画面確定キー送信: ", "term_label")
@@ -3335,13 +3316,13 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         tb.insert("end", "        コメント: 最終合計画面で F1 を送信し、下段フレーム (Frame 2+) を展開\n", "term_comment")
 
         tb.insert("end", "   6.3.0-4. 注文コミット＆与信/延滞チェック実行: ", "term_label")
-        tb.insert("end", "<F4>\n", "term_key")
-        tb.insert("end", "        コメント: F4 を送信して注文データを正式コミットし、与信・延滞警告プロンプトをトリガー\n", "term_comment")
-        tb.insert("end", "        画面待機: 'Press space bar to continue' を検知した場合は <Space> で警告解除\n", "term_comment")
+        tb.insert("end", f"<{ORDER_TOTALS_COMMIT_KEY}>\n", "term_key")
+        tb.insert("end", f"        コメント: 現行実装は2回目に {ORDER_TOTALS_COMMIT_KEY} を送信。過去ログの F4 手順との差は未解消\n", "term_comment")
+        tb.insert("end", "        現行実装: <Space> を1回送信し、追加警告が表示された場合も <Space> で解除\n", "term_comment")
 
         tb.insert("end", "   6.3.0-5. 初期画面への安全復帰 (全工程完了): ", "term_label")
-        tb.insert("end", "<F4>\n", "term_key")
-        tb.insert("end", "        コメント: 最終 F4 を送信して受注入力初期画面（Order: ブランク）へ復帰。全工程完了！\n\n", "term_comment")
+        tb.insert("end", "合計画面に残っている場合のみ <F4>\n", "term_key")
+        tb.insert("end", "        コメント: 初期画面またはメインメニューへの復帰を待機。登録値の照合は別途必要\n\n", "term_comment")
 
         # 明細項目
         tb.insert("end", f"\n [ORDER ITEMS] (Total: {len(items)} items)\n", "term_section")

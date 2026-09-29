@@ -16,3 +16,6 @@ ENV/
 # Logs
 *.log
 !scratch/*.log
+
+# 検証結果・実サーバーから読み戻した個別注文データ
+verification-output/

@@ -1,0 +1,17 @@
+{
+  "fixture_note": "合成サンプル。実サーバーの注文ではありません。",
+  "order_id": "TEST-ORDER-001",
+  "customer_code": "TESTCUSTOMER",
+  "bill_to_code": "TESTCUSTOMER",
+  "ship_to_code": "TESTDEST",
+  "order_date": "2026-09-29",
+  "required_date": "2026-10-09",
+  "due_date": "2026-10-07",
+  "site": "CB2",
+  "purchase_order": "TEST-PO",
+  "remarks": "",
+  "so_comment": "テスト用コメント",
+  "items": [
+    {"product_name": "TEST", "width": "1000", "length": "500", "quantity": 3, "price": "100.00", "site": "CB2"}
+  ]
+}

@@ -176,8 +176,8 @@ class Step6SimulationRenderingTests(unittest.TestCase):
             self.assertIn(">> [STEP 6.3.0] 受注最終合計画面 (Order Totals) ＆ 注文確定", out)
             self.assertIn("6.3.0-2. 明細脱出シーケンス", out)
             self.assertIn("6.3.0-3. 合計画面下段展開 (Frame 2+): <F1>", out)
-            self.assertIn("6.3.0-4. 注文コミット＆与信/延滞チェック実行: <F4>", out)
-            self.assertIn("6.3.0-5. 初期画面への安全復帰 (全工程完了): <F4>", out)
+            self.assertIn("6.3.0-4. 注文コミット＆与信/延滞チェック実行: <F1>", out)
+            self.assertIn("6.3.0-5. 初期画面への安全復帰 (全工程完了): 合計画面に残っている場合のみ <F4>", out)
             # Step 5 案C の表示検証
             self.assertIn(">> [STEP 5] 特記事項 (Transaction Comments / 案C: 全クリア置換)", out)
             self.assertIn("5-2. 既定コメントの全クリア (案C):", out)
