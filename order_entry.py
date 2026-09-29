@@ -1182,6 +1182,17 @@ class SalesOrderAutomationController:
             pass
         return self.order_id
 
+    def get_cursor_pos(self) -> tuple[int, int]:
+        """現在の仮想端末カーソル座標 (y, x) を安全に取得（0-indexed）。取得不可時は (-1, -1)"""
+        try:
+            sess = getattr(self, "session", None)
+            if sess and hasattr(sess, "screen") and hasattr(sess.screen, "cursor"):
+                c = sess.screen.cursor
+                return (c.y, c.x)
+        except Exception:
+            pass
+        return (-1, -1)
+
     def log(self, msg: str):
         if self.logger:
             try:
@@ -1291,7 +1302,7 @@ class SalesOrderAutomationController:
                 if "create wo:" not in curr_txt and "rework:" not in curr_txt:
                     self.log(f"6.1.0: Enter 送信 (Line {prod['line_no']} 自動採番)")
                     self.send("\r")
-                    self.sleep(0.35)
+                    self.sleep(0.45)
 
             # 6.1.1 Create WO ポップアップスキップ (出現時のみ F1 送信)
             self.wait_for_screen(
@@ -1302,7 +1313,7 @@ class SalesOrderAutomationController:
             if "create wo:" in curr_txt or "rework:" in curr_txt:
                 self.log(f"6.1.1: F1 送信 (Line {prod['line_no']} Create WO ポップアップスキップ)")
                 self.send(KEY_SEQUENCES["F1"])
-                self.sleep(0.35)
+                self.sleep(0.45)
 
             # 6.1.3 Item Number 入力
             self.wait_for_screen(
@@ -1311,23 +1322,41 @@ class SalesOrderAutomationController:
             )
             self.log(f"6.1.3: 品番 '{p_name}' + F1 送信")
             self.send(f"{p_name}")
-            self.sleep(0.2)
+            self.sleep(0.3)
             self.send(KEY_SEQUENCES["F1"])
-            self.sleep(0.35)
+            self.sleep(0.45)
 
-            # 6.1.3 Site ポップアップ入力
+            # 6.1.3 Site ポップアップ入力（ハイブリッド・スマートウェイト）
+            # 【重要】画面下部の固定枠 "Loc: Site: CB2" に誤爆しないよう、
+            # "Loc:" と共存しない行に "Site" が出現したこと（上部ポップアップ枠やモック画面）を判定
             site_val = str(self.payload.get("site", "CB2") or "CB2").strip()
-            self.wait_for_screen(
-                lambda txt: bool(re.search(r"[|│]\s*site\s*[|│]", txt) or re.search(r"item\s*numbe.*site", txt) or
-                                ("site" in txt and "ln item number" not in txt) or
-                                ("site" in txt and "item number" not in txt and "sales order line" in txt)),
-                desc="6.1.3 Site ポップアップ"
-            )
+
+            def _is_site_popup_ready(txt: str) -> bool:
+                has_active_site = False
+                for line in txt.splitlines():
+                    line_l = line.lower()
+                    if "loc:" in line_l and "site" in line_l:
+                        continue
+                    if "site" in line_l:
+                        has_active_site = True
+                        break
+
+                has_popup_frame = bool(
+                    re.search(r"[|│]\s*site\s*[|│]", txt, re.IGNORECASE)
+                    or re.search(r"numbe[|│]\s*site", txt, re.IGNORECASE)
+                    or "site     │" in txt
+                    or "site     |" in txt
+                )
+                cy, cx = self.get_cursor_pos()
+                cursor_ok = (cx >= 15) if cx >= 0 else True
+                return (has_active_site or has_popup_frame) and cursor_ok
+
+            self.wait_for_screen(_is_site_popup_ready, desc=f"6.1.3 Site ポップアップ (品番 '{p_name}' 確定後)")
             self.log(f"6.1.3: Site '{site_val}' + F1 送信")
             self.send(site_val)
-            self.sleep(0.2)
+            self.sleep(0.3)
             self.send(KEY_SEQUENCES["F1"])
-            self.sleep(0.35)
+            self.sleep(0.45)
 
             # 6.1.4 Qty Ordered UM スキップ
             self.wait_for_screen(
@@ -1444,7 +1473,7 @@ class SalesOrderAutomationController:
             if "orig order qty:" in curr_txt:
                 self.log("6.2.3: Orig Order Qty スキップ (F1)")
                 self.send(KEY_SEQUENCES["F1"])
-                self.sleep(0.35)
+                self.sleep(0.45)
 
             # 6.2.3 Pricing Date 画面スキップ
             self.wait_for_screen(
@@ -1453,7 +1482,7 @@ class SalesOrderAutomationController:
             )
             self.log("6.2.3: F1 送信 (Pricing Date スキップ)")
             self.send(KEY_SEQUENCES["F1"])
-            self.sleep(0.35)
+            self.sleep(0.45)
 
             # 6.2.4 値段入力画面 (List Price スキップ -> Price に単価入力)
             self.wait_for_screen(
@@ -1462,13 +1491,13 @@ class SalesOrderAutomationController:
             )
             self.log("6.2.4: F1 送信 (List Price スキップ)")
             self.send(KEY_SEQUENCES["F1"])
-            self.sleep(0.25)
+            self.sleep(0.35)
 
             self.log(f"6.2.4: 単価 '{price_val}' + F1 送信 (単価確定)")
             self.send(f"{price_val}")
-            self.sleep(0.2)
+            self.sleep(0.3)
             self.send(KEY_SEQUENCES["F1"])
-            self.sleep(0.4)
+            self.sleep(0.5)
 
             # 6.2.5 Tax 画面スキップ (Tax ポップアップまたは Transaction Comments 待機)
             self.wait_for_screen(
@@ -1479,7 +1508,7 @@ class SalesOrderAutomationController:
             if "tax usage:" in curr_txt or "tax environment:" in curr_txt or "tax class:" in curr_txt:
                 self.log("6.2.5: F1 送信 (Tax スキップ)")
                 self.send(KEY_SEQUENCES["F1"])
-                self.sleep(0.4)
+                self.sleep(0.45)
 
             # 6.2.5 Transaction Comments 画面スキップ (背景の誤検知を防ぎ確実にコメントまたは理由コードを待機)
             self.wait_for_screen(
@@ -1634,27 +1663,41 @@ class SalesOrderAutomationController:
         # 2-2: Bill-To 順次送信 (Sold-Toと同値)
         self.log(f"Step 2: Bill-To '{c_code}' 送信")
         self.send(f"{c_code}\r")
-        self.sleep(0.6)
+        self.sleep(0.4)
 
-        # もし Bill-To 送信後にも警告が出た場合のフェイルセーフ
-        curr_txt = clean_screen_text(self.get_screen_text()).lower()
-        if is_space_prompt(curr_txt):
-            self.log("Step 2: Bill-To 送信後の警告検知 -> Space 送信")
-            self.send(" ")
-            self.wait_for_screen(lambda txt: not is_space_prompt(txt), desc="Step 2: Bill-To 警告解除待機")
+        # ハイブリッド・スマートウェイト: Bill-To 送信後、住所枠展開および警告プロンプト解除を確実に待機
+        def _is_bill_to_confirmed(txt: str) -> bool:
+            if is_space_prompt(txt):
+                return False
+            return "bill-to" in txt or "bill to" in txt
+
+        self.wait_for_screen(_is_bill_to_confirmed, desc="Step 2: Bill-To 確定および住所枠展開待機")
+        self.sleep(0.45)
 
         # 2-3: Ship-To 順次送信
         self.log(f"Step 2: Ship-To '{s_code}' 送信")
         self.send(f"{s_code}\r")
-        self.sleep(0.5)
+        self.sleep(0.45)
 
-        # 2-4: Ship-To 入力後に Order Date 着地を同期待ち受け
-        # 画面上の警告プロンプトがあれば wait_for_screen が自動検知・重複抑止しながら解除し、Order Date 着地を待機
+        # 2-4: Ship-To 入力後に Order Date 着地をハイブリッド同期待ち受け
+        # 画面上の固定タイトル "order:" への誤即時マッチを防止し、カーソルが下段Order Date枠に着地したことを確認
+        def _is_order_date_ready(txt: str) -> bool:
+            if is_space_prompt(txt):
+                return False
+            has_shipto_or_header = (
+                "order date:" in txt
+                or "line pricing:" in txt
+                or (s_code.lower() in txt if s_code else False)
+            )
+            cy, cx = self.get_cursor_pos()
+            cursor_ok = (cy >= 7) if cy >= 0 else True
+            return has_shipto_or_header and cursor_ok
+
         self.wait_for_screen(
-            lambda txt: "order date" in txt or "order:" in txt or (s_code.lower() in txt if s_code else False),
+            _is_order_date_ready,
             desc="Step 2: Sold-To/Bill-To/Ship-To 確定および Order Date 着地待機"
         )
-        self.sleep(0.5)
+        self.sleep(0.55)
 
         # 2-5: Order Date からの一括貼り付けバッファ (全8項目を改行で結合して一括送信)
         # Line 1: Order Date (today_qad)

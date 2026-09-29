@@ -131,13 +131,13 @@ flowchart TD
 | ステップ | 画面名 / 状態 | 待機文字列・検知条件 (正規表現) | 送信キー・データ | 留意事項・フェイルセーフ |
 | :--- | :--- | :--- | :--- | :--- |
 | **Step 1** | Order番号採番 | `r"order:"` を検知 | `\r` (空Enter) または `<F1>` | 空のままEnter/F1でサーバーがOrder ID（例: `SO199401`）を自動採番。 |
-| **Step 2** | ヘッダー項目入力 | カーソルが Sold-To (Row 3, Col 29) または `r"sold-to:"` | `Sold-To + \r` ➔ `<F1>` ➔ (警告時 `" "`) ➔ `Bill-To + \r` ➔ `Ship-To + \r` ➔ Order Date着地待機 ➔ Order Dateから8項目改行結合一括送信 ➔ `<F1>` | 実機仕様: Sold-To 入力後に F1 送信でマスタ検証を実行し、警告プロンプト (Category=... 等) が出た場合は Space 送信で解除して住所枠を展開・Bill-To 欄をアクティブ化。Bill-To/Ship-To 確定後、Order Date 着地を待ってから全8項目（OrderDate, ReqDate, Promise, DueDate, Perform, PricingDate, PO, Remarks）を一括送信。送信後に `<F1>` で確定。 |
+| **Step 2** | ヘッダー項目入力 | カーソルが Sold-To (Row 3, Col 29) または `r"sold-to:"` | `Sold-To + \r` ➔ `<F1>` ➔ (警告時 `" "`) ➔ `Bill-To + \r` ➔ `Ship-To + \r` ➔ Order Date着地待機 ➔ Order Dateから8項目改行結合一括送信 ➔ `<F1>` | 実機仕様: Sold-To 入力後に F1 送信でマスタ検証を実行し、警告プロンプト (Category=... 等) が出た場合は Space 送信で解除して住所枠を展開・Bill-To 欄をアクティブ化。Bill-To/Ship-To 確定後、ハイブリッド判定（納品先反映＋下段Order Date着地）を待ってから全8項目を一括送信。送信後に `<F1>` で確定。 |
 | **Step 3** | 税金設定 | `r"tax usage:"` または `r"tax environment:"` | `\x1bOP` (`<F1>`) | ポップアップを無変更でスキップ。 |
 | **Step 4** | 営業担当者 | `r"salesperson 1:"` または `r"freight list:"` | `\x1bOP` (`<F1>`) | 無変更でスキップ。 |
 | **Step 5** | 特記事項 (案C) | `r"transaction comments"` | **有**: `\x1bOP` ➔ `\x1b[19~` (`<F8>`) ➔ 本文行 + `\r` ➔ `\x1bOP` ➔ `\x1bOP` ➔ `\x1bOS` (`<F4>`)<br>**無**: `\x1bOS` (`<F4>`) | `<F8>` (Clear) で得意先マスタ引用の既定13行等を一括消去。確認プロンプト時は `y\r`。Quoteポップアップ確定後に `<F4>` で明細へ。 |
 | **Step 6.1.0** | 明細行番号採番 | `r"sales order line"` ＆ 空の `Ln` 欄 | `\r` (Enter) | 行番号（1, 2, ...）が自動採番。 |
 | **Step 6.1.1** | Create WO | `r"create wo:"` | `\x1bOP` (`<F1>`) | スキップ。 |
-| **Step 6.1.3** | 品番 ＆ Site | `r"item number"` 欄アクティブ | 品番 (`product_name`) + `\x1bOP` ➔ Site待機 ➔ `CB2` + `\x1bOP` | Site ポップアップ出現を確実に待機してから "CB2" を送信。 |
+| **Step 6.1.3** | 品番 ＆ Site | `r"item number"` 欄アクティブ | 品番 (`product_name`) + `\x1bOP` ➔ Site待機 ➔ `CB2` + `\x1bOP` | 【ハイブリッド・スマートウェイト】画面下部の固定枠 "Loc: Site: CB2" を除外し、真のアクティブな Site ポップアップ（│ Site │ 枠または品番反映＋カーソル移動）を確実に待機してから "CB2" を送信。全体の入力スピードも緩和。 |
 | **Step 6.1.4** | Qty スキップ | `r"qty ordered um"` | `\x1bOP` (`<F1>`) | 平米数は後工程から自動計算されるためスキップ。 |
 | **Step 6.1.4-SL** | サブライン採番 | `r"item width\(mm\):"` ＆ `r"sl"` | `\x1bOP` (`<F1>`) | サブライン（SL 1, SL 2...）を採番。 |
 | **Step 6.2.0** | 長さ入力 | `r"len\(m\)"` 欄アクティブ | 長さ (`length`) + `\x1bOP` | 長さ（m）を入力して確定。 |

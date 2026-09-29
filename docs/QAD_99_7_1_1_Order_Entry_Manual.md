@@ -78,7 +78,7 @@ Tax Usage画面が表示された場合はF1で進む。販売員・運賃関連
 | --- | --- |
 | Ln開始 | 必要な場合にEnter、Create WO表示時にF1 |
 | 製品 | 製品コード、F1 |
-| Site | Site値（既定CB2）、F1 |
+| Site | 画面下部固定枠（Loc: Site: CB2）を除外し、真のポップアップ枠または品番反映をハイブリッド待機してSite値（既定CB2）、F1 |
 | Qty・SL | 必要に応じQtyのF1、SLでF1 → Enter → Enter |
 | 長さ | 長さの値とEnter |
 | 巾・本数 | SerをEnterで進み、本数とEnter、巾とEnter。対象を繰り返す |
