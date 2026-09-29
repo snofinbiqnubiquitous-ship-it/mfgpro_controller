@@ -1,337 +1,152 @@
-# QAD 99.7.1.1 受注入力 (Sales Order Maintenance) 完全自動化仕様マニュアル
-**AI指示用プロンプト・リファレンス ＆ システム開発・運用統合仕様書**
+# QAD 99.7.1.1 受注入力 操作・自動化仕様マニュアル
 
----
+更新日: 2026-09-29 / 対象実装: d8a2ee9
 
-## 1. システム概要と基本設計思想
+## 1. 適用範囲と検証状況
 
-### 1.1 プログラム概要
-- **対象メニュー**: QAD 99.7.1.1 (Sales Order Maintenance / 受注登録・保守)
-- **対象プログラム**: `xxsosomt.p` / `sosomt.p` (Progress 4GL CUI / VT100 / 80桁×24行)
-- **目的**: 注文入力サイドバーから渡された注文データ（ヘッダー・明細行・特記事項）を、QAD基幹端末へ100%の正確性と堅牢性をもって自動投入・正式コミットする。
+本書は注文入力UI、事前表示、現行のサーバー送信処理を説明する。実装の動作と、実サーバーで正しいと確認できた操作を区別する。
 
-### 1.2 設計・運用の絶対原則
-1. **ブラインド送信（先走り送信 / Typeahead）の絶対禁止**:
-   - QAD（Progress 4GL）はDBトランザクションや画面描画によってコンマ数秒〜数秒の応答ラグが発生します。
-   - レスポンスを待たずにキーを送信すると、キーストロークの脱字やポップアップの閉じ忘れ、誤爆が発生します。
-   - **必ず画面の表示変化（特定のプロンプト・固有文字列・ポップアップ枠・カーソル位置）を検知してから次キー・データを送信する（同期待ち受け制御）**こと。
-2. **Order ID（受注番号）の自動採番と一連IDの管理**:
-   - Step 1 の `Order:` 入力欄で Enter を送信すると、QADサーバー側で一意の最新番号（例: `SO199401`）が自動採番されます。
-   - **この採番された Order ID が、当該注文におけるヘッダー・全明細行・特記事項・最終合計を束ねる一連の共通管理ID**となります。
-   - 1回の指示で複数の新規Order IDを取得したり、指定なく既存IDを変更することは厳禁です。
-3. **データ構造の階層化**:
-   - サイドバーの注文明細行（`items`）は、**「品番（Ln）」➔「長さ（SL）」➔「幅・本数（Ser/Rolls）」** の3階層構造に自動グループ化して順次登録します。
-4. **Step 5 特記事項の運用方針（案C：全クリア置換）**:
-   - 得意先マスターに既定の特記事項が存在する場合、エディタ進入後に **`<F8>` (Clear)** を送信して全行をクリアし、今回入力された新しい特記事項のみを1行目から登録します。
-5. **Step 6.2.5 理由コード（Reason Code）の確実な解決**:
-   - 登録単価とマスタ定価が異なる場合は定価差異コード **`70`** (MISC) を、納期が異なる場合は納期差異コード **`28`** (INTERNAL) を自動入力して確定します。
-6. **Step 6.3.0 正式コミットと初期画面復帰**:
-   - 全明細入力完了後、空の `Ln` 欄から `<F4>` ➔ `Ln Format S/M` ➔ `<F4>` で最終合計画面へ脱出。
-   - `<F1>`（下段展開） ➔ `<F4>`（注文確定コミット） ➔ `<Space>`（与信延滞警告解除） ➔ 最終 `<F4>` で初期画面（Order: ブランク）へ安全に復帰します。
+直近のオフライン試験は57件中51件成功、6件失敗、エラー0件。6件は警告・遅延・画面遷移に関する未解決の受入条件であり、合格扱いにはしていない。合成応答による再現で、すべてが実環境で発生済みという意味ではない。VPNが必要なSSH接続、実注文登録、登録結果の読み戻しは今回実施していない。
 
----
+F3の事前表示は入力値と予定キーの確認用であり、サーバーへの登録成功を証明しない。画面復帰や完了表示だけでもDBの確定・全項目一致は保証されない。
 
-## 2. 全体統合フローチャート (Start to Finish)
+## 2. 注文入力UIの操作
 
-```mermaid
-flowchart TD
-    classDef startEnd fill:#0F172A,stroke:#38BDF8,stroke-width:2px,color:#F8FAFC;
-    classDef stepBox fill:#1E293B,stroke:#64748B,stroke-width:1px,color:#F8FAFC;
-    classDef waitBox fill:#0284C7,stroke:#38BDF8,stroke-width:1px,color:#FFFFFF;
-    classDef keyBox fill:#D97706,stroke:#FBBF24,stroke-width:1px,color:#FFFFFF;
-    classDef orderIdBox fill:#059669,stroke:#34D399,stroke-width:2px,color:#FFFFFF;
-    classDef warnBox fill:#B45309,stroke:#F59E0B,stroke-width:1.5px,color:#FFFFFF;
+注文入力パネルはメニューから開閉する。既定ショートカットはF2またはCtrlの2回押し。変更済みの場合は「ショートカット変更」の設定を確認する。
 
-    Start(["サイドバー『送信』ボタン押下 / QAD メインメニュー"]) --> S1_Menu["99.7.1.1 + Enter を送信"]
-    
-    subgraph Step1 ["STEP 1: 画面遷移 ＆ 新規Order番号自動採番"]
-        S1_Menu --> S1_WaitOrder{"画面に 'Order:' 出現を待機"}
-        S1_WaitOrder --> S1_SendEnter["Order欄は空のまま <Enter> 送信"]
-        S1_SendEnter --> S1_AutoNumber["★ サーバー側で最新 Order ID が自動採番<br/>(※この注文の全データを束ねる一連の共通ID: 例 SO199401)"]:::orderIdBox
-        S1_AutoNumber --> S1_WaitSoldTo{"Sold-To 欄 (Row 3, Col 29) 着地を検知"}
-    end
+1. メニュー設定で、顧客・納品先の組を格納したローカルCSVを指定する。
+2. 「顧客名」を選ぶ。その顧客に対応する候補から「納品先」を選ぶ。
+3. Required date、due dateを日付選択で設定する。表示形式はyyyy/M/d (ddd)。
+4. Purchase Order、Remarks、SO commentを必要に応じて入力する。RemarksとSO commentの初期値は空白。
+5. 表の各行に製品名、巾、長さ、本数、価格を入力する。
+6. F3の出力チェックで予定内容を確認する。「送信」は入力検査後に自動送信を開始する。確認ダイアログが出る前提で押さない。
 
-    subgraph Step2 ["STEP 2: 受注ヘッダー項目入力（Sold-To/Bill-To/Ship-To順次 ➔ Order Date一括貼り付け）"]
-        S1_WaitSoldTo --> S2_SoldTo["Sold-To: 顧客コード + <Enter> 送信<br/>(※直後に最大2.5秒Category警告ポーリング)"]
-        S2_SoldTo --> S2_CheckSpace{"画面下に 'Category=' / 'Press space' がある？"}
-        S2_CheckSpace -- "Yes (警告あり)" --> S2_SendSpace["<Space> を送信して解除 (0.5秒待機)"]:::warnBox
-        S2_CheckSpace -- "No" --> S2_BillTo
-        S2_SendSpace --> S2_BillTo
-        S2_BillTo["Bill-To: 顧客コード + <Enter> 送信 (0.6秒待機)"]
-        S2_BillTo --> S2_ShipTo["Ship-To: 納品先コード + <Enter> 送信 (0.6秒待機)"]
-        S2_ShipTo --> S2_WaitOD{"Order Date 欄への着地を待機"}
-        S2_WaitOD --> S2_Paste["Order Date から 8項目を改行結合で一括貼り付け<br/>(Line 01:受注日 / Line 02:要求納期 / Line 03:Promise(空)<br/>Line 04:回答納期 / Line 05:Perform(空) / Line 06:Pricing Date(空)<br/>Line 07:注文番号(PO) / Line 08:備考)"]
-        S2_Paste --> S2_SendF1["ヘッダー確定 <F1> を送信 (0.6秒待機)"]
-        S2_SendF1 --> S3_WaitTax
-    end
+出力チェック側から実行する場合も実送信になる。同じ注文について「送信」と重ねて実行しない。リセット時は日付が保持されるため、次の注文の日付を確認する。
 
-    subgraph Step3 ["STEP 3: 税金設定ポップアップ (Tax Information)"]
-        S3_WaitTax{"'Tax Usage:' ポップアップ枠を検知"} --> S3_SendF1["変更せず <F1> を送信 (スキップ)"]
-    end
+開始画面が既存受注の明細途中の場合、処理はStep 6から開始し、入力パネルのヘッダー値を反映しない。ヘッダーを含む新規入力と明細追加を混同しない。
 
-    subgraph Step4 ["STEP 4: ヘッダー追加画面 (Salesperson 等)"]
-        S3_SendF1 --> S4_WaitSP{"'Salesperson:' 画面を検知"}
-        S4_WaitSP --> S4_SendF1["変更せず <F1> を送信 (スキップ)"]
-    end
+## 3. データと端末の仕様
 
-    subgraph Step5 ["STEP 5: 特記事項 (Transaction Comments / 案C: 全クリア置換)"]
-        S4_SendF1 --> S5_WaitComm{"'Transaction Comments' 画面を検知"}
-        S5_WaitComm --> S5_Branch{"特記事項 (so_comment) がある？"}
-        
-        S5_Branch -- "あり" --> S5_Enter["<F1> 送信 (エディタ行へ移動)"]
-        S5_Enter --> S5_Clear["★ <F8> (Clear) 送信で既定コメント全消去<br/>(※確認が出た場合は 'y' 送信)"]:::orderIdBox
-        S5_Clear --> S5_Type["新規特記事項テキスト各行を入力"]
-        S5_Type --> S5_Conf1["<F1> 送信 ('Print On Quote:' 表示)"]
-        S5_Conf1 --> S5_Conf2["空のまま <F1> 送信 (先頭復帰)"]
-        S5_Conf2 --> S5_ToLine["<F4> 送信 (明細へ進む)"]
+同一製品に異なる単価を設定できないシステム制約を維持する。明細は製品、長さ、幅の階層にまとめ、対応する本数を投入する。今回この集約仕様は変更していない。
 
-        S5_Branch -- "なし" --> S5_Skip["<F4> 送信 (そのまま明細へ進む)"]
-    end
+端末はVT100、132列×24行、CP932の逐次デコードを使用する。EnterはCR（\\r）、F1はESC OP。Fキーを一般的な文字列「F1」として送るわけではない。警告へのSpaceは単独の空白文字で、Enterを付けない。
 
-    subgraph Step6 ["STEP 6: 受注明細行入力 (Line Items / 6.1.0 〜 6.2.5)"]
-        S5_ToLine --> S6_LoopProd
-        S5_Skip --> S6_LoopProd
-        
-        S6_LoopProd{"未登録の品番がある？<br/>(第1階層: product_name ごとに Ln 採番)"}
-        
-        S6_LoopProd -- "品番あり" --> S610_Enter["6.1.0: Ln欄で <Enter> 送信 (行番号自動採番)"]
-        S610_Enter --> S611_WaitWO{"'Create WO: Y Rework: Y' ポップアップ待機"}
-        S611_WaitWO --> S611_SendF1["6.1.1: <F1> 送信 (Create WO スキップ)"]
-        S611_SendF1 --> S613_WaitItem{"'Item Number' 欄アクティブ待機"}
-        S613_WaitItem --> S613_SendItem["6.1.3: 品番 (product_name) 入力 + <F1> 送信"]
-        S613_SendItem --> S613_WaitSite{"'Site' ポップアップ枠待機"}
-        S613_WaitSite --> S613_SendSite["6.1.3: 出荷拠点 'CB2' 入力 + <F1> 送信"]
-        S613_SendSite --> S614_WaitQty{"'Qty Ordered UM' 欄待機"}
-        S614_WaitQty --> S614_SendQty["6.1.4: <F1> 送信 (平米数は自動計算のためスキップ)"]
-        S614_SendQty --> S614_WaitSL{"スリット設定画面 'Item Width(mm):' / 'SL' 待機"}
+送信開始時に入力内容を複製し、送信先セッションを固定する。送信中のタブ切替で画面判定が別タブに移らないよう、そのセッションの端末画面をロック下で直接取得する。GUIの描画キャッシュを判定元にはしない。
 
-        %% スリット設定 (長さループ)
-        S614_WaitSL --> S6_LoopLen{"同一品番で未登録の長さがある？<br/>(第2階層: length ごとに SL 採番)"}
-        
-        S6_LoopLen -- "長さあり" --> S614_SendSL["6.1.4-SL: <F1> 送信 (サブライン SL 採番)"]
-        S614_SendSL --> S620_WaitLen{"'Len(m)' 欄アクティブ待機"}
-        S620_WaitLen --> S620_SendLen["6.2.0: 長さ (length) 入力 + <F1> 送信"]
-        S620_SendLen --> S621_WaitRollPop{"ロール明細 'Ser T Rolls Width' ポップアップ待機"}
+F3と本処理は同じヘッダー生成関数を利用する。ただし事前表示は将来の受信画面や警告の出現を予測できない。
 
-        %% ロール設定 (幅・本数ループ)
-        S621_WaitRollPop --> S621_LoopRoll["6.2.1: <F1> 送信 (Serスキップ)<br/>➔ Rolls欄に 本数 (quantity) + <Enter><br/>➔ Width欄に 幅 (width) + <Enter>"]
-        S621_LoopRoll --> S621_MoreRolls{"同一長さで別幅・本数あり？"}
-        S621_MoreRolls -- "あり" --> S621_LoopRoll
-        S621_MoreRolls -- "なし (全幅完了)" --> S621_SendF4["6.2.1: 次行Serで <F4> 送信 (ロール終了)"]
-        S621_SendF4 --> S621_WaitConf{"'Please confirm update' 待機"}
-        S621_WaitConf --> S621_SendYes["6.2.1: <F1> 送信 ('yes' 確定)"]
-        S621_SendYes --> S621_BackSL{"SL一覧画面復帰待機"}
-        S621_BackSL --> S6_LoopLen
+## 4. 現行実装の送信フロー
 
-        %% 全長さ完了
-        S6_LoopLen -- "なし (全長さ完了)" --> S614_DoneF4["6.1.4: SL一覧画面で <F4> 送信 (スリット完了)"]
-        S614_DoneF4 --> S614_WaitConf{"'Please confirm update' 待機"}
-        S614_WaitConf --> S614_SendYes["6.1.4: <Enter> 送信 ('yes' 確定)"]
-        S614_SendYes --> S623_WaitPriceDate{"'Pricing Date:' 画面待機"}
+以下は現行コードの記述であり、未解決条件を含む。これをそのまま実機での正解手順と断定しない。
 
-        %% 価格・税・コメント・Reason Code
-        S623_WaitPriceDate --> S623_SendF1["6.2.3: <F1> 送信 (Pricing Date スキップ)"]
-        S623_SendF1 --> S624_WaitPrice{"'List Price' / 'Price' 画面待機"}
-        S624_WaitPrice --> S624_SendListF1["6.2.4: <F1> 送信 (List Price スキップ ➔ Price欄へ)"]
-        S624_SendListF1 --> S624_SendPrice["6.2.4: 単価 (price) 入力 + <F1> 送信"]
-        S624_SendPrice --> S625_WaitTax{"'Tax Usage:' ポップアップ待機"}
-        S625_WaitTax --> S625_SendTax["6.2.5: <F1> 送信 (Tax スキップ)"]
-        S625_SendTax --> S625_WaitComm{"'Transaction Comments' 画面待機"}
-        S625_WaitComm --> S625_SendComm["6.2.5: <F4> 送信 (明細行コメント スキップ)"]
-        
-        S625_SendComm --> S625_CheckReason{"Reason Code ポップアップが出現？"}
-        S625_CheckReason -- "Yes (価格・納期差異)" --> S625_SendReason["定価差異: '70' / 納期差異: '28' 入力<br/>➔ <F1> で確定"]:::warnBox
-        S625_CheckReason -- "No" --> S625_BackMain
-        S625_SendReason --> S625_BackMain
-        
-        S625_BackMain{"6.1.0 メインメニュー (Sales Order Line) 復帰待機"} --> S6_LoopProd
-    end
+### Step 1: 受注番号
 
-    subgraph Step630 ["STEP 6.3.0: 最終合計確定 ＆ 注文コミット"]
-        S6_LoopProd -- "なし (全品番完了)" --> S630_EndF4["空のLn欄で <F4> 送信 (Ln Format S/Mへ)"]
-        S630_EndF4 --> S630_EndF4_2["再度 <F4> 送信 (Totals画面 0.00% へ)"]
-        S630_EndF4_2 --> S630_WaitTotals{"'Line Total:' / 'Total Tax:' 最終合計画面待機"}
-        S630_WaitTotals --> S630_Extract["★ Order ID を画面から確定抽出"]:::orderIdBox
-        S630_Extract --> S630_SendF1_1["6.3.0: 1回目の <F1> 送信 (下段フレーム移動)"]
-        S630_SendF1_1 --> S630_SendF1_2["6.3.0: 2回目の <F1> 送信 (注文データ正式確定コミット)"]:::orderIdBox
-        S630_SendF1_2 --> S630_SendSpace["6.3.0: <Space> 送信 (与信警告・完了プロンプト解除)"]:::warnBox
-        S630_SendSpace --> S630_FinalMenu{"メインメニュー (mfmenu) 復帰待機"}
-    end
+Order欄が空の場合、F1で採番を要求する。受注番号とSold-Toの文字列を検出して進む。過去資料の行・列座標は観測値であり、現在の判定がカーソル位置まで保証するわけではない。
 
-    S630_FinalMenu --> EndNode(["✅ QAD 99.7.1.1 受注登録 全工程正常完了！"]):::startEnd
+### Step 2: ヘッダー
+
+Sold-Toへ顧客コードとEnterを送り、警告やBill-Toの表示をポーリングする。警告応答の後、Bill-Toへ顧客コード（Sold-Toと同値）、Ship-Toへ納品先コードを、それぞれEnter付きで送る。
+
+続く8項目は以下の順でCR結合して送信し、F1で次へ進む。結合末尾に追加のCRは付けない。
+
+| 順番 | 項目 | 現行の入力値 |
+| --- | --- | --- |
+| 1 | Order Date | 実行当日、MM/dd/yy |
+| 2 | Required Date | 選択した要求納期、MM/dd/yy |
+| 3 | Promise Date | 空欄 |
+| 4 | Due Date | 選択した回答納期、MM/dd/yy |
+| 5 | Perform Date | 空欄 |
+| 6 | Pricing Date | 空欄 |
+| 7 | Purchase Order | 前後の空白を除去した値 |
+| 8 | Remarks | 前後の空白を除去した値 |
+
+Sold-To直後には最大約2.5秒のポーリングがあるが、遷移しない場合に必ず停止する実装ではない。Bill-To・Ship-To後の固定待機も、入力先が正しいことの証明にはならない。
+
+### Step 3・4: 税と販売情報
+
+Tax Usage画面が表示された場合はF1で進む。販売員・運賃関連の画面もF1で進む。画面内のラベルによる判定と固定待機を併用しているため、背景に残ったラベルと現在の入力欄を厳密に区別できない場合がある。
+
+### Step 5: SO comment
+
+空の場合はF4で戻る。入力がある場合はF1で編集へ入り、F8で消去操作を要求し、確認にyとEnterで応答する。編集状態によってCtrl+Zを補助的に使用する。本文を行ごとにEnter付きで送り、F1で確定し、必要に応じてPrint On QuoteのF1を処理してF4で戻る。
+
+既定行が本当に消えたか、本文が保存されたかはサーバーの読み戻しで確認する。送信したキーだけから削除成功を断定しない。
+
+### Step 6: 製品・寸法・数量・単価
+
+| 段階 | 現行の送信内容 |
+| --- | --- |
+| Ln開始 | 必要な場合にEnter、Create WO表示時にF1 |
+| 製品 | 製品コード、F1 |
+| Site | Site値（既定CB2）、F1 |
+| Qty・SL | 必要に応じQtyのF1、SLでF1 → Enter → Enter |
+| 長さ | 長さの値とEnter |
+| 巾・本数 | SerをEnterで進み、本数とEnter、巾とEnter。対象を繰り返す |
+| 長さ終了 | F4、確認F1でSLへ戻る |
+| 全長さ終了 | F4、確認F1 |
+| 価格画面 | 必要に応じOrig Order QtyのF1、Pricing DateのF1 |
+| 単価 | List PriceのF1、単価の値、F1 |
+| 税・コメント | 税のF1、コメントのF4 |
+| 理由コード | 検出時は70＋Enter、28＋Enter、28＋Enter、F1 |
+
+理由コードの現在の処理は、表示される欄の数に合わせた厳密な分岐ではなく固定送信である。欄の種類や数が違う場合、後続欄に値が流れる可能性が残る。
+
+### Step 6.3: 合計・終了
+
+明細画面を抜けるため最大6回のF4を試み、Create WO表示時はF1を処理する。合計画面を検出した後の現行順序は次のとおり。
+
+1. F1を送信し、約0.5秒待つ。
+2. 2回目のF1を送信し、約0.6秒待つ。
+3. Spaceを無条件に送信し、約0.5秒待つ。
+4. 警告が残る場合は追加のSpaceを最大3回送る。
+5. 合計画面に残る場合だけF4を送る。
+6. Main Menuまたは受注入力画面への復帰を待つ。
+
+過去の実行ログにはF1 → F4 → F4という異なる経路がある。対象環境で正しい確定キーは未確定であり、今回コードの最終キー列は変更していない。従来マニュアルの「F1 → F4 → Space → F4」を確定済み手順として扱わない。
+
+完了判定は画面文字列に基づく。Order欄が空に戻ったことや、注文のDB確定まで確認するものではない。
+
+## 5. 未解決の受入条件6件
+
+| 番号 | 再現条件 | 検出した問題 |
+| --- | --- | --- |
+| 1 | 背景にSold-Toラベルが残り、警告も表示 | 背景ラベルで待機成功となり、警告解除を省略 |
+| 2 | Category値だけでSpace要求はない | 不要なSpaceを送る |
+| 3 | 2回目F1で警告なしにMain Menuへ戻る | 復帰後にもSpaceを送る |
+| 4 | Space後の警告消去に0.9秒かかる | 同じ警告へSpaceを重複送信 |
+| 5 | Sold-To後にBill-Toへ遷移しない | 待機終了後に次の値を送る |
+| 6 | 合計画面の1回目F1で警告へ進む | 警告中に2回目F1を送る |
+
+これらは単なるテストの期待値違いではなく、「要求されていないキーを送らない」「遷移失敗時に次の値を送らない」という受入条件が未達である。テストを通すために期待値を現行動作へ合わせない。
+
+ほかにも理由コードの可変数、途中成功後の再送、手動キーや別マクロとの競合、長い日本語・半角カナ・コメント、税額・丸めの確認が残る。既定の待機上限があっても、すべての独自ポーリングが同じ停止条件を持つわけではない。
+
+## 6. 検証方法と中断後の扱い
+
+リポジトリ直下で次のコマンドを実行する。これらのテストはSSH接続や注文更新を行わない。
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 scripts/verify_order.py
+.\.venv\Scripts\python.exe -X utf8 scripts/verify_order.py --acceptance --report verification-output/acceptance.json
 ```
 
----
+通常モードは51件の回帰試験。--acceptanceは6件を含む全57件で、現状は終了コード1になる。終了コード0でも、省略した試験や実サーバー検証が成功した意味ではない。
 
-## 3. 各ステップの詳細操作仕様 ＆ 同期待ち受け条件
+実機で許可された検証を行うときは、送信前の入力と対象Order IDを保存し、送信後は別の読取手段で確定済み注文を取得する。事前表示や期待値のコピーを実測値として使わない。
 
-### STEP 1: メインメニュー ➔ 99.7.1.1 遷移 ＆ 新規Order番号自動採番
-- **目的**: QADメインメニューから受注登録画面を呼び出し、一意の最新受注番号を取得する。
-- **操作シーケンス**:
-  1. `99.7.1.1\r` を送信。
-  2. 画面待機: 画面内に `"order:"` が出現するまで待機。
-  3. キー送信: Order入力欄は何も入力せず、そのまま **`<Enter>` (`\r`)** を送信。
-  4. **自動採番結果**: QADサーバー側で自動採番（例: `SO199401`）され、カーソルが `Sold-To` 欄（Row 3, Col 29）へ自動着地する。
-  5. **同期待ち受け条件**: カーソルが Row 3, Col 29 に到達したこと、または `Sold-To` 欄のアクティブを検知。
+```powershell
+.\.venv\Scripts\python.exe -X utf8 scripts/compare_order_result.py verification-output/expected.json verification-output/actual.json
+```
 
----
+比較対象はOrder ID、顧客、請求先、納品先、受注日・要求納期・回答納期、Site、PO、Remarks、SO comment、全明細。数値表示や明細分割の差を正規化して比較する。サーバーの税・丸め・内部ステータス全種類までは検証しない。
 
-### STEP 2: 受注ヘッダー項目入力（改行結合一括送信方式）
-- **目的**: Sold-To から Enter 遷移する全11項目を改行（`\r`）で結合し、一括ペースト送信することで、文字落ちや入力フィールドのズレを完全に排除して高速投入する。
-- **入力項目構成（全11項目）**:
-  ```text
-  Line 01: Sold-To (顧客コード: 例 20000600)
-  Line 02: Bill-To (※Sold-Toと同値を自動セット: 例 20000600)
-  Line 03: Ship-To (納品先コード: 例 20000601)
-  Line 04: Order Date (受注日: 当日日付 MM/dd/yy)
-  Line 05: Required Date (要求納期 MM/dd/yy: 例 09/30/26)
-  Line 06: Promise Date (空行: Enterでスキップ)
-  Line 07: Due Date (回答納期 MM/dd/yy: 例 10/01/26)
-  Line 08: Perform Date (空行: Enterでスキップ)
-  Line 09: Pricing Date (空行: Enterでスキップ ★必須)
-  Line 10: Purchase Order (注文番号 PO: 例 test)
-  Line 11: Remarks (備考: 例 test)
-  ```
-- **操作シーケンス**:
-  1. 上記全11項目を `\r`.join(paste_items) で改行結合し、Sold-To 欄へ一括送信。
-  2. ヘッダー確定キー **`<F1>`** を送信。
-  3. **同期待ち受け条件**:
-     - 画面最下行に `'Category=... Press space bar to continue.'` が出現した場合は、**`<Space>`** を送信して続行。
-     - 次画面（`Tax Usage:` ポップアップ枠）の出現を検知。
+中断・切断・タイムアウト後は、どこまで保存されたかを確認せず再送しない。現行処理に重複登録を完全に防ぐ仕組みがあるとは扱わない。再開方法は対象受注の実状態と照合して決める。
 
----
+## 7. 関連資料と更新方法
 
-### STEP 3: 税金設定ポップアップ (Tax Information)
-- **目的**: ヘッダー確定時に表示される税金設定ポップアップを通過する。
-- **同期待ち受け条件**: 画面内に `"tax usage:"` または `"tax environment:"` を検知。
-- **操作**: 設定は変更せず、そのまま **`<F1>`** を送信してスキップ。
+- docs/受注送信_整合性監査_2026-09-29.md: 修正箇所、コードと過去ログの相違、残るリスク。
+- docs/受注送信_検証手順.md: テスト名、JSONの必須項目、実機確認項目、運用受入条件。
+- AI引継ぎ用_QAD自動化設計書.md: システム構成と引継ぎ事項。
+- tests/fixtures/order_readback_expected.jsonとorder_readback_actual.json: 合成照合サンプル。
 
----
-
-### STEP 4: ヘッダー追加画面 (Salesperson / Freight 等)
-- **目的**: 営業担当者・運賃設定等の追加画面を通過する。
-- **同期待ち受け条件**: 画面内に `"salesperson 1:"` または `"freight list:"` を検知。
-- **操作**: 設定は変更せず、そのまま **`<F1>`** を送信してスキップ。
-
----
-
-### STEP 5: 特記事項 (Transaction Comments / 案C: 全クリア置換)
-- **目的**: 受注ヘッダーの特記事項を登録する。
-- **同期待ち受け条件**: 画面内に `"transaction comments"` を検知。
-- **操作シーケンス**:
-  - **特記事項（`so_comment`）がブランクの場合**:
-    - 何も入力せず、そのまま **`<F4>`** を送信して明細画面（Step 6）へ直行。
-  - **特記事項（`so_comment`）がある場合（案C：全クリア置換）**:
-    1. **`<F1>`** を送信してコメント本文エディタへ移動（カーソル: Row 6, Col 3）。
-    2. **`<F8>` (Clear: `\x1b[19~`)** を送信し、得意先マスターから引用された既定コメント（13行等）を一括消去。
-       - *フェイルセーフ*: `Clear all text?` 等の確認プロンプトが出現した場合は `y\r` で自動応答。残存行がある場合は `Ctrl-Z` (`\x1a`) で補完。
-    3. 新規特記事項本文（`so_comment`）の各行を1行目から順次入力（行末 `\r`）。
-    4. **`<F1>`** を送信して本文を確定。
-    5. 画面中央に帳票印字ポップアップ（`Print On Quote: Yes` 等）が出現。
-    6. 何も変更せず、もう一度 **`<F1>`** を送信してポップアップを確定（カーソルがヘッダー行へ復帰）。
-    7. **`<F4>`** を送信して明細行入力画面（Step 6: Sales Order Line）へ遷移。
-
----
-
-### STEP 6: 受注明細行入力 (Line Items / 6.1.0 〜 6.2.5)
-
-#### 6.1.0 行番号自動採番
-- **画面**: `Sales Order Line`
-- **操作**: 空の `Ln` 欄で **`<Enter>`** を送信 ➔ 行番号（1, 2, ...）が自動採番される。
-
-#### 6.1.1 Create WO ポップアップ解除
-- **画面待機**: `'Create WO: Y Rework: Y Exact: Y'` ポップアップ枠の出現を検知。
-- **操作**: 変更せず **`<F1>`** を送信してスキップ。
-
-#### 6.1.3 品番 ＆ Site 入力
-- **画面待機**: `'Item Number'` 入力欄のアクティブを検知。
-- **操作**:
-  1. 品番（例: `BW0100D`）を入力し、**`<F1>`** を送信。
-  2. 出現した `'Site'` ポップアップ枠に拠点コード **`CB2`** を入力し、**`<F1>`** を送信。
-
-#### 6.1.4 Qty Ordered UM スキップ
-- **画面待機**: `'Qty Ordered UM'` 欄のアクティブを検知。
-- **操作**: 受注数量（M²）は後工程のスリット設定（幅×長さ×本数）から自動計算されるため、何も入力せず **`<F1>`** でスキップ。
-
-#### 6.1.4-SL 〜 6.2.1 スリット設定（長さ・幅・本数の階層登録）
-- **画面待機**: `'Item Width(mm):'` および `'SL'` リスト画面を検知。
-- **長さループ（SL）**:
-  1. **`<F1>`** を送信してサブライン（SL 1, SL 2, ...）を採番。
-  2. 画面待機: `'Len(m)'` 欄のアクティブを検知。
-  3. 長さ（例: `600`）を入力し、**`<F1>`** を送信。
-- **幅・本数ループ（Ser / Rolls / Width）**:
-  1. 画面待機: `'Ser T Rolls Width(mm)'` ポップアップ枠を検知。
-  2. **`<F1>`** を送信して `Ser` 欄をスキップ ➔ `Rolls` 欄へ移動。
-  3. 本数（例: `1`）を入力し、**`<Enter>`** ➔ `Width` 欄へ移動。
-  4. 幅（例: `250`）を入力し、**`<Enter>`** ➔ 次行の `Ser` 欄へ移動。
-  5. 同一長さで別の幅・本数がある場合は、上記 2〜4 を繰り返す。
-  6. 当該長さのロール入力完了時: 次行 `Ser` 欄で **`<F4>`** を送信。
-  7. 画面待機: `'Please confirm update'` プロンプトを検知。
-  8. 初期値 `yes` に対し、**`<F1>`** を送信して確定 ➔ SL一覧画面へ復帰。
-- **全長さ完了時**:
-  1. SL一覧画面で **`<F4>`** を送信。
-  2. 画面待機: `'Please confirm update'` プロンプトを検知。
-  3. 初期値 `yes` に対し、**`<Enter>`** (または `<F1>`) を送信して確定。
-
-#### 6.2.3 Pricing Date 画面スキップ
-- **画面待機**: `'Pricing Date:'` ポップアップ枠を検知。
-- **操作**: 変更せず **`<F1>`** を送信してスキップ。
-
-#### 6.2.4 単価（Price）入力
-- **画面待機**: `'List Price'` / `'Price'` 欄の表示を検知。
-- **操作**:
-  1. `List Price` がアクティブの状態で **`<F1>`** を送信し、`Price` 欄へ移動。
-  2. 単価（例: `130`）を入力し、**`<F1>`** を送信して確定。
-
-#### 6.2.5 税金ポップアップ ＆ 明細行コメントスキップ
-- **画面待機**: `'Tax Usage:'` ポップアップ枠を検知 ➔ **`<F1>`** でスキップ。
-- **画面待機**: `'Transaction Comments'` 画面を検知 ➔ 明細コメントは不要なため **`<F4>`** でスキップ。
-
-#### 6.2.5 Reason Code（理由コード）の自動解決
-- **発生条件**: 登録単価がマスタ定価と異なる場合、または要求・回答納期が標準納期と異なる場合に出現。
-- **操作シーケンス**:
-  - 定価差異（`List Price`）: 理由コード **`70`** (MISC) を入力して Enter。
-  - 納期差異（`Req/Promise Date`）: 理由コード **`28`** (INTERNAL) を入力して Enter。
-  - **`<F1>`** を送信して理由コードを確定 ➔ 次行またはメインメニューへ復帰。
-
----
-
-### STEP 6.3.0: 最終合計確定 ＆ 注文コミット (Order Totals)
-- **目的**: 全明細の入力を終え、注文合計金額を確認してQAD基幹DBへ正式コミットする。
-- **脱出シーケンス**:
-  1. 空の `Ln` 欄で **`<F4>`** を送信 ➔ カーソルが `Ln Format S/M` 欄へ移動。
-  2. 再度 **`<F4>`** を送信 ➔ 最終合計画面（Totals: `Line Total:`, `Total Tax:`, `Enter data or press F4 to end.`）へ進む。
-- **コミット ＆ 完了シーケンス**:
-  1. 画面待機: `'Line Total:'` / `'Total Tax:'` の表示を検知。
-  2. **`<F1>`** を送信して詳細フレーム（Frame 2+: 支払条件・出荷条件）を展開。
-  3. **`<F4>`** を送信して注文データを正式コミット（DB書き込み＆与信チェック）。
-  4. 画面待機: `'Press space bar to continue'`（与信・延滞警告プロンプト）が出現した場合は、**`<Space>`** を送信して警告解除。
-  5. 最終 **`<F4>`** を送信して、受注入力初期画面（Order: ブランク）へ安全に復帰。
-  6. **全工程完了**: 画面上に `Order:` がブランクで表示され、正常終了。
-
----
-
-## 4. エラー処理・安全保護・トラブルシューティング
-
-| 事象・エラー | 発生原因 | システムの自動対応 / 推奨アクション |
-| :--- | :--- | :--- |
-| **Category=... Press space** | 得意先マスターの業種カテゴリ警告 | `<Space>` を自動送信して画面ロックを即座に解除。 |
-| **Please confirm update** | スリット設定完了時の確認プロンプト | 初期値 `yes` に対し `<F1>` または `<Enter>` を送信して確実に確定保存。 |
-| **Reason Code 要求** | 定価差異または納期乖離 | 定価差異時は `70`、納期差異時は `28` を自動入力して `<F1>` で確定。 |
-| **既定コメントの残存** | 得意先マスターからの自動コメント引用 | Step 5 でエディタ進入直後に `<F8> (Clear)` を送信して全クリア置換（案C）。 |
-| **与信・延滞警告 (Press space)** | 取引先の与信限度超過や請求書未回収 | コミット後の `Press space bar to continue` を検知し `<Space>` を送信して解除。 |
-| **画面待機タイムアウト** | 通信切断または予期せぬエラーモーダル | 各工程で最大タイムアウト（2〜5秒）を設定。タイムアウト時は自動停止してエラー表示。 |
-
----
-
-## 5. UI連携仕様（自作モダンターミナル）
-
-1. **サイドバー（F3 / Ctrl 2回押し）**:
-   - 顧客名、納品先、PO番号、納期、Remarks、SOコメント、明細テーブル（品番・幅・長さ・本数・単価）を快適に入力。
-2. **「リセット」ボタン（左下）**:
-   - 押下時、**`Required Date` と `due date` は現状維持**し、それ以外の入力欄（顧客情報、明細テーブル全行等）を一括クリア。
-3. **「送信」ボタン（右下）**:
-   - 押下時、入力バリデーションを経て **`QAD 99.7.1.1 受注登録自動化` を直接起動**。
-   - 誤操作防止の確認ダイアログ（顧客名・明細件数表示）で「はい」を押すと、Step 1 から Step 6.3.0 までの全自動投入・コミットが自律実行される。
-4. **F3 シークレット出力チェックターミナル**:
-   - 送信内容のキーストローク・シミュレーションがリアルタイムに整形表示され、デバッグや事前検証が可能。
+本書の編集元はdocs/QAD_99_7_1_1_Order_Entry_Manual.md。scripts/build_order_manual.pyをreportlabが利用できるPythonで実行すると、ルートのMarkdown複製、両方のPDF、docs/manual_print.htmlを更新する。旧scratchスクリプトの固定パス・固定本文を使って再生成しない。

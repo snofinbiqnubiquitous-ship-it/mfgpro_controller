@@ -1,571 +1,67 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<title>QAD 99.7.1.1 受注入力 完全自動化仕様マニュアル</title>
-<style>
-  @page {
-    size: A4 portrait;
-    margin: 10mm 12mm 10mm 12mm;
-    @bottom-right {
-      content: counter(page);
-    }
-  }
-  body {
-    font-family: "Segoe UI", "Yu Gothic", "Meiryo", sans-serif;
-    color: #1e293b;
-    background-color: #ffffff;
-    line-height: 1.45;
-    font-size: 9.5pt;
-    margin: 0;
-    padding: 0;
-  }
-  h1 {
-    font-size: 16pt;
-    color: #0f172a;
-    border-bottom: 2.5px solid #0284c7;
-    padding-bottom: 3px;
-    margin-top: 0;
-    margin-bottom: 2px;
-  }
-  .subtitle {
-    font-size: 9.5pt;
-    color: #64748b;
-    margin-bottom: 10px;
-    font-weight: 600;
-  }
-  h2 {
-    font-size: 12pt;
-    color: #0369a1;
-    border-left: 4px solid #0284c7;
-    padding-left: 6px;
-    margin-top: 14px;
-    margin-bottom: 6px;
-    page-break-after: avoid;
-  }
-  h3 {
-    font-size: 10.5pt;
-    color: #0f172a;
-    margin-top: 10px;
-    margin-bottom: 4px;
-    page-break-after: avoid;
-  }
-  p, ul, ol {
-    margin-top: 2px;
-    margin-bottom: 5px;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 6px 0 10px 0;
-    font-size: 8.5pt;
-    page-break-inside: avoid;
-  }
-  th, td {
-    border: 1px solid #cbd5e1;
-    padding: 4px 6px;
-    text-align: left;
-  }
-  th {
-    background-color: #f1f5f9;
-    color: #0f172a;
-    font-weight: bold;
-  }
-  tr:nth-child(even) td {
-    background-color: #f8fafc;
-  }
-  .important-box {
-    background-color: #eff6ff;
-    border-left: 4px solid #2563eb;
-    padding: 6px 10px;
-    margin: 8px 0;
-    border-radius: 4px;
-    font-size: 8.5pt;
-  }
-  .success-box {
-    background-color: #f0fdf4;
-    border-left: 4px solid #10b981;
-    padding: 6px 10px;
-    margin: 8px 0;
-    border-radius: 4px;
-    font-size: 8.5pt;
-  }
-  .warning-box {
-    background-color: #fef2f2;
-    border-left: 4px solid #ef4444;
-    padding: 6px 10px;
-    margin: 8px 0;
-    border-radius: 4px;
-    font-size: 8.5pt;
-  }
-  .code-block {
-    background-color: #0f172a;
-    color: #f8fafc;
-    padding: 6px 10px;
-    border-radius: 4px;
-    font-family: "Consolas", monospace;
-    font-size: 7.8pt;
-    white-space: pre-wrap;
-    word-break: break-all;
-    margin: 4px 0;
-    page-break-inside: avoid;
-  }
-  .chart-wrapper {
-    text-align: center;
-    margin: 8px 0;
-    page-break-inside: avoid;
-  }
-  .page-break {
-    page-break-before: always;
-  }
-</style>
-</head>
-<body>
-
-<h1>QAD 99.7.1.1 受注入力 (Sales Order Maintenance) 完全自動化仕様マニュアル</h1>
-<div class="subtitle">AI指示用プロンプト・リファレンス ＆ システム開発・運用統合仕様書</div>
-
-<h2>1. システム概要と基本設計思想</h2>
-<p>本仕様書は、Progress 4GL / QAD CUI 端末（VT100 80桁×24行）における <strong>99.7.1.1 (Sales Order Maintenance / xxsosomt.p)</strong> の自動入力を100%正確・安全に完遂するための完全リファレンスです。</p>
-
-<div class="important-box">
-  <strong>【絶対原則 1】ブラインド送信（先走り送信 / Typeahead）の絶対禁止</strong><br>
-  Progress 4GLはサーバー側のDBトランザクションや画面描画により、ステップ間でコンマ数秒〜数秒の応答ラグが発生します。レスポンスを待たずに送信するとキー脱字や誤爆の原因となるため、<strong>必ず画面バッファの表示変化（固有のプロンプト・ポップアップ枠・カーソル位置）を検知してから次キー・データを送信（同期待ち受け制御）</strong>します。
-</div>
-
-<div class="success-box">
-  <strong>【絶対原則 2】Order ID（受注番号）の自動採番と一連IDの管理</strong><br>
-  Step 1 の <code>Order:</code> 入力欄を空のまま Enter を送信すると、QADサーバー側で一意の最新番号（例: <code>SO199401</code>）が自動採番されます。<br>
-  <strong>この採番された Order ID が、当該注文におけるヘッダー・全明細行・特記事項・最終合計を束ねる一連の共通管理ID</strong>となります。一度の命令で複数のOrder IDを取得したり、指定なく既存のOrder IDを変更することは絶対禁止です。
-</div>
-
-<div class="important-box">
-  <strong>【絶対原則 3】特記事項の運用方針（案C：全クリア置換）</strong><br>
-  得意先マスターに既定の特記事項が存在する場合、エディタ進入直後に <strong>&lt;F8&gt; (Clear)</strong> を送信して既定コメントを一括消去し、今回入力された新しい特記事項のみを1行目から登録します。
-</div>
-
-<div class="warning-box">
-  <strong>【絶対原則 4】Reason Code（理由コード 70 / 28）の確実な自動解決</strong><br>
-  登録単価がマスタ定価と異なる場合は定価差異コード <strong>70</strong> (MISC) を、納期が異なる場合は納期差異コード <strong>28</strong> (INTERNAL) を自動入力して &lt;F1&gt; で確定します。
-</div>
-
-<div class="page-break"></div>
-
-<h2>2. 全体統合フローチャート (Start to Finish)</h2>
-<p style="font-size: 8.5pt; color: #64748B; margin-bottom: 6px;">※サイドバー「送信」ボタン押下から Order ID自動採番、ヘッダー貼り付け、特記事項全クリア置換、明細3階層ループ、最終合計確定・正式コミットまでの完全な自動処理フローです。</p>
-
-<div class="chart-wrapper">
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 1480" width="100%" height="auto" style="max-width: 720px; font-family: 'Segoe UI', 'Yu Gothic', 'Meiryo', sans-serif;">
-  <defs>
-    <linearGradient id="bgStart" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#0F172A" />
-      <stop offset="100%" stop-color="#1E293B" />
-    </linearGradient>
-    <linearGradient id="bgStep" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#FFFFFF" />
-      <stop offset="100%" stop-color="#F8FAFC" />
-    </linearGradient>
-    <linearGradient id="bgOrderId" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ECFDF5" />
-      <stop offset="100%" stop-color="#D1FAE5" />
-    </linearGradient>
-    <linearGradient id="bgStep6" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#FFFBEB" />
-      <stop offset="100%" stop-color="#FEF3C7" />
-    </linearGradient>
-    <linearGradient id="bgFinal" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#F0FDF4" />
-      <stop offset="100%" stop-color="#DCFCE7" />
-    </linearGradient>
-    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
-      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.08" />
-    </filter>
-    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 1 L 10 5 L 0 9 z" fill="#0284C7" />
-    </marker>
-    <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 1 L 10 5 L 0 9 z" fill="#059669" />
-    </marker>
-  </defs>
-
-  <!-- START: メインメニュー / 送信ボタン -->
-  <g transform="translate(140, 10)">
-    <rect width="440" height="52" rx="26" fill="url(#bgStart)" stroke="#38BDF8" stroke-width="2" filter="url(#shadow)" />
-    <text x="220" y="24" text-anchor="middle" fill="#38BDF8" font-size="11" font-weight="bold">START</text>
-    <text x="220" y="42" text-anchor="middle" fill="#F8FAFC" font-size="12" font-weight="bold">サイドバー『送信』ボタン押下 ➔ QAD メインメニュー</text>
-  </g>
-
-  <!-- 矢印 1 -->
-  <line x1="360" y1="62" x2="360" y2="88" stroke="#0284C7" stroke-width="2.5" marker-end="url(#arrow)" />
-  <text x="375" y="78" fill="#0284C7" font-size="10" font-weight="bold">99.7.1.1 + &lt;Enter&gt;</text>
-
-  <!-- STEP 1: 新規Order番号自動採番 -->
-  <g transform="translate(40, 92)">
-    <rect width="640" height="126" rx="8" fill="url(#bgOrderId)" stroke="#10B981" stroke-width="2.5" filter="url(#shadow)" />
-    <rect x="0" y="0" width="8" height="126" rx="4" fill="#059669" />
-    <rect x="18" y="12" width="60" height="20" rx="4" fill="#059669" />
-    <text x="48" y="26" text-anchor="middle" fill="#FFFFFF" font-size="10" font-weight="bold">STEP 1</text>
-    <text x="86" y="27" fill="#065F46" font-size="13" font-weight="bold">画面遷移 ＆ 新規Order番号自動採番 (一連の共通管理ID)</text>
-    
-    <text x="22" y="52" fill="#1E293B" font-size="11" font-weight="bold">• 画面待機:</text>
-    <text x="96" y="52" fill="#334155" font-size="11">画面内に "Order:" が表示されるまで待機</text>
-    
-    <text x="22" y="72" fill="#1E293B" font-size="11" font-weight="bold">• キー送信:</text>
-    <text x="96" y="72" fill="#D97706" font-size="11" font-weight="bold">&lt;Enter&gt;</text>
-    <text x="145" y="72" fill="#334155" font-size="11">(Order欄は空のままEnterを送信)</text>
-
-    <rect x="20" y="86" width="600" height="28" rx="4" fill="#047857" />
-    <text x="320" y="105" text-anchor="middle" fill="#FFFFFF" font-size="11" font-weight="bold">★ サーバー側で最新 Order ID (例: SO199401) が自動採番 ➔ 本注文の一連共通IDとなる！</text>
-  </g>
-
-  <!-- 矢印 2 -->
-  <line x1="360" y1="218" x2="360" y2="244" stroke="#0284C7" stroke-width="2.5" marker-end="url(#arrow)" />
-  <text x="375" y="234" fill="#059669" font-size="10" font-weight="bold">Sold-To 欄 (Row 3, Col 29) 着地検知</text>
-
-  <!-- STEP 2: ヘッダー項目入力 -->
-  <g transform="translate(40, 248)">
-    <rect width="640" height="114" rx="8" fill="url(#bgStep)" stroke="#CBD5E1" stroke-width="1.5" filter="url(#shadow)" />
-    <rect x="0" y="0" width="8" height="114" rx="4" fill="#0284C7" />
-    <rect x="18" y="12" width="60" height="20" rx="4" fill="#0284C7" />
-    <text x="48" y="26" text-anchor="middle" fill="#FFFFFF" font-size="10" font-weight="bold">STEP 2</text>
-    <text x="86" y="27" fill="#0F172A" font-size="13" font-weight="bold">受注ヘッダー項目入力 (全11項目 順次入力)</text>
-    
-    <text x="22" y="52" fill="#1E293B" font-size="11" font-weight="bold">• 順次入力:</text>
-    <text x="96" y="52" fill="#334155" font-size="10.5">Sold-To ➔ <tspan fill="#DC2626" font-weight="bold">Bill-To (同値)</tspan> ➔ Ship-To ➔ 日付・PO・備考 (全11項目)</text>
-    
-    <text x="22" y="74" fill="#1E293B" font-size="11" font-weight="bold">• キー送信:</text>
-    <text x="96" y="74" fill="#D97706" font-size="11" font-weight="bold">&lt;F1&gt;</text>
-    <text x="135" y="74" fill="#334155" font-size="10.5">(ヘッダー確定) ➔ 画面下に 'Press space bar' が出た場合は &lt;Space&gt; 送信</text>
-
-    <text x="22" y="96" fill="#1E293B" font-size="11" font-weight="bold">• 画面待機:</text>
-    <text x="96" y="96" fill="#0284C7" font-size="11">"Tax Usage:" ポップアップ枠の出現を検知</text>
-  </g>
-
-  <!-- 矢印 3 -->
-  <line x1="360" y1="362" x2="360" y2="386" stroke="#0284C7" stroke-width="2.5" marker-end="url(#arrow)" />
-
-  <!-- STEP 3 & STEP 4: ポップアップ＆追加画面スキップ -->
-  <g transform="translate(40, 390)">
-    <rect width="310" height="76" rx="8" fill="url(#bgStep)" stroke="#CBD5E1" stroke-width="1.5" filter="url(#shadow)" />
-    <rect x="0" y="0" width="6" height="76" rx="3" fill="#0284C7" />
-    <rect x="14" y="10" width="54" height="18" rx="3" fill="#0284C7" />
-    <text x="41" y="23" text-anchor="middle" fill="#FFFFFF" font-size="9" font-weight="bold">STEP 3</text>
-    <text x="76" y="24" fill="#0F172A" font-size="11" font-weight="bold">税金設定 (Tax Information)</text>
-    <text x="18" y="46" fill="#334155" font-size="10">• 待機: "Tax Usage:" 枠線</text>
-    <text x="18" y="62" fill="#D97706" font-size="10" font-weight="bold">• 送信: &lt;F1&gt; (スキップ)</text>
-  </g>
-
-  <g transform="translate(370, 390)">
-    <rect width="310" height="76" rx="8" fill="url(#bgStep)" stroke="#CBD5E1" stroke-width="1.5" filter="url(#shadow)" />
-    <rect x="0" y="0" width="6" height="76" rx="3" fill="#0284C7" />
-    <rect x="14" y="10" width="54" height="18" rx="3" fill="#0284C7" />
-    <text x="41" y="23" text-anchor="middle" fill="#FFFFFF" font-size="9" font-weight="bold">STEP 4</text>
-    <text x="76" y="24" fill="#0F172A" font-size="11" font-weight="bold">ヘッダー追加画面 (Salesperson)</text>
-    <text x="18" y="46" fill="#334155" font-size="10">• 待機: "Salesperson:" 表示</text>
-    <text x="18" y="62" fill="#D97706" font-size="10" font-weight="bold">• 送信: &lt;F1&gt; (スキップ)</text>
-  </g>
-
-  <!-- 矢印 4 -->
-  <line x1="525" y1="466" x2="525" y2="478" stroke="#0284C7" stroke-width="2" />
-  <line x1="525" y1="478" x2="360" y2="478" stroke="#0284C7" stroke-width="2" />
-  <line x1="360" y1="478" x2="360" y2="494" stroke="#0284C7" stroke-width="2.5" marker-end="url(#arrow)" />
-
-  <!-- STEP 5: 特記事項 (案C: 全クリア置換) -->
-  <g transform="translate(40, 498)">
-    <rect width="640" height="96" rx="8" fill="url(#bgStep)" stroke="#CBD5E1" stroke-width="1.5" filter="url(#shadow)" />
-    <rect x="0" y="0" width="8" height="96" rx="4" fill="#0284C7" />
-    <rect x="18" y="12" width="60" height="20" rx="4" fill="#0284C7" />
-    <text x="48" y="26" text-anchor="middle" fill="#FFFFFF" font-size="10" font-weight="bold">STEP 5</text>
-    <text x="86" y="27" fill="#0F172A" font-size="13" font-weight="bold">特記事項 (Transaction Comments / 案C: 全クリア置換)</text>
-    
-    <text x="22" y="52" fill="#1E293B" font-size="11" font-weight="bold">• コメントあり:</text>
-    <text x="110" y="52" fill="#334155" font-size="10.5">&lt;F1&gt; ➔ <tspan fill="#DC2626" font-weight="bold">&lt;F8&gt; (Clear) で既定文全消去</tspan> ➔ 本文入力 ➔ &lt;F1&gt; ➔ &lt;F1&gt; ➔ <tspan fill="#D97706" font-weight="bold">&lt;F4&gt;</tspan></text>
-    
-    <text x="22" y="74" fill="#1E293B" font-size="11" font-weight="bold">• コメントなし:</text>
-    <text x="110" y="74" fill="#334155" font-size="10.5">そのまま <tspan fill="#D97706" font-weight="bold">&lt;F4&gt;</tspan> を送信して明細画面（Sales Order Line）へ進む</text>
-  </g>
-
-  <!-- 矢印 5 -->
-  <line x1="360" y1="594" x2="360" y2="618" stroke="#D97706" stroke-width="2.5" marker-end="url(#arrow)" />
-
-  <!-- STEP 6: 明細行入力 (3階層グループ化ループ) -->
-  <g transform="translate(40, 622)">
-    <rect width="640" height="526" rx="8" fill="url(#bgStep6)" stroke="#F59E0B" stroke-width="2" filter="url(#shadow)" />
-    <rect x="0" y="0" width="8" height="526" rx="4" fill="#D97706" />
-    <rect x="18" y="12" width="60" height="20" rx="4" fill="#D97706" />
-    <text x="48" y="26" text-anchor="middle" fill="#FFFFFF" font-size="10" font-weight="bold">STEP 6</text>
-    <text x="86" y="27" fill="#B45309" font-size="13" font-weight="bold">受注明細行入力 (Line Items / 6.1.0 〜 6.2.5 階層ループ)</text>
-
-    <!-- 第1階層: 品番 -->
-    <g transform="translate(18, 42)">
-      <rect width="604" height="96" rx="6" fill="#FFFFFF" stroke="#FDE68A" stroke-width="1.5" />
-      <text x="12" y="20" fill="#B45309" font-size="11" font-weight="bold">【第1階層: 品番ループ (product_name ごとに Ln 採番)】</text>
-      <text x="16" y="40" fill="#1E293B" font-size="10">• 6.1.0 Ln 自動採番: Ln欄で &lt;Enter&gt; (行番号 1, 2... 自動採番)</text>
-      <text x="16" y="58" fill="#1E293B" font-size="10">• 6.1.1 Create WO スキップ: &lt;F1&gt; 送信</text>
-      <text x="16" y="76" fill="#1E293B" font-size="10">• 6.1.3 品番＆Site入力: Item Number に品番入力 + &lt;F1&gt; ➔ Site に "CB2" + &lt;F1&gt;</text>
-      <text x="16" y="92" fill="#1E293B" font-size="10">• 6.1.4 Qty Ordered UM スキップ: &lt;F1&gt; 送信 (平米数は自動計算)</text>
-    </g>
-
-    <!-- 第2階層: 長さ -->
-    <g transform="translate(36, 146)">
-      <rect width="568" height="76" rx="6" fill="#FEFCE8" stroke="#FCD34D" stroke-width="1.5" />
-      <text x="12" y="18" fill="#92400E" font-size="10.5" font-weight="bold">【第2階層: 長さループ (length ごとにサブライン SL 採番)】</text>
-      <text x="16" y="38" fill="#1E293B" font-size="10">• 6.1.4-SL サブライン取得: &lt;F1&gt; 送信 ➔ 'Len(m)' 欄待機</text>
-      <text x="16" y="56" fill="#1E293B" font-size="10">• 6.2.0 長さ入力: Len(m) に長さ(m) を入力 + &lt;F1&gt; 送信</text>
-      <text x="16" y="70" fill="#1E293B" font-size="10">• 画面待機: 'Ser T Rolls Width' ポップアップ出現を検知</text>
-    </g>
-
-    <!-- 第3階層: 幅・本数 -->
-    <g transform="translate(54, 230)">
-      <rect width="532" height="110" rx="6" fill="#FFFBEB" stroke="#FBBF24" stroke-width="1.5" />
-      <text x="12" y="18" fill="#78350F" font-size="10" font-weight="bold">【第3階層: ロール明細ループ (同一長さ内の幅・本数登録)】</text>
-      <text x="16" y="38" fill="#1E293B" font-size="9.5">• 6.2.1-1 Ser スキップ: &lt;F1&gt; 送信 (連番は自動採番)</text>
-      <text x="16" y="54" fill="#1E293B" font-size="9.5">• 6.2.1-2 Rolls 入力: 本数 + &lt;Enter&gt; (Width欄へ移動)</text>
-      <text x="16" y="70" fill="#1E293B" font-size="9.5">• 6.2.1-3 Width 入力: 幅(mm) + &lt;Enter&gt; (次行Serへ移動)</text>
-      <text x="16" y="86" fill="#4B5563" font-size="9.5">(※同長さで別幅があれば繰り返し ➔ 次行Serで &lt;F4&gt; 送信)</text>
-      <text x="16" y="102" fill="#047857" font-size="9.5" font-weight="bold">• 6.2.1 確定: 'Please confirm update' を &lt;F1&gt; ('yes') 確定 ➔ SL一覧へ復帰</text>
-    </g>
-
-    <!-- 全長さ完了後の単価・Reason Codeフロー -->
-    <g transform="translate(18, 350)">
-      <rect width="604" height="160" rx="6" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5" />
-      <text x="12" y="18" fill="#0F172A" font-size="10.5" font-weight="bold">【全スリット設定完了 ➔ 単価入力 ➔ Reason Code 解決 ➔ 復帰】</text>
-      <text x="16" y="38" fill="#1E293B" font-size="10">• 全長さ完了: SL一覧画面で &lt;F4&gt; ➔ 'Please confirm update' を &lt;Enter&gt; 確定</text>
-      <text x="16" y="56" fill="#1E293B" font-size="10">• 6.2.3 Pricing Date スキップ: &lt;F1&gt; 送信 ➔ 値段画面待機</text>
-      <text x="16" y="74" fill="#1E293B" font-size="10">• 6.2.4 単価入力: List Price を &lt;F1&gt; スキップ ➔ Price に単価入力 + &lt;F1&gt;</text>
-      <text x="16" y="92" fill="#1E293B" font-size="10">• 6.2.5 スキップ: Tax Usage を &lt;F1&gt; ➔ 明細行コメントを &lt;F4&gt; スキップ</text>
-      
-      <rect x="14" y="104" width="576" height="46" rx="4" fill="#FEF2F2" stroke="#F87171" stroke-width="1" />
-      <text x="24" y="122" fill="#991B1B" font-size="10" font-weight="bold">★ Reason Code (理由コード) ポップアップ出現時の確実な自動解決:</text>
-      <text x="24" y="140" fill="#7F1D1D" font-size="9.5">• 定価差異: コード "70" (MISC) 入力 / 納期差異: コード "28" (INTERNAL) 入力 ➔ &lt;F1&gt; 確定</text>
-    </g>
-  </g>
-
-  <!-- 矢印 6 -->
-  <line x1="360" y1="1148" x2="360" y2="1172" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow-green)" />
-  <text x="375" y="1162" fill="#059669" font-size="10" font-weight="bold">全品番入力完了 ➔ 空Lnで &lt;F4&gt; ➔ Formatで &lt;F4&gt;</text>
-
-  <!-- STEP 6.3.0: 最終合計確定 ＆ 正式コミット -->
-  <g transform="translate(40, 1176)">
-    <rect width="640" height="150" rx="8" fill="url(#bgFinal)" stroke="#10B981" stroke-width="2" filter="url(#shadow)" />
-    <rect x="0" y="0" width="8" height="150" rx="4" fill="#059669" />
-    <rect x="18" y="12" width="76" height="20" rx="4" fill="#059669" />
-    <text x="56" y="26" text-anchor="middle" fill="#FFFFFF" font-size="10" font-weight="bold">STEP 6.3.0</text>
-    <text x="102" y="27" fill="#065F46" font-size="13" font-weight="bold">受注最終合計確定 (Order Totals) ＆ 正式コミット・安全復帰</text>
-    
-    <text x="22" y="52" fill="#1E293B" font-size="11" font-weight="bold">• 画面待機:</text>
-    <text x="96" y="52" fill="#334155" font-size="11">'Line Total:' / 'Total Tax:' 最終合計画面を検知</text>
-    
-    <text x="22" y="74" fill="#1E293B" font-size="11" font-weight="bold">• 下段展開:</text>
-    <text x="96" y="74" fill="#D97706" font-size="11" font-weight="bold">&lt;F1&gt;</text>
-    <text x="135" y="74" fill="#334155" font-size="11">送信 ➔ 詳細フレーム (Frame 2+: 支払条件・出荷条件等) を展開</text>
-
-    <text x="22" y="96" fill="#1E293B" font-size="11" font-weight="bold">• 正式コミット:</text>
-    <text x="96" y="96" fill="#059669" font-size="11" font-weight="bold">&lt;F4&gt;</text>
-    <text x="135" y="96" fill="#065F46" font-size="11" font-weight="bold">送信 (注文データを基幹DBへ正式保存 ＆ 与信チェック実行)</text>
-
-    <text x="22" y="118" fill="#1E293B" font-size="11" font-weight="bold">• 与信警告解除:</text>
-    <text x="96" y="118" fill="#334155" font-size="11">'Press space bar to continue' 検知時は <tspan fill="#DC2626" font-weight="bold">&lt;Space&gt;</tspan> 送信で警告解除</text>
-
-    <text x="22" y="138" fill="#1E293B" font-size="11" font-weight="bold">• 初期画面復帰:</text>
-    <text x="96" y="138" fill="#059669" font-size="11" font-weight="bold">最終 &lt;F4&gt;</text>
-    <text x="170" y="138" fill="#334155" font-size="11">送信 ➔ 受注入力初期画面 (Order: ブランク) へ安全復帰！</text>
-  </g>
-
-  <!-- 矢印 7 -->
-  <line x1="360" y1="1326" x2="360" y2="1350" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow-green)" />
-
-  <!-- END -->
-  <g transform="translate(160, 1354)">
-    <rect width="400" height="48" rx="24" fill="url(#bgStart)" stroke="#34D399" stroke-width="2" filter="url(#shadow)" />
-    <text x="200" y="30" text-anchor="middle" fill="#34D399" font-size="12" font-weight="bold">✅ QAD 99.7.1.1 受注登録 全工程正常完了！</text>
-  </g>
-</svg>
-</div>
-
-<div class="page-break"></div>
-
-<h2>3. ヘッダー一括貼り付け仕様 (Step 2 バッファ)</h2>
-<p>Sold-To 欄にフォーカスがある状態で、以下の改行区切りテキスト（10行）を一括ペーストします。</p>
-
-<table>
-  <thead>
-    <tr>
-      <th style="width:8%;">行</th>
-      <th style="width:22%;">項目名</th>
-      <th style="width:32%;">設定値ルール</th>
-      <th style="width:38%;">説明・留意事項</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Line 01</td>
-      <td><strong>Sold-To</strong></td>
-      <td><code>customer_code</code></td>
-      <td>顧客コード（例: "20000900"）</td>
-    </tr>
-    <tr>
-      <td>Line 02</td>
-      <td><strong>Bill-To</strong></td>
-      <td><code>customer_code</code></td>
-      <td><strong>【重要】Sold-To と同一の顧客コードを入力</strong></td>
-    </tr>
-    <tr>
-      <td>Line 03</td>
-      <td><strong>Ship-To</strong></td>
-      <td><code>ship_to_code</code></td>
-      <td>納品先コード（例: "20000911"）</td>
-    </tr>
-    <tr>
-      <td>Line 04</td>
-      <td><strong>Order Date</strong></td>
-      <td>当日日付 (MM/dd/yy)</td>
-      <td>システム当日付（例: "09/29/26"）</td>
-    </tr>
-    <tr>
-      <td>Line 05</td>
-      <td><strong>Required Date</strong></td>
-      <td>要求納期 (MM/dd/yy)</td>
-      <td>サイドバー入力値（例: "09/30/26"）</td>
-    </tr>
-    <tr>
-      <td>Line 06</td>
-      <td><strong>Promise Date</strong></td>
-      <td><code>""</code> (空行)</td>
-      <td>Enterでスキップ</td>
-    </tr>
-    <tr>
-      <td>Line 07</td>
-      <td><strong>Due Date</strong></td>
-      <td>回答納期 (MM/dd/yy)</td>
-      <td>サイドバー入力値（例: "10/01/26"）</td>
-    </tr>
-    <tr>
-      <td>Line 08</td>
-      <td><strong>Perform Date</strong></td>
-      <td><code>""</code> (空行)</td>
-      <td>Enterでスキップ</td>
-    </tr>
-    <tr>
-      <td>Line 09</td>
-      <td><strong>Pricing Date</strong></td>
-      <td><code>""</code> (空行)</td>
-      <td><strong>【必須】Enterでスキップ</strong></td>
-    </tr>
-    <tr>
-      <td>Line 10</td>
-      <td><strong>Purchase Order</strong></td>
-      <td><code>purchase_order</code></td>
-      <td>注文番号 / 発注番号（例: "test"）</td>
-    </tr>
-    <tr>
-      <td>Line 11</td>
-      <td><strong>Remarks</strong></td>
-      <td><code>remarks</code></td>
-      <td>備考テキスト（例: "test"）</td>
-    </tr>
-  </tbody>
-</table>
-
-<h2>4. 明細 3階層グループ化ロジック (Step 6)</h2>
-<p>サイドバーから渡された注文データ（<code>items</code>）は、以下の階層構造に変換されてQADに登録されます。</p>
-
-<div class="code-block">[
-  {
-    "line_no": 1,              /* 第1階層: Ln (品番ごとに1行採番) */
-    "product_name": "BW0100D",
-    "price": "130",            /* 単価 (製品単位で一意) */
-    "length_groups": [
-      {
-        "sl": 1,               /* 第2階層: SL (長さごとに採番) */
-        "length": "600",
-        "entries": [
-          {"ser": 1, "rolls": 1, "width": "250"},  /* 第3階層: ロール (幅・本数) */
-          {"ser": 2, "rolls": 1, "width": "120"}
-        ]
-      },
-      {
-        "sl": 2,
-        "length": "400",
-        "entries": [
-          {"ser": 1, "rolls": 1, "width": "120"}
-        ]
-      }
-    ]
-  }
-]</div>
-
-<h2>5. エラー処理・安全保護・トラブルシューティング</h2>
-
-<table>
-  <thead>
-    <tr>
-      <th style="width:25%;">事象・エラー</th>
-      <th style="width:30%;">発生原因</th>
-      <th style="width:45%;">システムの自動対応 / 解決アクション</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><strong>Category=... Press space</strong></td>
-      <td>得意先マスターの業種カテゴリ警告</td>
-      <td><code>&lt;Space&gt;</code> を自動送信して画面ロックを即座に解除。</td>
-    </tr>
-    <tr>
-      <td><strong>Please confirm update</strong></td>
-      <td>スリット設定完了時の確認プロンプト</td>
-      <td>初期値 <code>yes</code> に対し <code>&lt;F1&gt;</code> または <code>&lt;Enter&gt;</code> を送信して確実に保存。</td>
-    </tr>
-    <tr>
-      <td><strong>Reason Code 要求</strong></td>
-      <td>定価差異または納期乖離</td>
-      <td>定価差異時は <code>70</code>、納期差異時は <code>28</code> を自動入力して <code>&lt;F1&gt;</code> で確定。</td>
-    </tr>
-    <tr>
-      <td><strong>既定コメントの残存</strong></td>
-      <td>得意先マスターからの自動引用</td>
-      <td>Step 5 でエディタ進入直後に <code>&lt;F8&gt; (Clear)</code> を送信して全クリア置換（案C）。</td>
-    </tr>
-    <tr>
-      <td><strong>与信・延滞警告 (Press space)</strong></td>
-      <td>取引先の与信限度超過や請求書未回収</td>
-      <td>コミット後の <code>Press space bar to continue</code> を検知し <code>&lt;Space&gt;</code> を送信して解除。</td>
-    </tr>
-    <tr>
-      <td><strong>画面待機タイムアウト</strong></td>
-      <td>通信切断または予期せぬエラーモーダル</td>
-      <td>各工程で最大タイムアウトを設定。タイムアウト時は自動停止してエラー表示。</td>
-    </tr>
-  </tbody>
-</table>
-
-<h2>6. UI連携仕様（自作モダンターミナル）</h2>
-<ul>
-  <li><strong>サイドバー（F3 / Ctrl 2回押し）</strong>: 顧客情報・納期・明細テーブルを快適に入力。</li>
-  <li><strong>「リセット」ボタン（左下）</strong>: <code>Required Date</code> と <code>due date</code> は現状維持し、それ以外の入力欄を一括消去。</li>
-  <li><strong>「送信」ボタン（右下）</strong>: 押下時、バリデーションを経て <strong>QAD 99.7.1.1 完全自動入力マクロを直接起動</strong>。確認ダイアログで「はい」を押すと、Step 1〜6.3.0 までが自律実行される。</li>
-  <li><strong>F3 シークレット出力チェックターミナル</strong>: 送信キーストロークのシミュレーションをリアルタイム表示。</li>
-</ul>
-
-<h2>7. AI 指示用プロンプト・テンプレート</h2>
-<p>将来別のAIエージェントに機能追加や改修を指示する際は、以下の枠内プロンプトをそのまま活用できます。</p>
-
-<div class="code-block">あなたは Progress 4GL / QAD CUI 端末（VT100）の自動化エキスパートです。
-以下の仕様書に完全に従い、QAD 99.7.1.1 (Sales Order Maintenance) の自動入力処理を実装・改修してください。
-
-【厳格な遵守事項】
-1. ブラインド送信の禁止:
-   各ステップ間を移動する際、必ずターミナル画面バッファの表示変化（特定のプロンプト文字列・ポップアップ枠・カーソル位置）を待機してから次のキーストローク・値を送信してください。
-2. Order ID の共通管理:
-   Step 1 で Order 欄を空のまま Enter を送信すると自動採番される最新番号（例: SO199401）が、この注文の一連の共通管理IDです。一度の指示で複数のIDを取得したり、指定なく既存IDを変更することは絶対禁止です。
-3. ヘッダー一括貼り付け:
-   Step 2 では Sold-To 欄から 10行改行結合テキストを一括ペーストしてください。Line 2 の Bill-To には Sold-To と同一の顧客コードを入力してください。
-4. 特記事項全クリア置換（案C）:
-   Step 5 では &lt;F1&gt; でエディタ進入後、&lt;F8&gt; (Clear) を送信して既定コメントを一括消去し、新規コメントのみを登録してください。
-5. 明細 3階層グループ化 ＆ Reason Code 解決:
-   Step 6 の明細データは「品番 (Ln)」➔「長さ (SL)」➔「幅・本数 (Ser/Rolls)」の階層構造で順次登録してください。定価差異には '70'、納期差異には '28' を自動応答してください。
-6. 正式コミットと安全復帰:
-   Step 6.3.0 では空Lnから &lt;F4&gt; ➔ Formatで &lt;F4&gt; ➔ Totals画面で &lt;F1&gt; (下段展開) ➔ &lt;F4&gt; (正式コミット) ➔ 与信警告あれば &lt;Space&gt; ➔ 最終 &lt;F4&gt; で初期画面 (Order: ブランク) へ安全復帰してください。</div>
-
-</body>
-</html>
+<!doctype html><html lang="ja"><meta charset="utf-8"><title>QAD 受注入力マニュアル</title><style>body{font-family:Meiryo,sans-serif;color:#22303b;max-width:900px;margin:40px auto;line-height:1.8}h1{font-size:26px}h2{font-size:20px;margin-top:30px}h3{font-size:16px}table{border-collapse:collapse;width:100%;font-size:13px}td{padding:8px;border-bottom:1px solid #d6dfe4;vertical-align:top}tr:first-child{background:#e9eff3}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}p{overflow-wrap:anywhere}@media print{body{margin:0}h1,h2,h3{break-after:avoid}tr{break-inside:avoid}}</style><body><h1>QAD 99.7.1.1 受注入力 操作・自動化仕様マニュアル</h1>
+<p>更新日: 2026-09-29 / 対象実装: d8a2ee9</p>
+<h2>1. 適用範囲と検証状況</h2>
+<p>本書は注文入力UI、事前表示、現行のサーバー送信処理を説明する。実装の動作と、実サーバーで正しいと確認できた操作を区別する。</p>
+<p>直近のオフライン試験は57件中51件成功、6件失敗、エラー0件。6件は警告・遅延・画面遷移に関する未解決の受入条件であり、合格扱いにはしていない。合成応答による再現で、すべてが実環境で発生済みという意味ではない。VPNが必要なSSH接続、実注文登録、登録結果の読み戻しは今回実施していない。</p>
+<p>F3の事前表示は入力値と予定キーの確認用であり、サーバーへの登録成功を証明しない。画面復帰や完了表示だけでもDBの確定・全項目一致は保証されない。</p>
+<h2>2. 注文入力UIの操作</h2>
+<p>注文入力パネルはメニューから開閉する。既定ショートカットはF2またはCtrlの2回押し。変更済みの場合は「ショートカット変更」の設定を確認する。</p>
+<p>1. メニュー設定で、顧客・納品先の組を格納したローカルCSVを指定する。</p>
+<p>2. 「顧客名」を選ぶ。その顧客に対応する候補から「納品先」を選ぶ。</p>
+<p>3. Required date、due dateを日付選択で設定する。表示形式はyyyy/M/d (ddd)。</p>
+<p>4. Purchase Order、Remarks、SO commentを必要に応じて入力する。RemarksとSO commentの初期値は空白。</p>
+<p>5. 表の各行に製品名、巾、長さ、本数、価格を入力する。</p>
+<p>6. F3の出力チェックで予定内容を確認する。「送信」は入力検査後に自動送信を開始する。確認ダイアログが出る前提で押さない。</p>
+<p>出力チェック側から実行する場合も実送信になる。同じ注文について「送信」と重ねて実行しない。リセット時は日付が保持されるため、次の注文の日付を確認する。</p>
+<p>開始画面が既存受注の明細途中の場合、処理はStep 6から開始し、入力パネルのヘッダー値を反映しない。ヘッダーを含む新規入力と明細追加を混同しない。</p>
+<h2>3. データと端末の仕様</h2>
+<p>同一製品に異なる単価を設定できないシステム制約を維持する。明細は製品、長さ、幅の階層にまとめ、対応する本数を投入する。今回この集約仕様は変更していない。</p>
+<p>端末はVT100、132列×24行、CP932の逐次デコードを使用する。EnterはCR（\\r）、F1はESC OP。Fキーを一般的な文字列「F1」として送るわけではない。警告へのSpaceは単独の空白文字で、Enterを付けない。</p>
+<p>送信開始時に入力内容を複製し、送信先セッションを固定する。送信中のタブ切替で画面判定が別タブに移らないよう、そのセッションの端末画面をロック下で直接取得する。GUIの描画キャッシュを判定元にはしない。</p>
+<p>F3と本処理は同じヘッダー生成関数を利用する。ただし事前表示は将来の受信画面や警告の出現を予測できない。</p>
+<h2>4. 現行実装の送信フロー</h2>
+<p>以下は現行コードの記述であり、未解決条件を含む。これをそのまま実機での正解手順と断定しない。</p>
+<h3>Step 1: 受注番号</h3>
+<p>Order欄が空の場合、F1で採番を要求する。受注番号とSold-Toの文字列を検出して進む。過去資料の行・列座標は観測値であり、現在の判定がカーソル位置まで保証するわけではない。</p>
+<h3>Step 2: ヘッダー</h3>
+<p>Sold-Toへ顧客コードとEnterを送り、警告やBill-Toの表示をポーリングする。警告応答の後、Bill-Toへ顧客コード（Sold-Toと同値）、Ship-Toへ納品先コードを、それぞれEnter付きで送る。</p>
+<p>続く8項目は以下の順でCR結合して送信し、F1で次へ進む。結合末尾に追加のCRは付けない。</p>
+<table><tr><td>順番</td><td>項目</td><td>現行の入力値</td></tr><tr><td>1</td><td>Order Date</td><td>実行当日、MM/dd/yy</td></tr><tr><td>2</td><td>Required Date</td><td>選択した要求納期、MM/dd/yy</td></tr><tr><td>3</td><td>Promise Date</td><td>空欄</td></tr><tr><td>4</td><td>Due Date</td><td>選択した回答納期、MM/dd/yy</td></tr><tr><td>5</td><td>Perform Date</td><td>空欄</td></tr><tr><td>6</td><td>Pricing Date</td><td>空欄</td></tr><tr><td>7</td><td>Purchase Order</td><td>前後の空白を除去した値</td></tr><tr><td>8</td><td>Remarks</td><td>前後の空白を除去した値</td></tr></table>
+<p>Sold-To直後には最大約2.5秒のポーリングがあるが、遷移しない場合に必ず停止する実装ではない。Bill-To・Ship-To後の固定待機も、入力先が正しいことの証明にはならない。</p>
+<h3>Step 3・4: 税と販売情報</h3>
+<p>Tax Usage画面が表示された場合はF1で進む。販売員・運賃関連の画面もF1で進む。画面内のラベルによる判定と固定待機を併用しているため、背景に残ったラベルと現在の入力欄を厳密に区別できない場合がある。</p>
+<h3>Step 5: SO comment</h3>
+<p>空の場合はF4で戻る。入力がある場合はF1で編集へ入り、F8で消去操作を要求し、確認にyとEnterで応答する。編集状態によってCtrl+Zを補助的に使用する。本文を行ごとにEnter付きで送り、F1で確定し、必要に応じてPrint On QuoteのF1を処理してF4で戻る。</p>
+<p>既定行が本当に消えたか、本文が保存されたかはサーバーの読み戻しで確認する。送信したキーだけから削除成功を断定しない。</p>
+<h3>Step 6: 製品・寸法・数量・単価</h3>
+<table><tr><td>段階</td><td>現行の送信内容</td></tr><tr><td>Ln開始</td><td>必要な場合にEnter、Create WO表示時にF1</td></tr><tr><td>製品</td><td>製品コード、F1</td></tr><tr><td>Site</td><td>Site値（既定CB2）、F1</td></tr><tr><td>Qty・SL</td><td>必要に応じQtyのF1、SLでF1 → Enter → Enter</td></tr><tr><td>長さ</td><td>長さの値とEnter</td></tr><tr><td>巾・本数</td><td>SerをEnterで進み、本数とEnter、巾とEnter。対象を繰り返す</td></tr><tr><td>長さ終了</td><td>F4、確認F1でSLへ戻る</td></tr><tr><td>全長さ終了</td><td>F4、確認F1</td></tr><tr><td>価格画面</td><td>必要に応じOrig Order QtyのF1、Pricing DateのF1</td></tr><tr><td>単価</td><td>List PriceのF1、単価の値、F1</td></tr><tr><td>税・コメント</td><td>税のF1、コメントのF4</td></tr><tr><td>理由コード</td><td>検出時は70＋Enter、28＋Enter、28＋Enter、F1</td></tr></table>
+<p>理由コードの現在の処理は、表示される欄の数に合わせた厳密な分岐ではなく固定送信である。欄の種類や数が違う場合、後続欄に値が流れる可能性が残る。</p>
+<h3>Step 6.3: 合計・終了</h3>
+<p>明細画面を抜けるため最大6回のF4を試み、Create WO表示時はF1を処理する。合計画面を検出した後の現行順序は次のとおり。</p>
+<p>1. F1を送信し、約0.5秒待つ。</p>
+<p>2. 2回目のF1を送信し、約0.6秒待つ。</p>
+<p>3. Spaceを無条件に送信し、約0.5秒待つ。</p>
+<p>4. 警告が残る場合は追加のSpaceを最大3回送る。</p>
+<p>5. 合計画面に残る場合だけF4を送る。</p>
+<p>6. Main Menuまたは受注入力画面への復帰を待つ。</p>
+<p>過去の実行ログにはF1 → F4 → F4という異なる経路がある。対象環境で正しい確定キーは未確定であり、今回コードの最終キー列は変更していない。従来マニュアルの「F1 → F4 → Space → F4」を確定済み手順として扱わない。</p>
+<p>完了判定は画面文字列に基づく。Order欄が空に戻ったことや、注文のDB確定まで確認するものではない。</p>
+<h2>5. 未解決の受入条件6件</h2>
+<table><tr><td>番号</td><td>再現条件</td><td>検出した問題</td></tr><tr><td>1</td><td>背景にSold-Toラベルが残り、警告も表示</td><td>背景ラベルで待機成功となり、警告解除を省略</td></tr><tr><td>2</td><td>Category値だけでSpace要求はない</td><td>不要なSpaceを送る</td></tr><tr><td>3</td><td>2回目F1で警告なしにMain Menuへ戻る</td><td>復帰後にもSpaceを送る</td></tr><tr><td>4</td><td>Space後の警告消去に0.9秒かかる</td><td>同じ警告へSpaceを重複送信</td></tr><tr><td>5</td><td>Sold-To後にBill-Toへ遷移しない</td><td>待機終了後に次の値を送る</td></tr><tr><td>6</td><td>合計画面の1回目F1で警告へ進む</td><td>警告中に2回目F1を送る</td></tr></table>
+<p>これらは単なるテストの期待値違いではなく、「要求されていないキーを送らない」「遷移失敗時に次の値を送らない」という受入条件が未達である。テストを通すために期待値を現行動作へ合わせない。</p>
+<p>ほかにも理由コードの可変数、途中成功後の再送、手動キーや別マクロとの競合、長い日本語・半角カナ・コメント、税額・丸めの確認が残る。既定の待機上限があっても、すべての独自ポーリングが同じ停止条件を持つわけではない。</p>
+<h2>6. 検証方法と中断後の扱い</h2>
+<p>リポジトリ直下で次のコマンドを実行する。これらのテストはSSH接続や注文更新を行わない。</p>
+<pre>.\.venv\Scripts\python.exe -X utf8 scripts/verify_order.py
+.\.venv\Scripts\python.exe -X utf8 scripts/verify_order.py --acceptance --report verification-output/acceptance.json</pre>
+<p>通常モードは51件の回帰試験。--acceptanceは6件を含む全57件で、現状は終了コード1になる。終了コード0でも、省略した試験や実サーバー検証が成功した意味ではない。</p>
+<p>実機で許可された検証を行うときは、送信前の入力と対象Order IDを保存し、送信後は別の読取手段で確定済み注文を取得する。事前表示や期待値のコピーを実測値として使わない。</p>
+<pre>.\.venv\Scripts\python.exe -X utf8 scripts/compare_order_result.py verification-output/expected.json verification-output/actual.json</pre>
+<p>比較対象はOrder ID、顧客、請求先、納品先、受注日・要求納期・回答納期、Site、PO、Remarks、SO comment、全明細。数値表示や明細分割の差を正規化して比較する。サーバーの税・丸め・内部ステータス全種類までは検証しない。</p>
+<p>中断・切断・タイムアウト後は、どこまで保存されたかを確認せず再送しない。現行処理に重複登録を完全に防ぐ仕組みがあるとは扱わない。再開方法は対象受注の実状態と照合して決める。</p>
+<h2>7. 関連資料と更新方法</h2>
+<p>- docs/受注送信_整合性監査_2026-09-29.md: 修正箇所、コードと過去ログの相違、残るリスク。</p>
+<p>- docs/受注送信_検証手順.md: テスト名、JSONの必須項目、実機確認項目、運用受入条件。</p>
+<p>- AI引継ぎ用_QAD自動化設計書.md: システム構成と引継ぎ事項。</p>
+<p>- tests/fixtures/order_readback_expected.jsonとorder_readback_actual.json: 合成照合サンプル。</p>
+<p>本書の編集元はdocs/QAD_99_7_1_1_Order_Entry_Manual.md。scripts/build_order_manual.pyをreportlabが利用できるPythonで実行すると、ルートのMarkdown複製、両方のPDF、docs/manual_print.htmlを更新する。旧scratchスクリプトの固定パス・固定本文を使って再生成しない。</p></body></html>
