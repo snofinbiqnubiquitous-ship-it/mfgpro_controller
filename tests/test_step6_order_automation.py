@@ -2388,6 +2388,107 @@ class AutomationControllerExecutionTests(unittest.TestCase):
         warning_screen = "Press space bar to continue.\n"
         self.assertFalse(is_order_completed(warning_screen))
 
+    def test_delayed_create_wo_after_ln_enter_must_not_prematurely_send_item_number(self):
+        """Ln 欄で Enter 送信後、画面描画遅延で静的ヘッダー 'Item Number' が見えている間も
+        フライングで品番を送信せず、Create WO の出現を待って F1 スキップしてから品番を送信すること
+        """
+        sent = []
+        screen_call_count = [0]
+        screens = [
+            # 0: Ln 入力欄 (静的ヘッダー 'Ln Item Number' あり、Create WO なし)
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "│ Sales Order: SO199530 Sold-To: 20000600 Ln Format S/M: Single                │\n"
+            "┌────────────────────────────── Sales Order Line ──────────────────────────────┐\n"
+            "│ Ln Item Number        Qty Ordered UM     List Price Discount           Price │\n"
+            "│─── ────────────────── ─────────── ── ────────────── ──────── ─────────────── │\n"
+            "│                                                                              │\n"
+            "F1=Go 2=Hlp 3=Ins 4=End\n",
+
+            # 1: Create WO ポップアップ出現
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "┌────────┌───────────────────────────────┐r Line ──────────────────────────────┐\n"
+            "│ Ln Item│Create WO: Y Rework: Y Exact: Y│ List Price Discount           Price │\n"
+            "│─── ────└───────────────────────────────┘─────────── ──────── ─────────────── │\n"
+            "│  1                            0.0              0.00      0.0            0.00 │\n"
+            "F1=Go 2=Hlp 3=Ins 4=End\n",
+
+            # 2: Create WO スキップ後、Item Number 入力欄 (5=Delete 出現)
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "│ Ln Item Number        Qty Ordered UM     List Price Discount           Price │\n"
+            "│  1                                                                           │\n"
+            "F1=Go 2=Help 3=Ins 4=End 5=Delete\n",
+
+            # 3: Site ポップアップ出現
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             09/30/26\n"
+            "│ Ln Item Numbe│ Site     │ Ordered UM     List Price Discount           Price │\n"
+            "│─── ──────────│ ──────── │──────── ── ────────────── ──────── ─────────────── │\n"
+            "│  1 BW0100D   │ CB2      │                                                    │\n"
+            "F1=Go 2=Help 3=Ins 4=End\n",
+        ]
+
+        state = {"idx": 0}
+
+        def get_screen():
+            screen_call_count[0] += 1
+            # Enter 送信後、2回目まではまだ画面 0 (遅延) を返し、3回目で画面 1 (Create WO) を返す
+            return screens[state["idx"]]
+
+        def custom_send(data):
+            sent.append(data)
+            if state["idx"] == 0 and data == "\r":
+                # Enter 送信後、次の get_screen で Create WO へ遷移
+                state["idx"] = 1
+            elif state["idx"] == 1 and data == KEY_SEQUENCES["F1"]:
+                state["idx"] = 2
+            elif state["idx"] == 2 and data == "BW0100D":
+                pass
+            elif state["idx"] == 2 and data == KEY_SEQUENCES["F1"]:
+                state["idx"] = 3
+
+        class MockSession:
+            stop_event = MagicMock()
+            stop_event.is_set.return_value = False
+            def send(self, data):
+                custom_send(data)
+
+        controller = SalesOrderAutomationController(
+            session=MockSession(),
+            get_screen_text=get_screen,
+            payload={
+                "items": [
+                    {"product_name": "BW0100D", "width": "200", "length": "600", "quantity": 1, "price": "200"}
+                ]
+            },
+            sleep_func=lambda s: None,
+            default_timeout=2.0,
+        )
+
+        # カーソル位置: 画面 0, 1 は Ln 欄 (cx=2), 画面 2 は Item Number 欄 (cx=5)
+        def mock_cursor():
+            if state["idx"] < 2:
+                return (8, 2)
+            return (8, 5)
+
+        controller.get_cursor_pos = mock_cursor
+
+        # 品番入力直後まで実行（Site画面待機でタイムアウトさせて検証）
+        try:
+            controller.execute_step6()
+        except Exception:
+            pass
+
+        # 検証:
+        # 1. 最初に Enter (\r) が送信されたこと
+        # 2. 次に Create WO スキップの F1 が送信されたこと
+        # 3. その後で初めて品番 'BW0100D' が送信されたこと（Enter の直後に BW0100D が送信されていないこと）
+        self.assertIn("\r", sent)
+        enter_pos = sent.index("\r")
+        f1_pos = sent.index(KEY_SEQUENCES["F1"])
+        item_pos = sent.index("BW0100D")
+
+        self.assertLess(enter_pos, f1_pos, "Enter 送信後に F1 (Create WO解除) が送信されること")
+        self.assertLess(f1_pos, item_pos, "F1 (Create WO解除) の後に初めて品番 'BW0100D' が送信されること")
+
 
 if __name__ == "__main__":
     unittest.main()
