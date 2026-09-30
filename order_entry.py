@@ -1324,48 +1324,21 @@ class SalesOrderAutomationController:
                     self.sleep(0.7)
 
             # 6.1.1 Create WO ポップアップスキップ (出現時のみ F1 送信)
-            # 【重要】静的ヘッダー "Ln Item Number" の "item number" に誤即時マッチしないよう判定を厳格化
-            def _is_post_ln_ready(txt: str) -> bool:
-                t = txt.lower()
-                # A: Create WO ポップアップ枠が出現した（実機通常動作）
-                if "create wo:" in t or "rework:" in t:
-                    return True
-                # B: Create WO が出ずに Item Number 欄に着地した場合
-                # (下部ファンクションキーに 5=Delete 出現、またはカーソルが Item Number 列 cx >= 5 に移動)
-                cy, cx = self.get_cursor_pos()
-                if cx >= 5 and "sales order line" in t:
-                    return True
-                if "5=delete" in t or "5=del" in t:
-                    return True
-                return False
-
             self.wait_for_screen(
-                _is_post_ln_ready,
+                lambda txt: "create wo:" in txt or "rework:" in txt or ("item number" in txt and "create wo:" not in txt) or "5=delete" in txt,
                 desc=f"6.1.1 Create WO ポップアップ または Item Number 欄 (Line {prod['line_no']})"
             )
             curr_txt = clean_screen_text(self.get_screen_text()).lower()
             if "create wo:" in curr_txt or "rework:" in curr_txt:
                 self.log(f"6.1.1: F1 送信 (Line {prod['line_no']} Create WO ポップアップスキップ)")
                 self.send(KEY_SEQUENCES["F1"])
-                self.sleep(0.7)
+                self.sleep(0.45)
 
-            # 6.1.3 Item Number 入力欄への着地待機
-            # Create WO ポップアップが確実に閉じ、カーソルが Item Number 欄にあることを待機
-            def _is_item_number_ready(txt: str) -> bool:
-                t = txt.lower()
-                if "create wo:" in t or "rework:" in t:
-                    return False
-                if "sales order line" not in t and "ln item number" not in t:
-                    return False
-                cy, cx = self.get_cursor_pos()
-                cursor_ok = (cx >= 5) if cx >= 0 else True
-                return cursor_ok
-
+            # 6.1.3 Item Number 入力
             self.wait_for_screen(
-                _is_item_number_ready,
+                lambda txt: "create wo:" not in txt and ("sales order line" in txt or "item number" in txt or "5=delete" in txt),
                 desc=f"6.1.3 Item Number 入力欄 (Line {prod['line_no']})"
             )
-            self.sleep(0.5)
             self.log(f"6.1.3: 品番 '{p_name}' + F1 送信")
             self.send(f"{p_name}")
             self.sleep(0.3)
