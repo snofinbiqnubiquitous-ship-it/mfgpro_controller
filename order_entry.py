@@ -16,6 +16,7 @@ from tkinter import messagebox
 import unicodedata
 
 import customtkinter as ctk
+from ui_fonts import FONT_FAMILY
 from order_date_picker import OrderDateRangePicker
 
 try:
@@ -2665,7 +2666,7 @@ class OrderEntryPanel(ctk.CTkFrame):
         self.fields["customer_name"].grid(row=0, column=0, padx=(0, 4), sticky="ew")
 
         self.customer_code_entry = ctk.CTkEntry(
-            cust_frame, width=95, height=34, font=("Consolas", 12, "bold"),
+            cust_frame, width=95, height=34, font=(FONT_FAMILY, 12, "bold"),
             fg_color="#F8FAFC", text_color=colors["text"], border_width=1,
             border_color=colors["border"], corner_radius=7, state="readonly",
             justify="center", placeholder_text="Code"
@@ -2693,7 +2694,7 @@ class OrderEntryPanel(ctk.CTkFrame):
         self.fields["ship_to"].grid(row=0, column=0, padx=(0, 4), sticky="ew")
 
         self.ship_to_code_entry = ctk.CTkEntry(
-            ship_frame, width=95, height=34, font=("Consolas", 12, "bold"),
+            ship_frame, width=95, height=34, font=(FONT_FAMILY, 12, "bold"),
             fg_color="#F8FAFC", text_color=colors["text"], border_width=1,
             border_color=colors["border"], corner_radius=7, state="readonly",
             justify="center", placeholder_text="Code"
@@ -3458,7 +3459,7 @@ class DemoPayloadDialog(ctk.CTkToplevel):
         title_lbl = ctk.CTkLabel(
             header_frame,
             text="デモ注文Payloadの編集",
-            font=ctk.CTkFont(family="Meiryo", size=15, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
             anchor="w",
         )
         title_lbl.pack(fill="x")
@@ -3466,7 +3467,7 @@ class DemoPayloadDialog(ctk.CTkToplevel):
         desc_lbl = ctk.CTkLabel(
             header_frame,
             text="デモ送信でQADに送るJSONデータを編集できます。\n[📅 日付を今日基準に更新] を押すと、Due Date(明日)・Request Date(2日後)に自動設定されます。",
-            font=ctk.CTkFont(family="Meiryo", size=11),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
             text_color="#94A3B8",
             justify="left",
             anchor="w",
@@ -3480,7 +3481,7 @@ class DemoPayloadDialog(ctk.CTkToplevel):
         btn_date = ctk.CTkButton(
             action_bar,
             text="📅 日付を更新 (Due:明日, Req:2日後)",
-            font=ctk.CTkFont(family="Meiryo", size=11, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
             fg_color="#0284C7",
             hover_color="#0369A1",
             height=28,
@@ -3491,7 +3492,7 @@ class DemoPayloadDialog(ctk.CTkToplevel):
         btn_reset = ctk.CTkButton(
             action_bar,
             text="🔄 既定値に戻す",
-            font=ctk.CTkFont(family="Meiryo", size=11),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
             fg_color="#475569",
             hover_color="#334155",
             height=28,
@@ -3502,7 +3503,7 @@ class DemoPayloadDialog(ctk.CTkToplevel):
         btn_format = ctk.CTkButton(
             action_bar,
             text="🪄 JSON整形",
-            font=ctk.CTkFont(family="Meiryo", size=11),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
             fg_color="#475569",
             hover_color="#334155",
             height=28,
@@ -3513,7 +3514,7 @@ class DemoPayloadDialog(ctk.CTkToplevel):
         # JSONテキストエディタ
         self.text_editor = ctk.CTkTextbox(
             self,
-            font=ctk.CTkFont(family="Consolas", size=12),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             wrap="none",
             border_width=1,
             corner_radius=6,
@@ -3528,7 +3529,7 @@ class DemoPayloadDialog(ctk.CTkToplevel):
         btn_cancel = ctk.CTkButton(
             bottom_bar,
             text="キャンセル",
-            font=ctk.CTkFont(family="Meiryo", size=12),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             fg_color="#64748B",
             hover_color="#475569",
             width=90,
@@ -3539,7 +3540,7 @@ class DemoPayloadDialog(ctk.CTkToplevel):
         btn_save = ctk.CTkButton(
             bottom_bar,
             text="💾 保存して閉じる",
-            font=ctk.CTkFont(family="Meiryo", size=12, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             fg_color="#059669",
             hover_color="#047857",
             width=130,
@@ -3550,7 +3551,7 @@ class DemoPayloadDialog(ctk.CTkToplevel):
         btn_send = ctk.CTkButton(
             bottom_bar,
             text="🚀 保存してデモ送信",
-            font=ctk.CTkFont(family="Meiryo", size=12, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             fg_color="#4F46E5",
             hover_color="#4338CA",
             width=150,
@@ -3654,7 +3655,7 @@ class SleepRateDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             header,
             text="⚡ 受注Sleep時間の調整",
-            font=ctk.CTkFont(family="Meiryo", size=17, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=17, weight="bold"),
             anchor="w",
         ).pack(fill="x")
 
@@ -3666,7 +3667,7 @@ class SleepRateDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             header,
             text=desc_text,
-            font=ctk.CTkFont(family="Meiryo", size=12),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             text_color="#94A3B8",
             justify="left",
             anchor="w",
@@ -3683,7 +3684,7 @@ class SleepRateDialog(ctk.CTkToplevel):
         self.lbl_rate_big = ctk.CTkLabel(
             rate_display_frame,
             text=f"{self._current_val} %",
-            font=ctk.CTkFont(family="Meiryo", size=30, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=30, weight="bold"),
             text_color="#38BDF8",
         )
         self.lbl_rate_big.pack(side="left")
@@ -3691,7 +3692,7 @@ class SleepRateDialog(ctk.CTkToplevel):
         self.lbl_speed_ratio = ctk.CTkLabel(
             rate_display_frame,
             text=self._calc_speed_text(self._current_val),
-            font=ctk.CTkFont(family="Meiryo", size=14, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
             text_color="#10B981",
         )
         self.lbl_speed_ratio.pack(side="left", padx=12, pady=(6, 0))
@@ -3700,7 +3701,7 @@ class SleepRateDialog(ctk.CTkToplevel):
         slider_frame = ctk.CTkFrame(card, fg_color="transparent")
         slider_frame.pack(fill="x", padx=16, pady=(6, 8))
 
-        ctk.CTkLabel(slider_frame, text="1%", font=ctk.CTkFont(size=11), text_color="#64748B").pack(side="left")
+        ctk.CTkLabel(slider_frame, text="1%", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color="#64748B").pack(side="left")
 
         self.slider = ctk.CTkSlider(
             slider_frame,
@@ -3712,7 +3713,7 @@ class SleepRateDialog(ctk.CTkToplevel):
         self.slider.set(self._current_val)
         self.slider.pack(side="left", fill="x", expand=True, padx=8)
 
-        ctk.CTkLabel(slider_frame, text="200%", font=ctk.CTkFont(size=11), text_color="#64748B").pack(side="left")
+        ctk.CTkLabel(slider_frame, text="200%", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color="#64748B").pack(side="left")
 
         # プリセットボタン枠
         presets_frame = ctk.CTkFrame(card, fg_color="transparent")
@@ -3721,7 +3722,7 @@ class SleepRateDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             presets_frame,
             text="ワンクリックプリセット:",
-            font=ctk.CTkFont(family="Meiryo", size=11),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
             text_color="#94A3B8",
             anchor="w",
         ).pack(fill="x", pady=(0, 4))
@@ -3743,7 +3744,7 @@ class SleepRateDialog(ctk.CTkToplevel):
             btn = ctk.CTkButton(
                 btn_row1,
                 text=text,
-                font=ctk.CTkFont(family="Meiryo", size=10, weight="bold"),
+                font=ctk.CTkFont(family=FONT_FAMILY, size=10, weight="bold"),
                 height=26,
                 fg_color=col,
                 hover_color="#1E293B",
@@ -3758,7 +3759,7 @@ class SleepRateDialog(ctk.CTkToplevel):
         self.lbl_preview = ctk.CTkLabel(
             preview_box,
             text=self._calc_preview_text(self._current_val),
-            font=ctk.CTkFont(family="Consolas", size=11),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
             text_color="#E2E8F0",
             justify="left",
             anchor="w",
@@ -3772,7 +3773,7 @@ class SleepRateDialog(ctk.CTkToplevel):
         btn_save = ctk.CTkButton(
             footer,
             text="💾 保存して閉じる",
-            font=ctk.CTkFont(family="Meiryo", size=13, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
             height=34,
             fg_color="#10B981",
             hover_color="#059669",
@@ -3783,7 +3784,7 @@ class SleepRateDialog(ctk.CTkToplevel):
         btn_cancel = ctk.CTkButton(
             footer,
             text="キャンセル",
-            font=ctk.CTkFont(family="Meiryo", size=12),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             height=34,
             fg_color="#64748B",
             hover_color="#475569",
@@ -3794,7 +3795,7 @@ class SleepRateDialog(ctk.CTkToplevel):
         btn_reset = ctk.CTkButton(
             footer,
             text="↺ 100% (基準値) に戻す",
-            font=ctk.CTkFont(family="Meiryo", size=12),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             height=34,
             fg_color="#3B82F6",
             hover_color="#2563EB",
@@ -3851,7 +3852,7 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         self.parent = parent
         self.on_close = on_close
         self.submission_count = 0
-        self.font_family = font_family or "Consolas"
+        self.font_family = font_family or FONT_FAMILY
 
         # ターミナル風カラーパレット
         self.term_bg = "#0A0E17"
@@ -3896,7 +3897,7 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         self.title_label = ctk.CTkLabel(
             top_bar,
             text=" >_ OUTPUT CHECK TERMINAL [F3 SECRET MODE]",
-            font=ctk.CTkFont(family="Consolas", size=12, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=self.term_cyan,
             anchor="w",
         )
@@ -3905,7 +3906,7 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         self.count_label = ctk.CTkLabel(
             top_bar,
             text="Submissions: 0",
-            font=ctk.CTkFont(family="Consolas", size=11),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
             text_color=self.term_dim,
             anchor="e",
         )
@@ -3914,7 +3915,7 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         self.execute_btn = ctk.CTkButton(
             top_bar,
             text="🚀 QAD自動入力を実行",
-            font=ctk.CTkFont(family="Meiryo", size=11, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
             fg_color="#059669",
             hover_color="#047857",
             text_color="#FFFFFF",
@@ -3927,7 +3928,7 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         self.demo_btn = ctk.CTkButton(
             top_bar,
             text="🧪 デモ注文送信 (2製品)",
-            font=ctk.CTkFont(family="Meiryo", size=11, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
             fg_color="#4F46E5",
             hover_color="#4338CA",
             text_color="#FFFFFF",
@@ -3940,7 +3941,7 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         self.demo_cfg_btn = ctk.CTkButton(
             top_bar,
             text="⚙️ デモ設定",
-            font=ctk.CTkFont(family="Meiryo", size=11),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
             fg_color="#374151",
             hover_color="#4B5563",
             text_color="#FFFFFF",
@@ -3959,7 +3960,7 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         guide_label = ctk.CTkLabel(
             bottom_bar,
             text=" [F3 / Esc]: 閉じる   [Ctrl+A]: 全選択   [Ctrl+C]: コピー   [Ctrl+L]: ログクリア",
-            font=ctk.CTkFont(family="Consolas", size=11),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
             text_color=self.term_dim,
             anchor="w",
         )
@@ -3968,7 +3969,7 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         # メインテキストボックス（ターミナル風）
         self.textbox = ctk.CTkTextbox(
             self,
-            font=ctk.CTkFont(family="Consolas", size=12),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             fg_color=self.term_bg,
             text_color=self.term_fg,
             wrap="none",
@@ -3979,18 +3980,18 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
 
         # Tkinter Text タグ設定（シンタックスハイライト）
         tb = self.textbox._textbox
-        tb.tag_config("term_header", foreground=self.term_cyan, font=("Consolas", 12, "bold"))
-        tb.tag_config("term_section", foreground=self.term_yellow, font=("Consolas", 12, "bold"))
-        tb.tag_config("term_label", foreground=self.term_green, font=("Consolas", 12, "bold"))
-        tb.tag_config("term_val", foreground=self.term_fg, font=("Consolas", 12))
-        tb.tag_config("term_dim", foreground=self.term_dim, font=("Consolas", 12))
-        tb.tag_config("term_json", foreground=self.term_purple, font=("Consolas", 11))
-        tb.tag_config("term_item_title", foreground="#38BDF8", font=("Consolas", 12, "bold"))
-        tb.tag_config("term_item_desc", foreground="#FCD34D", font=("Consolas", 12))
-        tb.tag_config("term_step", foreground="#38BDF8", font=("Consolas", 12, "bold"))
-        tb.tag_config("term_key", foreground="#F59E0B", font=("Consolas", 12, "bold"))
-        tb.tag_config("term_paste", foreground="#34D399", font=("Consolas", 12))
-        tb.tag_config("term_comment", foreground="#94A3B8", font=("Consolas", 11))
+        tb.tag_config("term_header", foreground=self.term_cyan, font=(FONT_FAMILY, 12, "bold"))
+        tb.tag_config("term_section", foreground=self.term_yellow, font=(FONT_FAMILY, 12, "bold"))
+        tb.tag_config("term_label", foreground=self.term_green, font=(FONT_FAMILY, 12, "bold"))
+        tb.tag_config("term_val", foreground=self.term_fg, font=(FONT_FAMILY, 12))
+        tb.tag_config("term_dim", foreground=self.term_dim, font=(FONT_FAMILY, 12))
+        tb.tag_config("term_json", foreground=self.term_purple, font=(FONT_FAMILY, 11))
+        tb.tag_config("term_item_title", foreground="#38BDF8", font=(FONT_FAMILY, 12, "bold"))
+        tb.tag_config("term_item_desc", foreground="#FCD34D", font=(FONT_FAMILY, 12))
+        tb.tag_config("term_step", foreground="#38BDF8", font=(FONT_FAMILY, 12, "bold"))
+        tb.tag_config("term_key", foreground="#F59E0B", font=(FONT_FAMILY, 12, "bold"))
+        tb.tag_config("term_paste", foreground="#34D399", font=(FONT_FAMILY, 12))
+        tb.tag_config("term_comment", foreground="#94A3B8", font=(FONT_FAMILY, 11))
 
     def _on_demo_clicked(self):
         """設定済みのデモPayload（日付が過去なら今日基準に自動補正）で送信ボタン押下時と同一の挙動を実行"""

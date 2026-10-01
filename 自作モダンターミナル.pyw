@@ -105,6 +105,7 @@ try:
     from dateutil.relativedelta import relativedelta
     from PIL import Image, ImageDraw, ImageTk
     import customtkinter as ctk
+    from ui_fonts import FONT_FAMILY, configure_font_defaults
     from terminal_core import COLS, ROWS, KEY_SEQUENCES, TOOLBAR_GROUPS, TerminalSession, key_sequence
     from order_entry import (
         OrderEntryPanel, DoubleControlTap, ShortcutSettingsDialog,
@@ -642,28 +643,8 @@ PALETTE_FG_PRESETS = [
 
 
 # --- フォント設定 ---
-PREFERRED_UI_FONTS = (
-    "Hiragino Sans",
-    "Hiragino Kaku Gothic ProN",
-    "ヒラギノ角ゴシック",
-    "Hiragino Kaku Gothic Pro",
-    "Yu Gothic UI",
-    "游ゴシック",
-    "Segoe UI",
-    "sans-serif",
-)
-
-PREFERRED_TERMINAL_FONTS = (
-    "Consolas",       # Windows標準 等幅（罫線の上下隙間ゼロ・完全シームレス結合）
-    "Cascadia Mono",  # Windows 11/10標準 等幅
-    "Cascadia Code",
-    "Courier New",
-    "Source Code Pro",
-    "BIZ UDゴシック",
-    "MS Gothic",
-    "ＭＳ ゴシック",
-    "monospace",
-)
+PREFERRED_UI_FONTS = (FONT_FAMILY,)
+PREFERRED_TERMINAL_FONTS = (FONT_FAMILY,)
 
 
 def find_first_available_font(candidates, fallback="sans-serif"):
@@ -979,7 +960,7 @@ def paste_to_new_excel(rows, title="QAD_Report"):
 class ActionButton(ctk.CTkFrame):
     """角丸サーフェスとネイティブボタントラバーサルを備えたアクションボタン"""
 
-    def __init__(self, parent, text, command, primary=False, font_family="Yu Gothic UI", colors=None):
+    def __init__(self, parent, text, command, primary=False, font_family=FONT_FAMILY, colors=None):
         self.primary = primary
         self.colors = colors or COLOR_THEMES["light"]
         self.surface = self.colors["accent"] if primary else self.colors["button"]
@@ -1065,12 +1046,12 @@ class ColorPaletteDialog(ctk.CTkToplevel):
         main_frame = ctk.CTkFrame(self, corner_radius=12)
         main_frame.pack(fill="both", expand=True, padx=16, pady=16)
 
-        ctk.CTkLabel(main_frame, text="🎨 カラーパレット & テーマ設定", font=ctk.CTkFont(size=17, weight="bold")).pack(pady=(10, 12))
+        ctk.CTkLabel(main_frame, text="🎨 カラーパレット & テーマ設定", font=ctk.CTkFont(family=FONT_FAMILY, size=17, weight="bold")).pack(pady=(10, 12))
 
         # 1. プリセットテーマ
         theme_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         theme_frame.pack(fill="x", padx=16, pady=4)
-        ctk.CTkLabel(theme_frame, text="標準テーマテンプレート:", font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w", pady=(0, 6))
+        ctk.CTkLabel(theme_frame, text="標準テーマテンプレート:", font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold")).pack(anchor="w", pady=(0, 6))
 
         t_grid = ctk.CTkFrame(theme_frame, fg_color="transparent")
         t_grid.pack(fill="x")
@@ -1086,14 +1067,14 @@ class ColorPaletteDialog(ctk.CTkToplevel):
             btn = ctk.CTkButton(
                 t_grid, text=label, fg_color=bg, text_color=fg,
                 border_width=1, border_color="#64748B", hover_color=bg,
-                command=lambda k=key: self._select_theme(k), height=32, font=ctk.CTkFont(size=11, weight="bold")
+                command=lambda k=key: self._select_theme(k), height=32, font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold")
             )
             btn.grid(row=0, column=idx, padx=4, sticky="ew")
 
         # 2. ターミナル背景色パレット
         bg_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         bg_frame.pack(fill="x", padx=16, pady=(12, 4))
-        ctk.CTkLabel(bg_frame, text="ターミナル背景色:", font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w", pady=(0, 4))
+        ctk.CTkLabel(bg_frame, text="ターミナル背景色:", font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold")).pack(anchor="w", pady=(0, 4))
 
         bg_grid = ctk.CTkFrame(bg_frame, fg_color="transparent")
         bg_grid.pack(fill="x")
@@ -1110,7 +1091,7 @@ class ColorPaletteDialog(ctk.CTkToplevel):
         # 3. ターミナル文字色パレット
         fg_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         fg_frame.pack(fill="x", padx=16, pady=(10, 4))
-        ctk.CTkLabel(fg_frame, text="ターミナル文字色:", font=ctk.CTkFont(size=13, weight="bold")).pack(anchor="w", pady=(0, 4))
+        ctk.CTkLabel(fg_frame, text="ターミナル文字色:", font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold")).pack(anchor="w", pady=(0, 4))
 
         fg_grid = ctk.CTkFrame(fg_frame, fg_color="transparent")
         fg_grid.pack(fill="x")
@@ -1120,7 +1101,7 @@ class ColorPaletteDialog(ctk.CTkToplevel):
             btn = ctk.CTkButton(
                 fg_grid, text="Aa", fg_color="#1E293B", text_color=color, hover_color="#334155",
                 border_width=1, border_color="#64748B", width=34, height=28,
-                command=lambda c=color: self._set_fg(c), font=ctk.CTkFont(size=11, weight="bold")
+                command=lambda c=color: self._set_fg(c), font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold")
             )
             btn.grid(row=0, column=idx, padx=2, sticky="ew")
 
@@ -1209,7 +1190,7 @@ class LoginConfigDialog(ctk.CTkToplevel):
         frame = ctk.CTkFrame(self, corner_radius=12)
         frame.pack(fill="both", expand=True, padx=20, pady=20)
 
-        ctk.CTkLabel(frame, text="QAD 接続設定", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=(12, 16))
+        ctk.CTkLabel(frame, text="QAD 接続設定", font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold")).pack(pady=(12, 16))
 
         # ホスト名
         row_host = ctk.CTkFrame(frame, fg_color="transparent")
@@ -1256,7 +1237,7 @@ class LoginConfigDialog(ctk.CTkToplevel):
         chk = ctk.CTkCheckBox(
             frame, text="パスワードを表示する", variable=self.show_pass_var,
             command=lambda: self.pass_entry.configure(show="" if self.show_pass_var.get() else "*"),
-            checkbox_width=18, checkbox_height=18, font=ctk.CTkFont(size=12)
+            checkbox_width=18, checkbox_height=18, font=ctk.CTkFont(family=FONT_FAMILY, size=12)
         )
         chk.pack(anchor="w", padx=110, pady=(2, 14))
 
@@ -1331,7 +1312,7 @@ class ShortcutDialog(ctk.CTkToplevel):
         frame.pack(fill="both", expand=True, padx=16, pady=16)
 
         title_text = "✏️ ショートカットの編集" if self.is_edit else "⚡ ショートカットの追加"
-        ctk.CTkLabel(frame, text=title_text, font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(6, 12))
+        ctk.CTkLabel(frame, text=title_text, font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold")).pack(pady=(6, 12))
 
         # 表示名
         row_name = ctk.CTkFrame(frame, fg_color="transparent")
@@ -1430,7 +1411,7 @@ class ComplaintDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             frame, text="📝 Complaint 抽出＆GAS転送 (99.3.21.4)",
-            font=ctk.CTkFont(size=16, weight="bold")
+            font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold")
         ).pack(pady=(6, 14))
 
         # 1. Item code
@@ -1478,7 +1459,7 @@ class ComplaintDialog(ctk.CTkToplevel):
         # ステータス表示ラベル
         self.status_label = ctk.CTkLabel(
             frame, text="", text_color="#D97706",
-            font=ctk.CTkFont(size=12, weight="bold")
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold")
         )
         self.status_label.pack(fill="x", padx=16, pady=(0, 8))
 
@@ -1684,7 +1665,7 @@ class TabAliasDialog(ctk.CTkToplevel):
                 text="➔",
                 width=24,
                 text_color=self.parent.ui_colors["muted"],
-                font=ctk.CTkFont(size=11)
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11)
             )
             arrow_lbl.pack(side="left", padx=(0, 8))
 
@@ -2146,8 +2127,9 @@ class TerminalApp(ctk.CTk):
         ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
         super().__init__()
-        self.ui_font_family = find_first_available_font(PREFERRED_UI_FONTS, fallback="Yu Gothic UI")
-        self.terminal_font_family = find_first_available_font(PREFERRED_TERMINAL_FONTS, fallback="Consolas")
+        configure_font_defaults(self)
+        self.ui_font_family = FONT_FAMILY
+        self.terminal_font_family = FONT_FAMILY
 
         self.title("QAD / MFG:PRO")
         self.geometry("1460x780")

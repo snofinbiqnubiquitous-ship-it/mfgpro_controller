@@ -3,6 +3,7 @@ from datetime import date
 import tkinter as tk
 import customtkinter as ctk
 from tkcalendar import Calendar
+from ui_fonts import FONT_FAMILY
 
 
 def visible_interval(due, required, month, year):
@@ -21,7 +22,7 @@ class OrderDateRangePicker:
     def __init__(self, due_field, required_field, colors, font_family, parse_date, format_date):
         self.fields = dict(due_date=due_field, required_date=required_field)
         self.colors = colors
-        self.font_family = font_family
+        self.font_family = FONT_FAMILY
         self.parse_date = parse_date
         self.format_date = format_date
         self.window = None

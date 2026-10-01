@@ -6,6 +6,7 @@ import unicodedata
 from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
+from ui_fonts import FONT_FAMILY
 
 DEFAULT_TEMPLATE = "${顧客名}\n${Order ID}\n${ItemCode}  ${幅} x ${長さ} x ${本数} @${価格}\n${Required Date} ${納品先}着 で手配しました。"
 HEADER_FIELDS = {
@@ -24,6 +25,7 @@ DATE_FIELDS = {
 ORDER_FIELDS = {"Order ID", "処理した注文のOrder ID"}
 TOKENS = set(HEADER_FIELDS) | set(ITEM_FIELDS) | set(DATE_FIELDS) | ORDER_FIELDS
 TOKEN_RE = re.compile(r"\$\{([^{}]+)\}")
+ALIGN_TOKEN_RE = re.compile(r"\$\{([^{}]+)\}( *)")
 
 
 def validate_template(template):
@@ -77,7 +79,7 @@ def resolve_header_value(payload, key):
     return ""
 
 
-def render_order(payload, order_id, template=DEFAULT_TEMPLATE):
+def render_order(payload, order_id, template=DEFAULT_TEMPLATE, *, measure=None, tabstops=None):
     validate_template(template)
     values = {name: resolve_header_value(payload, key) for name, key in HEADER_FIELDS.items()}
     values.update({name: japanese_date(payload.get(key)) for name, key in DATE_FIELDS.items()})
@@ -89,16 +91,32 @@ def render_order(payload, order_id, template=DEFAULT_TEMPLATE):
         last_product = None
         for item in items:
             row = dict(values)
+            reference_row = None
             if item is not None:
                 row.update({name: str(item.get(key, "")) for name, key in ITEM_FIELDS.items()})
                 curr_product = str(item.get("product_name", "")).strip()
                 if curr_product and curr_product == last_product:
-                    padding = " " * display_width(curr_product)
+                    reference_row = dict(row)
+                    padding = "\t" if measure is not None and tabstops is not None else " " * display_width(curr_product)
                     for name in ("ItemCode", "Item Code", "Item code", "製品名"):
                         row[name] = padding
                 elif curr_product:
                     last_product = curr_product
-            result.append(TOKEN_RE.sub(lambda m: row[m[1]], line))
+            if reference_row is not None and measure is not None and tabstops is not None:
+                stops = []
+                for match in ALIGN_TOKEN_RE.finditer(line):
+                    if match[1] in ("ItemCode", "Item Code", "Item code", "製品名"):
+                        prefix = TOKEN_RE.sub(lambda token: reference_row[token[1]], line[:match.end()])
+                        stops.append(measure(prefix))
+                if stops:
+                    tabstops[len(result) + 1] = stops
+                # Include the separator spaces in the measured stop to avoid
+                # rounding differences between separately drawn text runs.
+                result.append(ALIGN_TOKEN_RE.sub(
+                    lambda match: "\t" if match[1] in ("ItemCode", "Item Code", "Item code", "製品名")
+                    else row[match[1]] + match[2], line))
+            else:
+                result.append(TOKEN_RE.sub(lambda m: row[m[1]], line))
     return "\n".join(result)
 
 
@@ -147,31 +165,48 @@ def show_history(parent, store, template, colors, font):
     window.configure(fg_color=colors["panel"])
     list_frame = ctk.CTkFrame(window, fg_color="transparent")
     list_frame.pack(side="top", fill="x", padx=16, pady=(16, 8), anchor="n")
-    listing = tk.Listbox(list_frame, height=7, font=(font, 12), exportselection=False,
+    listing = tk.Listbox(list_frame, height=7, font=(FONT_FAMILY, 12), exportselection=False,
                          bg=colors["panel"], fg=colors["text"], relief="flat")
     scroll = ctk.CTkScrollbar(list_frame, command=listing.yview)
     scroll.pack(side="right", fill="y")
     listing.configure(yscrollcommand=scroll.set)
     listing.pack(side="left", fill="both", expand=True)
-    output = ctk.CTkTextbox(window, font=("MS Gothic", 14), wrap="none")
+    output = ctk.CTkTextbox(window, font=(FONT_FAMILY, 14), wrap="none")
     output.pack(side="top", fill="both", expand=True, padx=16, pady=8, anchor="n")
     output.configure(state="disabled")
     controls = ctk.CTkFrame(window, fg_color="transparent")
     controls.pack(fill="x", padx=16, pady=(0, 16))
     rows = []
+    selected_output = {"plain": ""}
+    def measure_text(text):
+        # Measure the original pixel-sized font; copying font.actual() rounds
+        # its size to points and can shift a tab by a few pixels.
+        return int(output.tk.call("font", "measure", output._textbox.cget("font"),
+                                  "-displayof", output._textbox, text))
 
     def select(event=None):
         if not listing.curselection():
             return
         try:
             order_id, payload = store.get(rows[listing.curselection()[0]][0])
-            text = render_order(payload, order_id, template())
+            selected_template = template()
+            plain = render_order(payload, order_id, selected_template)
+            stops = {}
+            text = render_order(payload, order_id, selected_template, measure=measure_text, tabstops=stops)
         except (OSError, sqlite3.Error, ValueError) as exc:
             messagebox.showerror("注文ログ", str(exc), parent=window)
             return
         output.configure(state="normal")
+        selected_output["plain"] = plain
+        for tag in output._textbox.tag_names():
+            if str(tag).startswith("product_align_"):
+                output._textbox.tag_delete(tag)
         output.delete("1.0", "end")
         output.insert("1.0", text)
+        for row, positions in stops.items():
+            tag = f"product_align_{row}"
+            output._textbox.tag_configure(tag, tabs=tuple(positions))
+            output._textbox.tag_add(tag, f"{row}.0", f"{row}.end")
         output.yview_moveto(0)
         output.xview_moveto(0)
         output.configure(state="disabled")
@@ -183,6 +218,7 @@ def show_history(parent, store, template, colors, font):
             messagebox.showerror("注文ログ", str(exc), parent=window)
             return
         rows[:] = data
+        selected_output["plain"] = ""
         listing.delete(0, "end")
         if rows:
             listing.insert("end", *(f"{created.replace('T', ' ')}  {order_id or '未取得'}  {customer}"
@@ -196,7 +232,7 @@ def show_history(parent, store, template, colors, font):
             select()
 
     def copy_text():
-        text = output.get("1.0", "end-1c")
+        text = selected_output["plain"]
         if text:
             window.clipboard_clear()
             window.clipboard_append(text)
@@ -218,7 +254,7 @@ def show_template_editor(parent, current, save, colors, font):
     window.geometry("680x480")
     window.transient(parent)
     window.configure(fg_color=colors["panel"])
-    editor = ctk.CTkTextbox(window, font=(font, 14), wrap="word")
+    editor = ctk.CTkTextbox(window, font=(FONT_FAMILY, 14), wrap="word")
     editor.pack(fill="both", expand=True, padx=16, pady=16)
     editor.insert("1.0", current)
     controls = ctk.CTkFrame(window, fg_color="transparent")

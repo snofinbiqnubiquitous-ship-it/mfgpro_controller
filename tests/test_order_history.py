@@ -96,3 +96,13 @@ class OrderHistoryTests(unittest.TestCase):
         self.assertEqual(display_width(lines[0].split("200")[0]),
                          display_width(lines[1].split("300")[0]))
 
+    def test_duplicate_product_display_uses_measured_tab_stops(self):
+        payload = dict(items=[dict(product_name="BW0100D", width="200"),
+                              dict(product_name="BW0100D", width="300")])
+        stops = {}
+        measure = lambda text: sum(9 if char == "W" else 5 for char in text)
+        rendered = render_order(payload, "SO1", "品目: ${ItemCode}  ${幅}",
+                                measure=measure, tabstops=stops)
+        self.assertEqual(rendered, "品目: BW0100D  200\n品目: \t300")
+        self.assertEqual(stops, {2: [measure("品目: BW0100D  ")]})
+
