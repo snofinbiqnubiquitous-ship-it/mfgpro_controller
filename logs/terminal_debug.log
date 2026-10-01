@@ -6324,3 +6324,323 @@ xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             10/02/26
 ERROR: Not a valid customer.  Please re-enter.                                                                                      
                                                                                                                                     
 F1=Go 2=Hlp 3=Ins 4=End 6=Mnu 7=Rcl 8=Clr 9=Prev 10=Next 11=Buf                                                                     
+[2026-10-02 01:12:24] [INFO] ======================================================================
+[2026-10-02 01:12:24] [INFO] QAD Modern Terminal 起動 - 2026-10-02 01:12:24
+[2026-10-02 01:12:24] [INFO] Python: 3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)] | 実行パス: C:\Users\0138018\AppData\Local\Programs\Python\Python312\pythonw.exe
+[2026-10-02 01:12:24] [INFO] PROJECT_ROOT: C:\Users\0138018\.antigravity\mfgpro_controller
+[2026-10-02 01:12:24] [INFO] ======================================================================
+[2026-10-02 01:12:29] [INFO] SSH接続確立 (connected) [Tab 1]
+[2026-10-02 01:12:29] [INFO] 自動ログイン: Tab 1 のMain Menu自動遷移シーケンスを開始
+[2026-10-02 01:12:33] [INFO] 自動ログイン: Tab 1 Main Menu 着弾検知
+[2026-10-02 01:12:43] [INFO] === QAD 99.7.1.1 受注入力自動化を開始します ===
+[2026-10-02 01:12:43] [INFO] メインメニューまたはヘッダー画面から全工程 (Step 1〜6.3.0) を実行します。
+[2026-10-02 01:12:43] [INFO] === QAD 99.7.1.1 受注入力自動化 全工程実行開始 ===
+[2026-10-02 01:12:43] [INFO] Step 1: '99.7.1.1\r' 送信
+[2026-10-02 01:12:44] [INFO] Step 1: Order番号自動採番 (空欄で F1 送信)
+[2026-10-02 01:12:44] [INFO] Order ID を記録: SO199725
+[2026-10-02 01:12:44] [INFO] Step 2 入力先確認: expected=sold actual=UNKNOWN cursor=(21, 17) rx=42
+[2026-10-02 01:12:44] [INFO] Step 2 入力先確認: expected=sold actual=sold cursor=(2, 28) rx=44
+[2026-10-02 01:12:45] [INFO] Step 2: Sold-To '20000600' 送信
+[2026-10-02 01:12:45] [INFO] Step 2 入力先確認: expected=bill actual=UNKNOWN cursor=(23, 78) rx=62
+[2026-10-02 01:12:45] [INFO] 画面待機中 (Step 2: 入力先 bill 確認): アクティブな警告/Space要求プロンプトを検知。Spaceキーを送信します。
+[2026-10-02 01:12:45] [INFO] Step 2 入力先確認: expected=bill actual=bill cursor=(2, 47) rx=73
+[2026-10-02 01:12:46] [INFO] Step 2: Bill-To '20000600' 送信
+[2026-10-02 01:12:46] [INFO] Step 2 入力先確認: expected=ship actual=ship cursor=(2, 66) rx=79
+[2026-10-02 01:12:46] [INFO] Step 2: Ship-To '20000601' 送信
+[2026-10-02 01:12:46] [INFO] Step 2 入力先確認: expected=date actual=UNKNOWN cursor=(23, 78) rx=83
+[2026-10-02 01:12:46] [INFO] Step 2 入力先確認: expected=date actual=UNKNOWN cursor=(23, 78) rx=87
+[2026-10-02 01:12:47] [INFO] Step 2 入力先確認: expected=date actual=date cursor=(12, 17) rx=103
+[2026-10-02 01:12:47] [INFO] Step 2: Order Dateからの一括貼り付けバッファ送信 (8 項目: Order Date〜Remarks)
+[2026-10-02 01:12:47] [INFO] Step 2: F1 送信 (ヘッダー確定)
+[2026-10-02 01:12:48] [INFO] 画面待機中 (Step 3: Tax ポップアップ または Salesperson画面): アクティブな警告/Space要求プロンプトを検知。Spaceキーを送信します。
+[2026-10-02 01:12:48] [INFO] Step 3: F1 送信 (Tax スキップ)
+[2026-10-02 01:12:49] [INFO] Step 4: F1 送信 (Salesperson スキップ)
+[2026-10-02 01:12:49] [INFO] Step 5: F1 送信 (コメント本文エディタへ移動)
+[2026-10-02 01:12:49] [INFO] Step 5: 案C実行 - 既定コメントの全クリア (F8: Clear送信)
+[2026-10-02 01:12:49] [INFO] Step 5: 新規特記事項本文入力 (全 1 行)
+[2026-10-02 01:12:49] [INFO] Step 5: F1 送信 (コメント本文確定)
+[2026-10-02 01:12:49] [INFO] Step 5: F4 送信 (明細画面へ進む)
+[2026-10-02 01:12:50] [INFO] Step 5: コメント画面残留検知 -> 再度 F4 送信
+[2026-10-02 01:12:51] [INFO] === Step 6 受注明細行入力開始 (全 2 品番) ===
+[2026-10-02 01:12:51] [INFO] --- [Line 1] 品番: BW0100D / 単価: 200 / 長さグループ: 1件 ---
+[2026-10-02 01:12:51] [INFO] 6.1.0: Enter 送信 (Line 1 自動採番)
+[2026-10-02 01:12:51] [INFO] 6.1.1: F1 送信 (Line 1 Create WO ポップアップ解除)
+[2026-10-02 01:12:52] [INFO] 6.1.3: 品番 'BW0100D' 送信
+[2026-10-02 01:12:52] [INFO] 6.1.3: F1 送信 (品番確定)
+[2026-10-02 01:12:52] [INFO] 6.1.3: Site 'CB2' + F1 送信
+[2026-10-02 01:12:53] [INFO] 画面待機中 (6.1.4 Qty Ordered UM または スリット設定画面): アクティブな警告/Space要求プロンプトを検知。Spaceキーを送信します。
+[2026-10-02 01:12:53] [INFO] 6.1.4: F1 送信 (Qty Ordered UM スキップ)
+[2026-10-02 01:12:54] [INFO]   SL 1: 長さ '600'm (明細 3件) 開始
+[2026-10-02 01:12:54] [INFO]   SL 1: F1 -> Enter -> Enter で Len(m) 欄へ移動
+[2026-10-02 01:12:54] [INFO]   6.2.0: 長さ '600' + Enter 送信
+[2026-10-02 01:12:54] [INFO]     Roll 1/3: 本数=1, 幅=200mm
+[2026-10-02 01:12:55] [INFO]     Roll 2/3: 本数=2, 幅=300mm
+[2026-10-02 01:12:55] [INFO]     Roll 3/3: 本数=1, 幅=500mm
+[2026-10-02 01:12:56] [INFO]   6.2.1: F4 送信 (長さ '600'm ロール入力完了)
+[2026-10-02 01:12:56] [INFO]   6.2.1: F1 送信 ('yes' 確定)
+[2026-10-02 01:12:56] [INFO] 6.1.4: F4 送信 (品番 'BW0100D' 全スリット設定完了)
+[2026-10-02 01:12:57] [INFO] 6.1.4: F1 送信 ('yes' 確定)
+[2026-10-02 01:12:57] [INFO] 6.2.3: Orig Order Qty スキップ (F1)
+[2026-10-02 01:12:58] [INFO] 6.2.3: F1 送信 (Pricing Date スキップ)
+[2026-10-02 01:12:58] [INFO] 6.2.4: F1 送信 (List Price スキップ)
+[2026-10-02 01:12:58] [INFO] 6.2.4: 単価 '200' + F1 送信 (単価確定)
+[2026-10-02 01:12:58] [INFO] 6.2.4: 明細詳細枠 (Loc: / Sales Acct:) 検知 -> F1 送信でスキップ
+[2026-10-02 01:12:59] [INFO] 6.2.5: F1 送信 (Tax スキップ)
+[2026-10-02 01:12:59] [INFO] 6.2.5: F4 送信 (明細行 Transaction Comments 終了 -> Reason Code または 次画面へ)
+[2026-10-02 01:13:00] [INFO] 6.2.5: Reason Code 検知 (65 -> 28 INTERNAL -> 28 INTERNAL + F1)
+[2026-10-02 01:13:01] [INFO] --- [Line 2] 品番: BW0116Q3-2 / 単価: 200 / 長さグループ: 1件 ---
+[2026-10-02 01:13:01] [INFO] 6.1.1: F1 送信 (Line 2 Create WO ポップアップ解除)
+[2026-10-02 01:13:02] [INFO] 6.1.3: 品番 'BW0116Q3-2' 送信
+[2026-10-02 01:13:02] [INFO] 6.1.3: F1 送信 (品番確定)
+[2026-10-02 01:13:03] [INFO] 6.1.3: Site 'CB2' + F1 送信
+[2026-10-02 01:13:03] [INFO] 6.1.4: F1 送信 (Qty Ordered UM スキップ)
+[2026-10-02 01:13:04] [INFO]   SL 1: 長さ '600'm (明細 1件) 開始
+[2026-10-02 01:13:04] [INFO]   SL 1: F1 -> Enter -> Enter で Len(m) 欄へ移動
+[2026-10-02 01:13:04] [INFO]   6.2.0: 長さ '600' + Enter 送信
+[2026-10-02 01:13:04] [INFO]     Roll 1/1: 本数=1, 幅=200mm
+[2026-10-02 01:13:05] [INFO]   6.2.1: F4 送信 (長さ '600'm ロール入力完了)
+[2026-10-02 01:13:05] [INFO]   6.2.1: F1 送信 ('yes' 確定)
+[2026-10-02 01:13:06] [INFO] 6.1.4: F4 送信 (品番 'BW0116Q3-2' 全スリット設定完了)
+[2026-10-02 01:13:06] [INFO] 6.1.4: F1 送信 ('yes' 確定)
+[2026-10-02 01:13:06] [INFO] 6.2.3: Orig Order Qty スキップ (F1)
+[2026-10-02 01:13:07] [INFO] 6.2.3: F1 送信 (Pricing Date スキップ)
+[2026-10-02 01:13:07] [INFO] 6.2.4: F1 送信 (List Price スキップ)
+[2026-10-02 01:13:07] [INFO] 6.2.4: 単価 '200' + F1 送信 (単価確定)
+[2026-10-02 01:13:08] [INFO] 6.2.4: 明細詳細枠 (Loc: / Sales Acct:) 検知 -> F1 送信でスキップ
+[2026-10-02 01:13:08] [INFO] 6.2.5: F1 送信 (Tax スキップ)
+[2026-10-02 01:13:09] [INFO] 6.2.5: F4 送信 (明細行 Transaction Comments 終了 -> Reason Code または 次画面へ)
+[2026-10-02 01:13:10] [INFO] 6.2.5: Reason Code 検知 (65 -> 28 INTERNAL -> 28 INTERNAL + F1)
+[2026-10-02 01:13:11] [INFO] 6.3.0: 次行 Create WO 解除 (F1)
+[2026-10-02 01:13:11] [INFO] 6.3.0: F4 を送信して最終合計画面へ進みます
+[2026-10-02 01:13:11] [INFO] 6.3.0: 次行 Create WO 解除 (F1)
+[2026-10-02 01:13:11] [INFO] 6.3.0: 次行 Create WO 解除 (F1)
+[2026-10-02 01:13:12] [INFO] 6.3.0: 最終合計画面の表示を確認しました
+[2026-10-02 01:13:12] [INFO] 6.3.0: 1回目の F1 送信 (下段フレームへ移動)
+[2026-10-02 01:13:12] [INFO] 6.3.0: 2回目の F1 送信 (注文データ確定・コミット)
+[2026-10-02 01:13:14] [INFO] === QAD 99.7.1.1 受注入力自動化 全工程完了 (Order ID: SO199725) ===
+[2026-10-02 01:13:14] [INFO] 受注登録完了通知: Order ID = SO199725
+[2026-10-02 01:15:41] [INFO] キーコード送信: '\x1bOS'
+[2026-10-02 01:37:15] [INFO] ======================================================================
+[2026-10-02 01:37:15] [INFO] QAD Modern Terminal 起動 - 2026-10-02 01:37:15
+[2026-10-02 01:37:15] [INFO] Python: 3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)] | 実行パス: C:\Users\0138018\AppData\Local\Programs\Python\Python312\pythonw.exe
+[2026-10-02 01:37:15] [INFO] PROJECT_ROOT: C:\Users\0138018\.antigravity\mfgpro_controller
+[2026-10-02 01:37:15] [INFO] ======================================================================
+[2026-10-02 01:37:20] [INFO] SSH接続確立 (connected) [Tab 1]
+[2026-10-02 01:37:20] [INFO] 自動ログイン: Tab 1 のMain Menu自動遷移シーケンスを開始
+[2026-10-02 01:37:24] [INFO] 自動ログイン: Tab 1 Main Menu 着弾検知
+[2026-10-02 01:44:07] [INFO] === QAD 99.7.1.1 受注入力自動化を開始します ===
+[2026-10-02 01:44:07] [INFO] メインメニューまたはヘッダー画面から全工程 (Step 1〜6.3.0) を実行します。
+[2026-10-02 01:44:07] [INFO] === QAD 99.7.1.1 受注入力自動化 全工程実行開始 ===
+[2026-10-02 01:44:07] [INFO] Step 1: '99.7.1.1\r' 送信
+[2026-10-02 01:44:07] [INFO] Step 1: Order番号自動採番 (空欄で F1 送信)
+[2026-10-02 01:44:08] [INFO] Order ID を記録: SO199726
+[2026-10-02 01:44:08] [INFO] Step 2 入力先確認: expected=sold actual=sold cursor=(2, 28) rx=46
+[2026-10-02 01:44:08] [INFO] Step 2: Sold-To '20000600' 送信
+[2026-10-02 01:44:08] [INFO] 画面待機中 (Step 2: 入力先 bill 確認): アクティブな警告/Space要求プロンプトを検知。Spaceキーを送信します。
+[2026-10-02 01:44:09] [INFO] Step 2 入力先確認: expected=bill actual=bill cursor=(2, 47) rx=71
+[2026-10-02 01:44:09] [INFO] Step 2: Bill-To '20000600' 送信
+[2026-10-02 01:44:09] [INFO] Step 2 入力先確認: expected=ship actual=ship cursor=(2, 66) rx=103
+[2026-10-02 01:44:09] [INFO] Step 2: Ship-To '20000601' 送信
+[2026-10-02 01:44:10] [INFO] Step 2 入力先確認: expected=date actual=UNKNOWN cursor=(23, 78) rx=112
+[2026-10-02 01:44:10] [INFO] Step 2 入力先確認: expected=date actual=date cursor=(12, 17) rx=118
+[2026-10-02 01:44:10] [INFO] Step 2: Order Dateからの一括貼り付けバッファ送信 (8 項目: Order Date〜Remarks)
+[2026-10-02 01:44:10] [INFO] Step 2: F1 送信 (ヘッダー確定)
+[2026-10-02 01:44:19] [INFO] キーコード送信: '\x1bOS'
+[2026-10-02 01:44:20] [INFO] キーコード送信: '\x1bOS'
+[2026-10-02 01:44:23] [ERROR] 【受注入力タイムアウト時の画面ダンプ】:
+┌────────────────────ｴｲﾌﾞﾘｨ･ﾃﾞﾆｿﾝ･ｼﾞｬﾊﾟﾝ株式会社 : livejpdb────────────────────┐                                                    
+│mfmenu                             Main Menu                          10/02/26│                                                    
+└──────────────────────────────────────────────────────────────────────────────┘                                                    
+┌──────────────────────────────────────────────────────────────────────────────┐                                                    
+│       DISTRIBUTION              MANUFACTURING               FINANCIAL        │                                                    
+│  1. Items/Sites           13. Product Structures    25. General Ledger       │                                                    
+│  2. Addresses/Taxes       14. Routings/Work Center  26. Multiple Currency    │                                                    
+│  3. Inventory Control     15. Formula/Process       27. Accounts Receivable  │                                                    
+│  4.                       16. Work Orders           28. Accounts Payable     │                                                    
+│  5. Purchasing            17. Shop Floor Control    29.                      │                                                    
+│  6.                       18. Repetitive            30. Cost Management      │                                                    
+│  7. Sales Orders/Invoice  19.                       31. Cash Management      │                                                    
+│  8.                       20.                       32. Fixed Assets         │                                                    
+│  9.                       21.                       33.                      │                                                    
+│ 10.                       22. Forecast/Master Plan  34.                      │                                                    
+│ 11.                       23. Materials Rqmts Plan  35.                      │                                                    
+│ 12. Distribution Plan     24.                       36. Manager Functions    │                                                    
+└──────────────────────────────────────────────────────────────────────────────┘                                                    
+┌──────────────────────────────────────────────────────────────────────────────┐                                                    
+│Please select a function.  F4 or blank to EXIT                                │                                                    
+└──────────────────────────────────────────────────────────────────────────────┘                                                    
+                                                                                                                                    
+                                                                                                                                    
+Press F2 for Help                                                                                                                   
+[2026-10-02 01:44:23] [ERROR] 受注入力自動化タイムアウト: 画面遷移待機タイムアウト (12.0秒): Step 3: Tax ポップアップ または Salesperson画面
+現在の画面表示:
+┌────────────────────ｴｲﾌﾞﾘｨ･ﾃﾞﾆｿﾝ･ｼﾞｬﾊﾟﾝ株式会社 : livejpdb────────────────────┐                                                    
+│mfmenu                             Main Menu                          10/02/26│                                                    
+└──────────────────────────────────────────────────────────────────────────────┘                                                    
+┌──────────────────────────────────────────────────────────────────────────────┐                                                    
+│       DISTRIBUTION              MANUFACTURING               FINANCIAL        │                                                    
+│  1. Items/Sites           13. Product Structures    25. General Ledger       │                                                    
+│  2. Addresses/Taxes       14. Routings/Work Center  26. Multiple Currency    │                                                    
+│  3. Inventory Control     15. Formula/Process       27. Accounts Receivable  │                                                    
+│  4.                       16. Work Orders           28. Accounts Payable     │                                                    
+│  5. Purchasing            17. Shop Floor Control    29.                      │                                                    
+│  6.                       18. Repetitive            30. Cost Management      │                                                    
+│  7. Sales Orders/Invoice  19.                       31. Cash Management      │                                                    
+│  8.                       20.                       32. Fixed Assets         │                                                    
+│  9.                       21.                       33.                      │                                                    
+│ 10.                       22. Forecast/Master Plan  34.                      │                                                    
+│ 11.                       23. Materials Rqmts Plan  35.                      │                                                    
+│ 12. Distribution Plan     24.                       36. Manager Functions    │                                                    
+└──────────────────────────────────────────────────────────────────────────────┘                                                    
+┌──────────────────────────────────────────────────────────────────────────────┐                                                    
+│Please select a function.  F4 or blank to EXIT                                │                                                    
+└──────────────────────────────────────────────────────────────────────────────┘                                                    
+                                                                                                                                    
+                                                                                                                                    
+Press F2 for Help                                                                                                                   
+[2026-10-02 01:44:23] [INFO] === QAD 99.7.1.1 受注入力自動化を開始します ===
+[2026-10-02 01:44:23] [INFO] メインメニューまたはヘッダー画面から全工程 (Step 1〜6.3.0) を実行します。
+[2026-10-02 01:44:23] [INFO] === QAD 99.7.1.1 受注入力自動化 全工程実行開始 ===
+[2026-10-02 01:44:23] [INFO] Step 1: '99.7.1.1\r' 送信
+[2026-10-02 01:44:24] [INFO] Step 1: Order番号自動採番 (空欄で F1 送信)
+[2026-10-02 01:44:24] [INFO] Order ID を記録: SO199727
+[2026-10-02 01:44:24] [INFO] Step 2 入力先確認: expected=sold actual=sold cursor=(2, 28) rx=237
+[2026-10-02 01:44:24] [INFO] Step 2: Sold-To '20000600' 送信
+[2026-10-02 01:44:25] [INFO] 画面待機中 (Step 2: 入力先 bill 確認): アクティブな警告/Space要求プロンプトを検知。Spaceキーを送信します。
+[2026-10-02 01:44:25] [INFO] Step 2 入力先確認: expected=bill actual=bill cursor=(2, 47) rx=240
+[2026-10-02 01:44:25] [INFO] Step 2: Bill-To '20000600' 送信
+[2026-10-02 01:44:25] [INFO] Step 2 入力先確認: expected=ship actual=ship cursor=(2, 66) rx=256
+[2026-10-02 01:44:26] [INFO] Step 2: Ship-To '20000601' 送信
+[2026-10-02 01:44:26] [INFO] Step 2 入力先確認: expected=date actual=date cursor=(12, 17) rx=270
+[2026-10-02 01:44:26] [INFO] Step 2: Order Dateからの一括貼り付けバッファ送信 (8 項目: Order Date〜Remarks)
+[2026-10-02 01:44:27] [INFO] Step 2: F1 送信 (ヘッダー確定)
+[2026-10-02 01:44:39] [ERROR] 【受注入力タイムアウト時の画面ダンプ】:
+xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             10/02/26                                                      
+┌──────────────────────────────────────────────────────────────────────────────┐                                                    
+│ Order: SO199727  Sold-To: 20000600  Bill To: 20000600  Ship-To: 20000601     │                                                    
+└──────────────────────────────────────────────────────────────────────────────┘                                                    
+┌────────────── Sold-To ───────────────┐┌────────────── Ship-To ───────────────┐                                                    
+│ TOPPANｲﾝﾌｫﾒﾃﾞｨｱ株式会社              ││ TOPPANｲﾝﾌｫﾒﾃﾞｨｱ㈱福島工場            │                                                    
+│ 東京都港区芝浦3-19-26                ││ 福島県福島市岡島字宮田30-2           │                                                    
+│ 購買部 大久保様                      ││                                      │                                                    
+│ 港区                      108-0023   ││ 福島市                    960-8201   │                                                    
+│ JAPAN                                ││ JAPAN                                │                                                    
+└──────────────────────────────────────┘└──────────────────────────────────────┘                                                    
+┌──────────────────────────────────────────────────────────────────────────────┐                                                    
+│    Order Date: 10/02/26 Line Pricing: Yes      Confirmed: Yes                │                                                    
+│ Required Date: 10/04/26       Manual:           Currency: JPY  Language:     │                                                    
+│  Promise Date:   /  /           Site: CB2        Taxable: Yes  10     /  /   │                                                    
+│      Due Date: 10/03/26      Channel:                  Fixed Price: Yes      │                                                    
+│  Perform Date:   /  /        Project:                 Credit Terms: J31131   │                                                    
+│  Pricing Date:   /  /                      Credit Terms Interest %: 0.00     │                                                    
+│Purchase Order: test                                        Reprice: No       │                                                    
+│       Remarks:                                          Entered By: takehik  │                                                    
+└──────────────────────────────────────────────────────────────────────────────┘                                                    
+                                                                                                                                    
+                                                                                                                                    
+F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear                                                                                  
+[2026-10-02 01:44:39] [ERROR] 受注入力自動化タイムアウト: 画面遷移待機タイムアウト (12.0秒): Step 3: Tax ポップアップ または Salesperson画面
+現在の画面表示:
+xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             10/02/26                                                      
+┌──────────────────────────────────────────────────────────────────────────────┐                                                    
+│ Order: SO199727  Sold-To: 20000600  Bill To: 20000600  Ship-To: 20000601     │                                                    
+└──────────────────────────────────────────────────────────────────────────────┘                                                    
+┌────────────── Sold-To ───────────────┐┌────────────── Ship-To ───────────────┐                                                    
+│ TOPPANｲﾝﾌｫﾒﾃﾞｨｱ株式会社              ││ TOPPANｲﾝﾌｫﾒﾃﾞｨｱ㈱福島工場            │                                                    
+│ 東京都港区芝浦3-19-26                ││ 福島県福島市岡島字宮田30-2           │                                                    
+│ 購買部 大久保様                      ││                                      │                                                    
+│ 港区                      108-0023   ││ 福島市                    960-8201   │                                                    
+│ JAPAN                                ││ JAPAN                                │                                                    
+└──────────────────────────────────────┘└──────────────────────────────────────┘                                                    
+┌──────────────────────────────────────────────────────────────────────────────┐                                                    
+│    Order Date: 10/02/26 Line Pricing: Yes      Confirmed: Yes                │                                                    
+│ Required Date: 10/04/26       Manual:           Currency: JPY  Language:     │                                                    
+│  Promise Date:   /  /           Site: CB2        Taxable: Yes  10     /  /   │                                                    
+│      Due Date: 10/03/26      Channel:                  Fixed Price: Yes      │                                                    
+│  Perform Date:   /  /        Project:                 Credit Terms: J31131   │                                                    
+│  Pricing Date:   /  /                      Credit Terms Interest %: 0.00     │                                                    
+│Purchase Order: test                                        Reprice: No       │                                                    
+│       Remarks:                                          Entered By: takehik  │                                                    
+└──────────────────────────────────────────────────────────────────────────────┘                                                    
+                                                                                                                                    
+                                                                                                                                    
+F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear                                                                                  
+[2026-10-02 01:45:32] [INFO] キーコード送信: '\x1bOS'
+[2026-10-02 01:45:33] [INFO] キーコード送信: '\x1bOS'
+[2026-10-02 01:47:43] [INFO] ======================================================================
+[2026-10-02 01:47:43] [INFO] QAD Modern Terminal 起動 - 2026-10-02 01:47:43
+[2026-10-02 01:47:43] [INFO] Python: 3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)] | 実行パス: C:\Users\0138018\AppData\Local\Programs\Python\Python312\pythonw.exe
+[2026-10-02 01:47:43] [INFO] PROJECT_ROOT: C:\Users\0138018\.antigravity\mfgpro_controller
+[2026-10-02 01:47:43] [INFO] ======================================================================
+[2026-10-02 01:47:49] [INFO] SSH接続確立 (connected) [Tab 1]
+[2026-10-02 01:47:49] [INFO] 自動ログイン: Tab 1 のMain Menu自動遷移シーケンスを開始
+[2026-10-02 01:47:53] [INFO] 自動ログイン: Tab 1 Main Menu 着弾検知
+[2026-10-02 01:47:57] [INFO] === QAD 99.7.1.1 受注入力自動化を開始します ===
+[2026-10-02 01:47:57] [INFO] メインメニューまたはヘッダー画面から全工程 (Step 1〜6.3.0) を実行します。
+[2026-10-02 01:47:57] [INFO] === QAD 99.7.1.1 受注入力自動化 全工程実行開始 ===
+[2026-10-02 01:47:57] [INFO] Step 1: '99.7.1.1\r' 送信
+[2026-10-02 01:47:57] [INFO] Step 1: Order番号自動採番 (空欄で F1 送信)
+[2026-10-02 01:47:58] [INFO] Order ID を記録: SO199728
+[2026-10-02 01:47:58] [INFO] Step 2 入力先確認: expected=sold actual=UNKNOWN cursor=(23, 0) rx=47
+[2026-10-02 01:47:58] [INFO] Step 2 入力先確認: expected=sold actual=sold cursor=(2, 28) rx=52
+[2026-10-02 01:47:58] [INFO] Step 2: Sold-To '20000600' 送信
+[2026-10-02 01:47:58] [INFO] 画面待機中 (Step 2: 入力先 bill 確認): アクティブな警告/Space要求プロンプトを検知。Spaceキーを送信します。
+[2026-10-02 01:47:59] [INFO] Step 2 入力先確認: expected=bill actual=bill cursor=(2, 47) rx=63
+[2026-10-02 01:47:59] [INFO] Step 2: Bill-To '20000600' 送信
+[2026-10-02 01:47:59] [INFO] Step 2 入力先確認: expected=ship actual=ship cursor=(2, 66) rx=71
+[2026-10-02 01:47:59] [INFO] Step 2: Ship-To '20000601' 送信
+[2026-10-02 01:48:00] [INFO] Step 2 入力先確認: expected=date actual=UNKNOWN cursor=(23, 78) rx=78
+[2026-10-02 01:48:00] [INFO] Step 2 入力先確認: expected=date actual=date cursor=(12, 17) rx=85
+[2026-10-02 01:48:00] [INFO] Step 2: Order Dateからの一括貼り付けバッファ送信 (8 項目: Order Date〜Remarks)
+[2026-10-02 01:48:01] [INFO] Step 2: F1 送信 (ヘッダー確定)
+[2026-10-02 01:48:13] [ERROR] 【受注入力タイムアウト時の画面ダンプ】:
+xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             10/02/26                                                      
+┌──────────────────────────────────────────────────────────────────────────────┐                                                    
+│ Order: SO199728  Sold-To: 20000600  Bill To: 20000600  Ship-To: 20000601     │                                                    
+└──────────────────────────────────────────────────────────────────────────────┘                                                    
+┌────────────── Sold-To ───────────────┐┌────────────── Ship-To ───────────────┐                                                    
+│ TOPPANｲﾝﾌｫﾒﾃﾞｨｱ株式会社              ││ TOPPANｲﾝﾌｫﾒﾃﾞｨｱ㈱福島工場            │                                                    
+│ 東京都港区芝浦3-19-26                ││ 福島県福島市岡島字宮田30-2           │                                                    
+│ 購買部 大久保様                      ││                                      │                                                    
+│ 港区                      108-0023   ││ 福島市                    960-8201   │                                                    
+│ JAPAN                                ││ JAPAN                                │                                                    
+└──────────────────────────────────────┘└──────────────────────────────────────┘                                                    
+┌──────────────────────────────────────────────────────────────────────────────┐                                                    
+│    Order Date: 10/02/26 Line Pricing: Yes      Confirmed: Yes                │                                                    
+│ Required Date: 10/04/26       Manual:           Currency: JPY  Language:     │                                                    
+│  Promise Date:   /  /           Site: CB2        Taxable: Yes  10     /  /   │                                                    
+│      Due Date: 10/03/26      Channel:                  Fixed Price: Yes      │                                                    
+│  Perform Date:   /  /        Project:                 Credit Terms: J31131   │                                                    
+│  Pricing Date:   /  /                      Credit Terms Interest %: 0.00     │                                                    
+│Purchase Order: test                                        Reprice: No       │                                                    
+│       Remarks:                                          Entered By: takehik  │                                                    
+└──────────────────────────────────────────────────────────────────────────────┘                                                    
+                                                                                                                                    
+                                                                                                                                    
+F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear                                                                                  
+[2026-10-02 01:48:13] [ERROR] 受注入力自動化タイムアウト: 画面遷移待機タイムアウト (12.0秒): Step 3: Tax ポップアップ または Salesperson画面
+現在の画面表示:
+xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             10/02/26                                                      
+┌──────────────────────────────────────────────────────────────────────────────┐                                                    
+│ Order: SO199728  Sold-To: 20000600  Bill To: 20000600  Ship-To: 20000601     │                                                    
+└──────────────────────────────────────────────────────────────────────────────┘                                                    
+┌────────────── Sold-To ───────────────┐┌────────────── Ship-To ───────────────┐                                                    
+│ TOPPANｲﾝﾌｫﾒﾃﾞｨｱ株式会社              ││ TOPPANｲﾝﾌｫﾒﾃﾞｨｱ㈱福島工場            │                                                    
+│ 東京都港区芝浦3-19-26                ││ 福島県福島市岡島字宮田30-2           │                                                    
+│ 購買部 大久保様                      ││                                      │                                                    
+│ 港区                      108-0023   ││ 福島市                    960-8201   │                                                    
+│ JAPAN                                ││ JAPAN                                │                                                    
+└──────────────────────────────────────┘└──────────────────────────────────────┘                                                    
+┌──────────────────────────────────────────────────────────────────────────────┐                                                    
+│    Order Date: 10/02/26 Line Pricing: Yes      Confirmed: Yes                │                                                    
+│ Required Date: 10/04/26       Manual:           Currency: JPY  Language:     │                                                    
+│  Promise Date:   /  /           Site: CB2        Taxable: Yes  10     /  /   │                                                    
+│      Due Date: 10/03/26      Channel:                  Fixed Price: Yes      │                                                    
+│  Perform Date:   /  /        Project:                 Credit Terms: J31131   │                                                    
+│  Pricing Date:   /  /                      Credit Terms Interest %: 0.00     │                                                    
+│Purchase Order: test                                        Reprice: No       │                                                    
+│       Remarks:                                          Entered By: takehik  │                                                    
+└──────────────────────────────────────────────────────────────────────────────┘                                                    
+                                                                                                                                    
+                                                                                                                                    
+F1=Go 2=Help 3=Ins 4=End 5=Delete 7=Recall 8=Clear                                                                                  
