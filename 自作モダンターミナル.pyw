@@ -101,6 +101,7 @@ try:
         OrderOutputTerminalWindow, group_order_items, clean_screen_text,
         SalesOrderAutomationController, get_active_demo_payload,
         set_active_demo_payload, get_default_demo_payload, DemoPayloadDialog,
+        SleepRateDialog, get_active_sleep_rate_percent, set_active_sleep_rate_percent,
     )
 except ImportError as exc:
     if __name__ != "__main__":
@@ -2122,6 +2123,7 @@ class TerminalApp(ctk.CTk):
 
     def __init__(self):
         self.config = load_config()
+        set_active_sleep_rate_percent(self.config.get("order_sleep_rate_percent", 100))
         self.theme_name = self.config.get("theme", "light")
         # 外枠UI（右カラム・メニューバー・ヘッダー・ボタン）は初期ライト配色で常に固定
         self.ui_colors = dict(COLOR_THEMES["light"])
@@ -2278,6 +2280,12 @@ class TerminalApp(ctk.CTk):
         self.edit_menu.add_command(label="🚀 レポート全ページ自動取得 ＆ Excelで開く", command=self._fetch_all_pages_and_open_excel)
         self.edit_menu.add_separator()
         self.edit_menu.add_command(label="📋 画面全体をコピー", accelerator="Ctrl+Shift+C", command=self.copy_screen_text)
+        self.edit_menu.add_separator()
+        curr_sleep_rate = int(round(float(self.config.get("order_sleep_rate_percent", 100))))
+        self.edit_menu.add_command(
+            label=f"⏱️ 受注Sleep時間の調整 ({curr_sleep_rate}%)...",
+            command=self.open_sleep_rate_dialog,
+        )
         menubar.add_cascade(label="編集", menu=self.edit_menu)
 
         # 3. 表示メニュー
@@ -2745,6 +2753,38 @@ class TerminalApp(ctk.CTk):
             parent=self,
         )
 
+    def open_sleep_rate_dialog(self):
+        """受注自動化のSleep時間調整ダイアログを開く"""
+        current_rate = self.config.get("order_sleep_rate_percent", 100)
+        SleepRateDialog(
+            master=self,
+            current_rate=current_rate,
+            on_save=self.save_sleep_rate,
+        )
+
+    def save_sleep_rate(self, new_rate: int):
+        """Sleep倍率を設定ファイルに保存し、反映する"""
+        new_rate = max(1, min(200, int(new_rate)))
+        self.config["order_sleep_rate_percent"] = new_rate
+        set_active_sleep_rate_percent(new_rate)
+        save_config(self.config)
+        self._update_sleep_rate_menu_label()
+        log_info(f"受注Sleep倍率を {new_rate}% に更新・保存しました。")
+        self.set_status(f"⏱️ 受注Sleep時間を {new_rate}% に設定しました", "info", clear_delay=5)
+
+    def _update_sleep_rate_menu_label(self):
+        """編集メニューのSleep時間項目のラベルを最新のパーセンテージに更新"""
+        rate = int(round(float(self.config.get("order_sleep_rate_percent", 100))))
+        try:
+            if hasattr(self, "edit_menu"):
+                for idx in range(self.edit_menu.index("end") + 1):
+                    lbl = self.edit_menu.entrycget(idx, "label")
+                    if "Sleep時間の調整" in lbl:
+                        self.edit_menu.entryconfigure(idx, label=f"⏱️ 受注Sleep時間の調整 ({rate}%)...")
+                        break
+        except Exception:
+            pass
+
     def run_demo_order_submission(self, custom_payload=None):
         """デモ注文送信を即時実行"""
         if not self.is_connected or self.session is None:
@@ -2809,13 +2849,21 @@ class TerminalApp(ctk.CTk):
 
         def _worker():
             try:
-                controller = SalesOrderAutomationController(
+                controller_kwargs = dict(
                     session=active_session,
                     get_screen_text=screen_reader,
                     payload=target_payload,
                     status_callback=lambda msg, st="working", cd=None: self.after(0, lambda: self.set_status(msg, st, cd)),
                     logger=log_info,
                 )
+                try:
+                    cfg = getattr(self, "config", None)
+                    if isinstance(cfg, dict) and "order_sleep_rate_percent" in cfg:
+                        controller_kwargs["sleep_rate_percent"] = cfg["order_sleep_rate_percent"]
+                except Exception:
+                    pass
+
+                controller = SalesOrderAutomationController(**controller_kwargs)
                 self._current_order_controller = controller
 
                 # 画面状態判定: すでに Step 6 (Sales Order Line) にいる場合は Step 6 のみ実行

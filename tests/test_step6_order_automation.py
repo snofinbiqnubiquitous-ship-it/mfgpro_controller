@@ -2574,6 +2574,73 @@ class AutomationControllerExecutionTests(unittest.TestCase):
         self.assertIn(KEY_SEQUENCES["F1"], sent)
         self.assertEqual(state["idx"], 1)
 
+    def test_sleep_rate_scaling_and_limits(self):
+        """スリープ倍率（1〜200%）のスケーリング計算と境界値クランプのテスト"""
+        from order_entry import (
+            get_active_sleep_rate_percent,
+            set_active_sleep_rate_percent,
+        )
+
+        orig_rate = get_active_sleep_rate_percent()
+        try:
+            # 境界値クランプ
+            self.assertEqual(set_active_sleep_rate_percent(50), 50.0)
+            self.assertEqual(get_active_sleep_rate_percent(), 50.0)
+            self.assertEqual(set_active_sleep_rate_percent(0), 1.0)     # 1%未満は1%にクランプ
+            self.assertEqual(set_active_sleep_rate_percent(250), 200.0) # 200%超は200%にクランプ
+            self.assertEqual(set_active_sleep_rate_percent("invalid"), 100.0) # 不正値は100%にリセット
+
+            # コントローラでのスケーリング
+            recorded_sleeps = []
+            mock_session = type("MockSession", (), {"send": lambda *a: None})()
+
+            # 100% (基準)
+            c100 = SalesOrderAutomationController(
+                mock_session, lambda: "", {},
+                sleep_func=lambda s: recorded_sleeps.append(s),
+                sleep_rate_percent=100.0,
+            )
+            c100.sleep(0.5)
+            self.assertAlmostEqual(recorded_sleeps[-1], 0.5)
+
+            # 50% (半減・2倍速)
+            c50 = SalesOrderAutomationController(
+                mock_session, lambda: "", {},
+                sleep_func=lambda s: recorded_sleeps.append(s),
+                sleep_rate_percent=50.0,
+            )
+            c50.sleep(0.5)
+            self.assertAlmostEqual(recorded_sleeps[-1], 0.25)
+
+            # 10% (超超特急・10倍速)
+            c10 = SalesOrderAutomationController(
+                mock_session, lambda: "", {},
+                sleep_func=lambda s: recorded_sleeps.append(s),
+                sleep_rate_percent=10.0,
+            )
+            c10.sleep(0.5)
+            self.assertAlmostEqual(recorded_sleeps[-1], 0.05)
+
+            # 200% (超安全・2倍待機)
+            c200 = SalesOrderAutomationController(
+                mock_session, lambda: "", {},
+                sleep_func=lambda s: recorded_sleeps.append(s),
+                sleep_rate_percent=200.0,
+            )
+            c200.sleep(0.5)
+            self.assertAlmostEqual(recorded_sleeps[-1], 1.0)
+
+            # payload 内の sleep_rate_percent 優先テスト
+            c_payload = SalesOrderAutomationController(
+                mock_session, lambda: "", {"sleep_rate_percent": 75.0},
+                sleep_func=lambda s: recorded_sleeps.append(s),
+            )
+            c_payload.sleep(0.4)
+            self.assertAlmostEqual(recorded_sleeps[-1], 0.3)
+
+        finally:
+            set_active_sleep_rate_percent(orig_rate)
+
 
 if __name__ == "__main__":
     unittest.main()

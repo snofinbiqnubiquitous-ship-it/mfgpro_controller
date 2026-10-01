@@ -1160,6 +1160,25 @@ def is_order_completed(clean_lower_text: str) -> bool:
     return False
 
 
+_ACTIVE_SLEEP_RATE_PERCENT: float = 100.0
+
+
+def get_active_sleep_rate_percent() -> float:
+    """現在の受注自動化スリープ倍率（1〜200%）を取得"""
+    return _ACTIVE_SLEEP_RATE_PERCENT
+
+
+def set_active_sleep_rate_percent(val: float | int) -> float:
+    """現在の受注自動化スリープ倍率（1〜200%）を設定"""
+    global _ACTIVE_SLEEP_RATE_PERCENT
+    try:
+        val_f = float(val)
+        _ACTIVE_SLEEP_RATE_PERCENT = max(1.0, min(200.0, val_f))
+    except (ValueError, TypeError):
+        _ACTIVE_SLEEP_RATE_PERCENT = 100.0
+    return _ACTIVE_SLEEP_RATE_PERCENT
+
+
 class SalesOrderAutomationController:
     """QAD 99.7.1.1 (Sales Order Maintenance) の同期式・画面検知型自動入力コントローラ。
     画面のプロンプト・ポップアップ・表示変化を待機して、正確なタイミングでキーストロークを送信します。
@@ -1168,16 +1187,40 @@ class SalesOrderAutomationController:
     is_space_prompt = staticmethod(is_space_prompt)
     is_order_completed = staticmethod(is_order_completed)
 
-    def __init__(self, session, get_screen_text, payload, status_callback=None, logger=None, sleep_func=time.sleep, default_timeout: float = 12.0):
+    def __init__(
+        self,
+        session,
+        get_screen_text,
+        payload,
+        status_callback=None,
+        logger=None,
+        sleep_func=time.sleep,
+        default_timeout: float = 12.0,
+        sleep_rate_percent: float | None = None,
+    ):
         self.session = session
         self.get_screen_text = get_screen_text
         self.payload = payload or {}
         self.status_callback = status_callback
         self.logger = logger
-        self.sleep = sleep_func
+        self._raw_sleep = sleep_func
         self.default_timeout = default_timeout
         self.aborted = False
         self.order_id: str | None = None
+
+        # 1〜200% のSleep倍率（指定がなければ payload またはグローバル設定から取得、デフォルト 100%）
+        if sleep_rate_percent is not None:
+            rate = float(sleep_rate_percent)
+        elif "sleep_rate_percent" in self.payload:
+            rate = float(self.payload["sleep_rate_percent"])
+        else:
+            rate = get_active_sleep_rate_percent()
+        self.sleep_rate_percent = max(1.0, min(200.0, rate))
+
+    def sleep(self, seconds: float):
+        """設定されたパーセンテージ（1%〜200%）に応じてスリープ時間をスケーリングして実行"""
+        scaled = max(0.001, seconds * (self.sleep_rate_percent / 100.0))
+        self._raw_sleep(scaled)
 
     def _has_valid_order_id(self, txt: str) -> bool:
         """画面上に有効な Order ID が採番・表示されているかを判定"""
@@ -3202,6 +3245,236 @@ class DemoPayloadDialog(ctk.CTkToplevel):
             self.on_save(data)
         if callable(self.on_execute):
             self.on_execute(data)
+        self.destroy()
+
+
+class SleepRateDialog(ctk.CTkToplevel):
+    """受注自動化のSleep時間倍率（1%〜200%）を設定・調整するダイアログ"""
+
+    def __init__(self, master=None, current_rate=None, on_save=None):
+        super().__init__(master)
+        self.title("⏱️ 受注Sleep時間の調整 (1%〜200%)")
+        self.geometry("520x460")
+        self.minsize(460, 400)
+        self.on_save = on_save
+
+        # モーダル化
+        self.transient(master)
+        self.grab_set()
+
+        initial_val = current_rate if current_rate is not None else get_active_sleep_rate_percent()
+        try:
+            self._current_val = int(round(float(initial_val)))
+        except (ValueError, TypeError):
+            self._current_val = 100
+        self._current_val = max(1, min(200, self._current_val))
+
+        # ウィンドウを親の中央に配置
+        try:
+            if master:
+                px = master.winfo_rootx()
+                py = master.winfo_rooty()
+                pw = master.winfo_width()
+                ph = master.winfo_height()
+                x = px + max(0, (pw - 520) // 2)
+                y = py + max(0, (ph - 460) // 2)
+                self.geometry(f"+{x}+{y}")
+        except Exception:
+            pass
+
+        # 上部ヘッダー
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.pack(fill="x", padx=20, pady=(16, 8))
+
+        ctk.CTkLabel(
+            header,
+            text="⚡ 受注Sleep時間の調整",
+            font=ctk.CTkFont(family="Meiryo", size=17, weight="bold"),
+            anchor="w",
+        ).pack(fill="x")
+
+        desc_text = (
+            "現在の設定（限界見極めテスト用待機時間）を 100%（基準）として、\n"
+            "全工程のSleep時間を 1% 〜 200% の範囲で自在に調整できます。\n"
+            "（例: 50% ➔ 待機時間半減・約2倍速 / 200% ➔ 待機時間2倍・安全モード）"
+        )
+        ctk.CTkLabel(
+            header,
+            text=desc_text,
+            font=ctk.CTkFont(family="Meiryo", size=12),
+            text_color="#94A3B8",
+            justify="left",
+            anchor="w",
+        ).pack(fill="x", pady=(4, 0))
+
+        # メインカード枠
+        card = ctk.CTkFrame(self, fg_color=("#F1F5F9", "#1E293B"), corner_radius=10)
+        card.pack(fill="both", expand=True, padx=20, pady=8)
+
+        # 現在値の大型表示枠
+        rate_display_frame = ctk.CTkFrame(card, fg_color="transparent")
+        rate_display_frame.pack(fill="x", padx=16, pady=(14, 4))
+
+        self.lbl_rate_big = ctk.CTkLabel(
+            rate_display_frame,
+            text=f"{self._current_val} %",
+            font=ctk.CTkFont(family="Meiryo", size=30, weight="bold"),
+            text_color="#38BDF8",
+        )
+        self.lbl_rate_big.pack(side="left")
+
+        self.lbl_speed_ratio = ctk.CTkLabel(
+            rate_display_frame,
+            text=self._calc_speed_text(self._current_val),
+            font=ctk.CTkFont(family="Meiryo", size=14, weight="bold"),
+            text_color="#10B981",
+        )
+        self.lbl_speed_ratio.pack(side="left", padx=12, pady=(6, 0))
+
+        # スライダー枠
+        slider_frame = ctk.CTkFrame(card, fg_color="transparent")
+        slider_frame.pack(fill="x", padx=16, pady=(6, 8))
+
+        ctk.CTkLabel(slider_frame, text="1%", font=ctk.CTkFont(size=11), text_color="#64748B").pack(side="left")
+
+        self.slider = ctk.CTkSlider(
+            slider_frame,
+            from_=1,
+            to=200,
+            number_of_steps=199,
+            command=self._on_slider_change,
+        )
+        self.slider.set(self._current_val)
+        self.slider.pack(side="left", fill="x", expand=True, padx=8)
+
+        ctk.CTkLabel(slider_frame, text="200%", font=ctk.CTkFont(size=11), text_color="#64748B").pack(side="left")
+
+        # プリセットボタン枠
+        presets_frame = ctk.CTkFrame(card, fg_color="transparent")
+        presets_frame.pack(fill="x", padx=16, pady=(4, 8))
+
+        ctk.CTkLabel(
+            presets_frame,
+            text="ワンクリックプリセット:",
+            font=ctk.CTkFont(family="Meiryo", size=11),
+            text_color="#94A3B8",
+            anchor="w",
+        ).pack(fill="x", pady=(0, 4))
+
+        btn_row1 = ctk.CTkFrame(presets_frame, fg_color="transparent")
+        btn_row1.pack(fill="x", pady=2)
+
+        presets = [
+            ("10% (超超特急)", 10, "#EF4444"),
+            ("25% (4倍速)", 25, "#F59E0B"),
+            ("50% (2倍速)", 50, "#3B82F6"),
+            ("75% (高速)", 75, "#06B6D4"),
+            ("100% (基準)", 100, "#10B981"),
+            ("150% (安定)", 150, "#8B5CF6"),
+            ("200% (超安全)", 200, "#64748B"),
+        ]
+
+        for text, val, col in presets:
+            btn = ctk.CTkButton(
+                btn_row1,
+                text=text,
+                font=ctk.CTkFont(family="Meiryo", size=10, weight="bold"),
+                height=26,
+                fg_color=col,
+                hover_color="#1E293B",
+                command=lambda v=val: self._apply_preset(v),
+            )
+            btn.pack(side="left", padx=2, expand=True, fill="x")
+
+        # 目安プレビュー枠
+        preview_box = ctk.CTkFrame(card, fg_color=("#E2E8F0", "#0F172A"), corner_radius=6)
+        preview_box.pack(fill="x", padx=16, pady=(6, 12))
+
+        self.lbl_preview = ctk.CTkLabel(
+            preview_box,
+            text=self._calc_preview_text(self._current_val),
+            font=ctk.CTkFont(family="Consolas", size=11),
+            text_color="#E2E8F0",
+            justify="left",
+            anchor="w",
+        )
+        self.lbl_preview.pack(fill="x", padx=10, pady=8)
+
+        # 下部アクションボタン
+        footer = ctk.CTkFrame(self, fg_color="transparent")
+        footer.pack(fill="x", padx=20, pady=(8, 16))
+
+        btn_save = ctk.CTkButton(
+            footer,
+            text="💾 保存して閉じる",
+            font=ctk.CTkFont(family="Meiryo", size=13, weight="bold"),
+            height=34,
+            fg_color="#10B981",
+            hover_color="#059669",
+            command=self._on_save_clicked,
+        )
+        btn_save.pack(side="right", padx=(6, 0))
+
+        btn_cancel = ctk.CTkButton(
+            footer,
+            text="キャンセル",
+            font=ctk.CTkFont(family="Meiryo", size=12),
+            height=34,
+            fg_color="#64748B",
+            hover_color="#475569",
+            command=self.destroy,
+        )
+        btn_cancel.pack(side="right", padx=6)
+
+        btn_reset = ctk.CTkButton(
+            footer,
+            text="↺ 100% (基準値) に戻す",
+            font=ctk.CTkFont(family="Meiryo", size=12),
+            height=34,
+            fg_color="#3B82F6",
+            hover_color="#2563EB",
+            command=lambda: self._apply_preset(100),
+        )
+        btn_reset.pack(side="left")
+
+    def _calc_speed_text(self, val: int) -> str:
+        if val == 100:
+            return "（基準速度 1.0倍）"
+        elif val < 100:
+            speed = 100.0 / max(1, val)
+            return f"（約 {speed:.1f} 倍速・短縮）"
+        else:
+            slow = val / 100.0
+            return f"（約 {slow:.1f} 倍待機・安全）"
+
+    def _calc_preview_text(self, val: int) -> str:
+        scale = val / 100.0
+        return (
+            f"主要待機時間の目安 [Sleep {val}%]:\n"
+            f"  ・Step 5➔6 明細画面遷移: {0.35 * scale:.3f}秒 (基準: 0.35s)\n"
+            f"  ・ロール明細入力 (Ser/幅): {0.12 * scale:.3f}秒 (基準: 0.12s)\n"
+            f"  ・ヘッダー確定/一括貼付:  {0.35 * scale:.3f}秒 (基準: 0.35s)\n"
+            f"  ・最終コミット (Totals):   {0.30 * scale:.3f}秒 (基準: 0.30s)"
+        )
+
+    def _on_slider_change(self, val):
+        self._current_val = int(round(float(val)))
+        self._update_ui()
+
+    def _apply_preset(self, val: int):
+        self._current_val = max(1, min(200, int(val)))
+        self.slider.set(self._current_val)
+        self._update_ui()
+
+    def _update_ui(self):
+        self.lbl_rate_big.configure(text=f"{self._current_val} %")
+        self.lbl_speed_ratio.configure(text=self._calc_speed_text(self._current_val))
+        self.lbl_preview.configure(text=self._calc_preview_text(self._current_val))
+
+    def _on_save_clicked(self):
+        set_active_sleep_rate_percent(self._current_val)
+        if callable(self.on_save):
+            self.on_save(self._current_val)
         self.destroy()
 
 

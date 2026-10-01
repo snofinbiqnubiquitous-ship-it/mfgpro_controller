@@ -46,6 +46,7 @@
   "shortcut_assignments": {
     "order.panel.toggle": "F2"
   },
+  "order_sleep_rate_percent": 100,
   "demo_payload": {
     "purchase_order": "test",
     "customer_code": "20000600",
