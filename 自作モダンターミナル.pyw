@@ -3,6 +3,7 @@ import codecs
 import copy
 import csv
 import datetime
+from datetime import date, timedelta
 import gzip
 import json
 import os
@@ -98,7 +99,8 @@ try:
         normalize_shortcut, shortcut_from_key_event, read_customer_ship_to_csv,
         read_customer_info_file, read_item_list_file, CustomerInfoData, show_order_output,
         OrderOutputTerminalWindow, group_order_items, clean_screen_text,
-        SalesOrderAutomationController,
+        SalesOrderAutomationController, get_active_demo_payload,
+        set_active_demo_payload, get_default_demo_payload, DemoPayloadDialog,
     )
 except ImportError as exc:
     if __name__ != "__main__":
@@ -185,6 +187,11 @@ def load_config():
         for action_id in list(cfg["shortcut_assignments"].keys()):
             if "alt" in str(cfg["shortcut_assignments"][action_id]).lower():
                 cfg["shortcut_assignments"].pop(action_id, None)
+
+    if cfg.get("demo_payload") and isinstance(cfg["demo_payload"], dict):
+        set_active_demo_payload(cfg["demo_payload"])
+    else:
+        set_active_demo_payload(get_default_demo_payload())
     return cfg
 
 
@@ -2313,6 +2320,14 @@ class TerminalApp(ctk.CTk):
         self.update_menu.add_command(label="Item list", command=self.run_item_list_update_automation)
         menubar.add_cascade(label="update", menu=self.update_menu)
 
+        # 6. デモ注文メニュー
+        self.demo_menu = tk.Menu(menubar, tearoff=False)
+        self.demo_menu.add_command(label="🧪 デモ注文を実行 (2製品)", command=self.run_demo_order_submission)
+        self.demo_menu.add_command(label="⚙️ デモ送信データの設定・編集...", command=self.open_demo_payload_dialog)
+        self.demo_menu.add_separator()
+        self.demo_menu.add_command(label="📅 日付を今日基準に自動更新 (Due:明日, Req:2日後)", command=self.reset_demo_dates_to_today)
+        menubar.add_cascade(label="デモ注文", menu=self.demo_menu)
+
         # 6. カラーパレットメニュー（独立メニュー）
         self.palette_menu = tk.Menu(menubar, tearoff=False)
         self.palette_menu.add_command(label="🎨 カラーパレットを開く...", command=self.open_color_palette)
@@ -2699,6 +2714,64 @@ class TerminalApp(ctk.CTk):
 
     def _on_output_terminal_closed(self):
         self.output_terminal_window = None
+
+    def save_demo_payload(self, payload: dict):
+        """デモ注文データを設定ファイルに保存"""
+        self.config["demo_payload"] = payload
+        set_active_demo_payload(payload)
+        save_config(self.config)
+        log_info(f"デモ注文Payloadを設定ファイルに保存しました: PO={payload.get('purchase_order')}")
+
+    def open_demo_payload_dialog(self):
+        """デモ用データの設定・編集ダイアログを開く"""
+        current_payload = self.config.get("demo_payload") or get_active_demo_payload()
+        DemoPayloadDialog(
+            master=self,
+            current_payload=current_payload,
+            on_save=self.save_demo_payload,
+            on_execute=self.run_demo_order_submission,
+        )
+
+    def reset_demo_dates_to_today(self):
+        """デモ注文データの日付を今日基準（Due:明日, Req:2日後）にリセットして保存"""
+        payload = self.config.get("demo_payload") or get_active_demo_payload()
+        today = date.today()
+        payload["due_date"] = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+        payload["required_date"] = (today + timedelta(days=2)).strftime("%Y-%m-%d")
+        self.save_demo_payload(payload)
+        messagebox.showinfo(
+            "日付更新完了",
+            f"デモ注文データの日付を今日基準で更新しました:\n\n・Due Date (納期): {payload['due_date']} (明日)\n・Request Date (要求日): {payload['required_date']} (2日後)",
+            parent=self,
+        )
+
+    def run_demo_order_submission(self, custom_payload=None):
+        """デモ注文送信を即時実行"""
+        if not self.is_connected or self.session is None:
+            self._show_input_error("サーバーに接続されていません。ログイン後に実行してください。")
+            return
+
+        payload = custom_payload or self.config.get("demo_payload") or get_active_demo_payload()
+        # 日付が過去日または当日の場合は自動的に今日基準（Due:明日, Req:2日後）に更新
+        today = date.today()
+        try:
+            curr_due = datetime.datetime.strptime(str(payload.get("due_date", "")).strip(), "%Y-%m-%d").date()
+            if curr_due <= today:
+                payload["due_date"] = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+                payload["required_date"] = (today + timedelta(days=2)).strftime("%Y-%m-%d")
+                self.save_demo_payload(payload)
+        except Exception:
+            pass
+
+        # F3 ターミナルウィンドウにも表示
+        if hasattr(self, "output_terminal_window") and self.output_terminal_window is not None:
+            items_data = None
+            if hasattr(self, "order_panel") and self.order_panel is not None:
+                items_data = getattr(self.order_panel, "item_list_data", None)
+            self.output_terminal_window.append_submission(payload, item_list_data=items_data)
+
+        # 自動入力を実行
+        self._process_order_submission(payload)
 
     def _process_order_submission(self, payload):
         """注文送信出力を記録し、QAD 99.7.1.1 への自動入力を直接実行"""

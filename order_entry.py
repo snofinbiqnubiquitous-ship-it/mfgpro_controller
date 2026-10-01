@@ -2974,6 +2974,237 @@ def show_order_output(parent, payload, colors, font_family):
     return window
 
 
+def get_default_demo_payload() -> dict:
+    """デモ用の既定注文Payload（Request Date: 今日から2日後、Due Date: 明日）"""
+    today = date.today()
+    due_date = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+    req_date = (today + timedelta(days=2)).strftime("%Y-%m-%d")
+    return {
+        "purchase_order": "test",
+        "customer_code": "20000600",
+        "ship_to_code": "20000601",
+        "address": "960-8201\nTOPPANインフォメディア(株)福島工場\n福島県福島市岡島字宮田30-2\n\n\n024-536-6111",
+        "remarks": "test",
+        "so_comment": "test",
+        "required_date": req_date,
+        "due_date": due_date,
+        "items": [
+            {
+                "product_name": "BW0100D",
+                "width": "200",
+                "length": "600",
+                "quantity": 1,
+                "price": "200",
+            },
+            {
+                "product_name": "BW0116Q3-2",
+                "width": "200",
+                "length": "600",
+                "quantity": 1,
+                "price": "200",
+            },
+        ],
+    }
+
+
+_ACTIVE_DEMO_PAYLOAD = None
+
+
+def get_active_demo_payload() -> dict:
+    """現在アクティブなデモPayload（未設定時は既定値を初期化して返却）"""
+    global _ACTIVE_DEMO_PAYLOAD
+    if _ACTIVE_DEMO_PAYLOAD is None:
+        _ACTIVE_DEMO_PAYLOAD = get_default_demo_payload()
+    return _ACTIVE_DEMO_PAYLOAD
+
+
+def set_active_demo_payload(payload: dict):
+    """アクティブなデモPayloadを更新"""
+    global _ACTIVE_DEMO_PAYLOAD
+    if isinstance(payload, dict):
+        _ACTIVE_DEMO_PAYLOAD = dict(payload)
+
+
+class DemoPayloadDialog(ctk.CTkToplevel):
+    """デモ用注文送信データ（JSON）の設定・編集ダイアログ"""
+
+    def __init__(self, master=None, current_payload=None, on_save=None, on_execute=None):
+        super().__init__(master)
+        self.title("⚙️ デモ注文送信データの設定・編集")
+        self.geometry("640x580")
+        self.minsize(520, 440)
+        self.on_save = on_save
+        self.on_execute = on_execute
+
+        # モーダル化
+        self.transient(master)
+        self.grab_set()
+
+        payload = current_payload or get_active_demo_payload()
+        self._initial_payload = payload
+
+        # 上部説明
+        header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        header_frame.pack(fill="x", padx=16, pady=(12, 6))
+
+        title_lbl = ctk.CTkLabel(
+            header_frame,
+            text="デモ注文Payloadの編集",
+            font=ctk.CTkFont(family="Meiryo", size=15, weight="bold"),
+            anchor="w",
+        )
+        title_lbl.pack(fill="x")
+
+        desc_lbl = ctk.CTkLabel(
+            header_frame,
+            text="デモ送信でQADに送るJSONデータを編集できます。\n[📅 日付を今日基準に更新] を押すと、Due Date(明日)・Request Date(2日後)に自動設定されます。",
+            font=ctk.CTkFont(family="Meiryo", size=11),
+            text_color="#94A3B8",
+            justify="left",
+            anchor="w",
+        )
+        desc_lbl.pack(fill="x", pady=(2, 0))
+
+        # アクションバー
+        action_bar = ctk.CTkFrame(self, fg_color="transparent")
+        action_bar.pack(fill="x", padx=16, pady=4)
+
+        btn_date = ctk.CTkButton(
+            action_bar,
+            text="📅 日付を更新 (Due:明日, Req:2日後)",
+            font=ctk.CTkFont(family="Meiryo", size=11, weight="bold"),
+            fg_color="#0284C7",
+            hover_color="#0369A1",
+            height=28,
+            command=self._update_dates_to_relative,
+        )
+        btn_date.pack(side="left", padx=(0, 6))
+
+        btn_reset = ctk.CTkButton(
+            action_bar,
+            text="🔄 既定値に戻す",
+            font=ctk.CTkFont(family="Meiryo", size=11),
+            fg_color="#475569",
+            hover_color="#334155",
+            height=28,
+            command=self._reset_to_default,
+        )
+        btn_reset.pack(side="left", padx=(0, 6))
+
+        btn_format = ctk.CTkButton(
+            action_bar,
+            text="🪄 JSON整形",
+            font=ctk.CTkFont(family="Meiryo", size=11),
+            fg_color="#475569",
+            hover_color="#334155",
+            height=28,
+            command=self._format_json,
+        )
+        btn_format.pack(side="left", padx=(0, 6))
+
+        # JSONテキストエディタ
+        self.text_editor = ctk.CTkTextbox(
+            self,
+            font=ctk.CTkFont(family="Consolas", size=12),
+            wrap="none",
+            border_width=1,
+            corner_radius=6,
+        )
+        self.text_editor.pack(fill="both", expand=True, padx=16, pady=6)
+        self.text_editor.insert("1.0", json.dumps(payload, ensure_ascii=False, indent=2))
+
+        # 下部ボタンバー
+        bottom_bar = ctk.CTkFrame(self, fg_color="transparent")
+        bottom_bar.pack(fill="x", padx=16, pady=(6, 12))
+
+        btn_cancel = ctk.CTkButton(
+            bottom_bar,
+            text="キャンセル",
+            font=ctk.CTkFont(family="Meiryo", size=12),
+            fg_color="#64748B",
+            hover_color="#475569",
+            width=90,
+            command=self.destroy,
+        )
+        btn_cancel.pack(side="right", padx=(6, 0))
+
+        btn_save = ctk.CTkButton(
+            bottom_bar,
+            text="💾 保存して閉じる",
+            font=ctk.CTkFont(family="Meiryo", size=12, weight="bold"),
+            fg_color="#059669",
+            hover_color="#047857",
+            width=130,
+            command=self._on_save_clicked,
+        )
+        btn_save.pack(side="right", padx=(6, 0))
+
+        btn_send = ctk.CTkButton(
+            bottom_bar,
+            text="🚀 保存してデモ送信",
+            font=ctk.CTkFont(family="Meiryo", size=12, weight="bold"),
+            fg_color="#4F46E5",
+            hover_color="#4338CA",
+            width=150,
+            command=self._on_send_clicked,
+        )
+        btn_send.pack(side="right", padx=(6, 0))
+
+    def _get_payload_from_editor(self) -> dict:
+        raw_text = self.text_editor.get("1.0", "end-1c").strip()
+        try:
+            data = json.loads(raw_text)
+            if not isinstance(data, dict):
+                raise ValueError("JSONのルートはオブジェクト({})である必要があります")
+            return data
+        except Exception as e:
+            messagebox.showerror("JSONエラー", f"JSONの解析に失敗しました:\n{e}", parent=self)
+            return None
+
+    def _update_dates_to_relative(self):
+        data = self._get_payload_from_editor()
+        if not data:
+            return
+        today = date.today()
+        data["due_date"] = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+        data["required_date"] = (today + timedelta(days=2)).strftime("%Y-%m-%d")
+        self.text_editor.delete("1.0", "end")
+        self.text_editor.insert("1.0", json.dumps(data, ensure_ascii=False, indent=2))
+
+    def _reset_to_default(self):
+        def_data = get_default_demo_payload()
+        self.text_editor.delete("1.0", "end")
+        self.text_editor.insert("1.0", json.dumps(def_data, ensure_ascii=False, indent=2))
+
+    def _format_json(self):
+        data = self._get_payload_from_editor()
+        if not data:
+            return
+        self.text_editor.delete("1.0", "end")
+        self.text_editor.insert("1.0", json.dumps(data, ensure_ascii=False, indent=2))
+
+    def _on_save_clicked(self):
+        data = self._get_payload_from_editor()
+        if not data:
+            return
+        set_active_demo_payload(data)
+        if callable(self.on_save):
+            self.on_save(data)
+        messagebox.showinfo("保存完了", "デモ注文データを更新しました。", parent=self)
+        self.destroy()
+
+    def _on_send_clicked(self):
+        data = self._get_payload_from_editor()
+        if not data:
+            return
+        set_active_demo_payload(data)
+        if callable(self.on_save):
+            self.on_save(data)
+        if callable(self.on_execute):
+            self.on_execute(data)
+        self.destroy()
+
+
 class OrderOutputTerminalWindow(ctk.CTkToplevel):
     """F3で表示される注文送信チェック用シークレットターミナル"""
 
@@ -3066,7 +3297,21 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
             corner_radius=5,
             command=self._on_demo_clicked,
         )
-        self.demo_btn.pack(side="right", padx=(4, 6), pady=5)
+        self.demo_btn.pack(side="right", padx=(4, 4), pady=5)
+
+        self.demo_cfg_btn = ctk.CTkButton(
+            top_bar,
+            text="⚙️ デモ設定",
+            font=ctk.CTkFont(family="Meiryo", size=11),
+            fg_color="#374151",
+            hover_color="#4B5563",
+            text_color="#FFFFFF",
+            width=75,
+            height=26,
+            corner_radius=5,
+            command=self._on_demo_cfg_clicked,
+        )
+        self.demo_cfg_btn.pack(side="right", padx=(4, 6), pady=5)
 
         # 下部キーガイドバー
         bottom_bar = ctk.CTkFrame(self, fg_color=self.term_card_bg, corner_radius=0, height=28)
@@ -3110,33 +3355,19 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         tb.tag_config("term_comment", foreground="#94A3B8", font=("Consolas", 11))
 
     def _on_demo_clicked(self):
-        """ユーザー指定の2製品デモPayloadで送信ボタン押下時と同一の挙動を実行"""
-        demo_payload = {
-            "purchase_order": "test",
-            "customer_code": "20000600",
-            "ship_to_code": "20000601",
-            "address": "960-8201\nTOPPANインフォメディア(株)福島工場\n福島県福島市岡島字宮田30-2\n\n\n024-536-6111",
-            "remarks": "test",
-            "so_comment": "test",
-            "required_date": "2026-10-01",
-            "due_date": "2026-09-30",
-            "items": [
-                {
-                    "product_name": "BW0100D",
-                    "width": "200",
-                    "length": "600",
-                    "quantity": 1,
-                    "price": "200",
-                },
-                {
-                    "product_name": "BW0116Q3-2",
-                    "width": "200",
-                    "length": "600",
-                    "quantity": 1,
-                    "price": "200",
-                },
-            ],
-        }
+        """設定済みのデモPayload（日付が過去なら今日基準に自動補正）で送信ボタン押下時と同一の挙動を実行"""
+        demo_payload = get_active_demo_payload()
+        # 日付が過去日の場合は自動的に今日基準（Due:明日, Req:2日後）に更新
+        today = date.today()
+        try:
+            curr_due = datetime.strptime(str(demo_payload.get("due_date", "")).strip(), "%Y-%m-%d").date()
+            if curr_due <= today:
+                demo_payload["due_date"] = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+                demo_payload["required_date"] = (today + timedelta(days=2)).strftime("%Y-%m-%d")
+                set_active_demo_payload(demo_payload)
+        except Exception:
+            pass
+
         target_parent = getattr(self, "parent", None) or getattr(self, "master", None)
         items_data = None
         if hasattr(target_parent, "order_panel") and target_parent.order_panel is not None:
@@ -3152,6 +3383,16 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
             target_parent.run_sales_order_automation(demo_payload)
         else:
             messagebox.showwarning("警告", "メインアプリに注文送信機能が見つかりません。", parent=self)
+
+    def _on_demo_cfg_clicked(self):
+        """デモ注文データ編集ダイアログを開く"""
+        target_parent = getattr(self, "parent", None) or getattr(self, "master", None)
+        DemoPayloadDialog(
+            master=self,
+            current_payload=get_active_demo_payload(),
+            on_save=lambda p: getattr(target_parent, "save_demo_payload", lambda x: None)(p),
+            on_execute=lambda p: self._on_demo_clicked(),
+        )
 
     def _on_execute_clicked(self):
         if not self.last_payload:
