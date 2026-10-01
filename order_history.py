@@ -73,10 +73,16 @@ def render_order(payload, order_id, template=DEFAULT_TEMPLATE):
     for line in template.split("\n"):
         # Lines containing an item variable repeat once per original sidebar row.
         items = payload.get("items", []) if set(TOKEN_RE.findall(line)) & set(ITEM_FIELDS) else [None]
+        last_product = None
         for item in items:
             row = dict(values)
             if item is not None:
                 row.update({name: str(item.get(key, "")) for name, key in ITEM_FIELDS.items()})
+                curr_product = str(item.get("product_name", "")).strip()
+                if curr_product and curr_product == last_product:
+                    row["製品名"] = ""
+                elif curr_product:
+                    last_product = curr_product
             result.append(TOKEN_RE.sub(lambda m: row[m[1]], line))
     return "\n".join(result)
 

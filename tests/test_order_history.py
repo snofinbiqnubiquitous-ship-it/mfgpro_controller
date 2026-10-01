@@ -49,3 +49,29 @@ class OrderHistoryTests(unittest.TestCase):
         self.assertIn("TOPPANインフォメディア株式会社", rendered)
         self.assertIn("TOPPANインフォメディア(株)福島工場着 で手配しました。", rendered)
 
+    def test_duplicate_product_name_suppression_on_consecutive_lines(self):
+        payload = {
+            "customer_name": "顧客A",
+            "ship_to": "工場B",
+            "required_date": "2026-10-02",
+            "items": [
+                {"product_name": "製品A", "width": "200", "length": "600", "quantity": 2, "price": "150"},
+                {"product_name": "製品A", "width": "300", "length": "600", "quantity": 1, "price": "150"},
+                {"product_name": "製品B", "width": "400", "length": "500", "quantity": 3, "price": "200"},
+                {"product_name": "製品B", "width": "500", "length": "500", "quantity": 1, "price": "200"},
+                {"product_name": "製品A", "width": "200", "length": "600", "quantity": 1, "price": "150"},
+            ]
+        }
+        rendered = render_order(payload, "SO123")
+        expected_lines = [
+            "顧客A",
+            "SO123",
+            "製品A  200 x 600 x 2 @150",
+            "  300 x 600 x 1 @150",
+            "製品B  400 x 500 x 3 @200",
+            "  500 x 500 x 1 @200",
+            "製品A  200 x 600 x 1 @150",
+            "2026年10月2日 (金) 工場B着 で手配しました。"
+        ]
+        self.assertEqual(rendered, "\n".join(expected_lines))
+
