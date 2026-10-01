@@ -785,10 +785,18 @@ class AutocompletePopup:
         if len(hits) == 1 and hits[0] == query:
             self.close()
             return
-        self._page_source = None
-        self._page_query = query
-        self._page_offset = 0
-        self._show_popup(hits)
+        top_hit = next((h for h in hits if h == query), hits[0])
+        if top_hit in self.all_candidates:
+            master_idx = self.all_candidates.index(top_hit)
+            self._page_source = self.all_candidates
+            self._page_query = query
+            self._page_offset = master_idx
+            self._show_popup(hits)
+        else:
+            self._page_source = None
+            self._page_query = query
+            self._page_offset = 0
+            self._show_popup(hits)
 
     def _show_popup(self, items):
         self._ensure_popup()
@@ -865,11 +873,16 @@ class AutocompletePopup:
         if self.is_open() and self.filtered_candidates:
             if self._selected_index >= len(self.filtered_candidates) - 1:
                 source = self._get_page_source()
-                if source is not None:
+                if source is not None and len(source) > 0:
                     offset = self._page_offset + len(self.filtered_candidates)
-                    self._show_page(offset if offset < len(source) else 0)
-                    self._apply_selection(0)
-                    return "break"
+                    if offset < len(source):
+                        self._show_page(offset)
+                        self._apply_selection(0)
+                        return "break"
+                    else:
+                        self._show_page(0)
+                        self._apply_selection(0)
+                        return "break"
             new_idx = (self._selected_index + 1) % len(self.filtered_candidates)
             self._apply_selection(new_idx)
             return "break"
@@ -879,11 +892,19 @@ class AutocompletePopup:
         if self.is_open() and self.filtered_candidates:
             if self._selected_index <= 0:
                 source = self._get_page_source()
-                if source is not None:
-                    offset = max(0, self._page_offset - self.PAGE_SIZE) if self._page_offset else ((len(source) - 1) // self.PAGE_SIZE) * self.PAGE_SIZE
-                    self._show_page(offset)
-                    self._apply_selection(len(self.filtered_candidates) - 1)
-                    return "break"
+                if source is not None and len(source) > 0:
+                    if self._page_offset > 0:
+                        old_offset = self._page_offset
+                        new_offset = max(0, old_offset - self.PAGE_SIZE)
+                        self._show_page(new_offset)
+                        prev_idx = (old_offset - 1) - new_offset
+                        self._apply_selection(max(0, min(prev_idx, len(self.filtered_candidates) - 1)))
+                        return "break"
+                    else:
+                        offset = ((len(source) - 1) // self.PAGE_SIZE) * self.PAGE_SIZE
+                        self._show_page(offset)
+                        self._apply_selection(len(self.filtered_candidates) - 1)
+                        return "break"
                 new_idx = len(self.filtered_candidates) - 1
             else:
                 new_idx = self._selected_index - 1
@@ -892,9 +913,12 @@ class AutocompletePopup:
         return None
 
     def _get_page_source(self):
-        if self._page_source is None and self._page_query is not None:
+        if self._page_source is not None:
+            return self._page_source
+        if self._page_query is not None:
             self._page_source = search_candidates(self._page_query, self.all_candidates, limit=None)
-        return self._page_source
+            return self._page_source
+        return self.all_candidates if self.all_candidates else None
 
     def _on_return_key(self, event=None):
         if self.is_open() and self.filtered_candidates:

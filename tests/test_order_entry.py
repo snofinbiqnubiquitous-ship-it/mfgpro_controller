@@ -71,6 +71,21 @@ class ProductPopupTests(unittest.TestCase):
         values = [f"製品{i:05d}" for i in range(2000)]
         self.assertEqual(search_candidates("製品01999", values, limit=10)[0], "製品01999")
 
+    def test_up_key_at_top_loads_previous_adjacent_candidates(self):
+        values = [f"製品{i:05d}" for i in range(50)]
+        popup = self.make_popup(values, "製品00020")
+        popup._page_source = values
+        popup._page_offset = 20
+        popup._show_popup(values[20:30])
+        popup._apply_selection(0)
+        self.assertEqual(popup.entry.value, "製品00020")
+
+        # 候補の上端で ↑ キーを押すと、手前の10候補（製品00010〜製品00019）が展開され、直前の「製品00019」が選択される
+        self.assertEqual(AutocompletePopup._on_up_key(popup), "break")
+        self.assertEqual(popup.filtered_candidates, values[10:20])
+        self.assertEqual(popup.entry.value, "製品00019")
+        self.assertEqual(popup._selected_index, 9)
+
 
 class TypedDateParseTests(unittest.TestCase):
     def test_accepts_supported_formats(self):
