@@ -2489,9 +2489,95 @@ class AutomationControllerExecutionTests(unittest.TestCase):
         self.assertLess(enter_pos, f1_pos, "Enter 送信後に F1 (Create WO解除) が送信されること")
         self.assertLess(f1_pos, item_pos, "F1 (Create WO解除) の後に初めて品番 'BW0100D' が送信されること")
 
+    def test_atp_enforcement_warning_must_be_accepted_with_f1(self):
+        """スリット確定後に ATP Enforcement WARNING が出現した場合、F1 で承諾・スキップして次画面へ進むこと"""
+        atp_screen = (
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             10/01/26\n"
+            "┌─────────────────────────── ATP Enforcement WARNING───────────────────────────┐\n"
+            "│          Ship-From Site: CB2                 Chiba DC Plant                  │\n"
+            "│        Ship-To Customer: 20000601            TOPPANｲﾝﾌｫﾒﾃﾞｨｱ㈱福島工場       │\n"
+            "│             Item Number: BW0100D             SemiCLOPP18/S692N/BG40W         │\n"
+            "│   Stocking UM Order Qty: 120.0         M2            Due Date: 09/30/26      │\n"
+            "│    Ordered UM Order Qty: 120.0         M2    ATP Horizon Date: 10/01/27      │\n"
+            "└──────────────────────────────────────────────────────────────────────────────┘\n"
+            "┌──────────────────────────────────────────────────────────────────────────────┐\n"
+            "│                 Earliest Due Date for Full Order: 10/01/26                   │\n"
+            "│                   Cum ATP Available for Due Date: 0.0           M2           │\n"
+            "│                                                                              │\n"
+            "│                           Review Other ATP Dates: No                         │\n"
+            "│          Display Master Schedule Summary Inquiry: No                         │\n"
+            "│               Accept Earliest Available Due Date: No                         │\n"
+            "└──────────────────────────────────────────────────────────────────────────────┘\n"
+            "F1=Go 2=Help 3=Ins 4=End 6=Menu 7=Rcl 8=Clr 11=Paste"
+        )
+        pricing_screen = (
+            "xxsosomt.p b+            99.7.1.1 Sales Order Maintenance             10/01/26\n"
+            "Sales Order Line\n"
+            "Pricing Date: 10/01/26\n"
+            "F1=Go"
+        )
+        screens = [atp_screen, pricing_screen]
+        state = {"idx": 0}
+
+        def mock_get_screen():
+            s = screens[min(state["idx"], len(screens) - 1)]
+            return s
+
+        sent = []
+        def mock_send(seq):
+            sent.append(seq)
+            if state["idx"] < len(screens) - 1:
+                state["idx"] += 1
+
+        class MockSession:
+            def send(self, data):
+                mock_send(data)
+
+        controller = SalesOrderAutomationController(
+            session=MockSession(),
+            get_screen_text=mock_get_screen,
+            payload={
+                "customer_code": "20000600",
+                "items": [
+                    {
+                        "product_name": "BW0100D",
+                        "price": "200",
+                        "length": "600",
+                        "width": "200",
+                        "quantity": 1,
+                    }
+                ]
+            },
+            sleep_func=lambda s: None,
+            default_timeout=2.0,
+        )
+
+        # 待機画面を ATP -> Pricing Date の順で遷移させてテスト
+        def _wait_screen(cond, timeout=2.0, desc=""):
+            for _ in range(50):
+                txt = clean_screen_text(mock_get_screen()).lower()
+                if cond(txt):
+                    return True
+            raise TimeoutError(f"Timeout waiting for: {desc}")
+
+        controller.wait_for_screen = _wait_screen
+
+        # ATP 画面が出現した状態をシミュレート
+        curr_txt = clean_screen_text(mock_get_screen()).lower()
+        if "atp enforcement" in curr_txt:
+            controller.send(KEY_SEQUENCES["F1"])
+            controller.wait_for_screen(
+                lambda txt: "orig order qty:" in txt or "pricing date:" in txt,
+                desc="ATP後の次画面"
+            )
+
+        self.assertIn(KEY_SEQUENCES["F1"], sent)
+        self.assertEqual(state["idx"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

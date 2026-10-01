@@ -1483,12 +1483,23 @@ class SalesOrderAutomationController:
                 self.send(KEY_SEQUENCES["F1"])
                 self.sleep(0.4)
 
-            # 6.2.3 Orig Order Qty または Pricing Date 画面待機
+            # 6.2.2 ATP Enforcement WARNING / 6.2.3 Orig Order Qty / Pricing Date 画面待機
             self.wait_for_screen(
-                lambda txt: "orig order qty:" in txt or "pricing date:" in txt,
-                desc="6.2.3 Orig Order Qty または Pricing Date 画面"
+                lambda txt: "atp enforcement" in txt or "orig order qty:" in txt or "pricing date:" in txt,
+                desc="6.2.2 ATP警告 または 6.2.3 Orig Qty / Pricing Date 画面"
             )
             curr_txt = clean_screen_text(self.get_screen_text()).lower()
+            if "atp enforcement" in curr_txt:
+                self.log("6.2.2: ATP Enforcement WARNING 検知 -> F1 送信で承諾・スキップ")
+                self.send(KEY_SEQUENCES["F1"])
+                self.sleep(0.45)
+                # ATPスキップ後、次画面（Orig Order Qty または Pricing Date）の出現を待機
+                self.wait_for_screen(
+                    lambda txt: "orig order qty:" in txt or "pricing date:" in txt,
+                    desc="6.2.2 ATPスキップ後の次画面 (Orig Qty または Pricing Date)"
+                )
+                curr_txt = clean_screen_text(self.get_screen_text()).lower()
+
             if "orig order qty:" in curr_txt:
                 self.log("6.2.3: Orig Order Qty スキップ (F1)")
                 self.send(KEY_SEQUENCES["F1"])
