@@ -6,7 +6,15 @@ Windows向けのCustomTkinter製SSHターミナルです。QADのCUI操作、99.
 
 ## 起動と依存関係
 
-`自作モダンターミナル.pyw`、`terminal_core.py`、`order_entry.py`を同じフォルダに置きます。会社のVPN接続が必要です。アプリは起動後に自動接続するため、GUI起動もオフラインテストとは区別してください。
+`自作モダンターミナル.pyw`、`terminal_core.py`、`order_entry.py`、`order_history.py`、`order_date_picker.py`、`ui_fonts.py`、`requirements.txt`を同じフォルダに置きます。会社のVPN接続が必要です。アプリは起動後に自動接続するため、GUI起動もオフラインテストとは区別してください。
+
+Windows 11で初めて使用する場合は、Python 3.12（Python launcher・tcl/tkを含む）を導入し、配布フォルダを展開してから **`初期セットアップ.bat`をダブルクリック**してください。必要なPython環境`.venv`とライブラリを用意し、読み込みまで確認します。管理者権限は通常不要です。初回はインターネット接続が必要です。
+
+配布時はbatと上記のアプリファイルを同じフォルダに含め、各PCでセットアップしてください。他のPCの`.venv`はコピーせず、顧客・製品マスターなどの利用するデータも配布フォルダに含めます。セットアップ中にQADへのログインは実行しません。失敗した場合はエラーを表示して停止します。再実行時はそのPCの既存環境を利用します。
+
+batの表示は文字コードの違いによる誤動作を防ぐため英語です。`Setup completed successfully.`が表示されれば完了です。
+
+手動でセットアップする場合:
 
 ```powershell
 python -m venv .venv
