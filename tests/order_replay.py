@@ -50,6 +50,9 @@ class StrictReplay:
     def get_screen_text(self):
         return self.terminal.get_screen_text()
 
+    def automation_snapshot(self):
+        return self.terminal.automation_snapshot()
+
     @property
     def output_generation(self):
         # 本番のTerminalSessionと同じく、受信を画面へ反映した回数を返す
@@ -106,7 +109,7 @@ def step6_replay(early_warning=False, no_warning=False, delay=0.0, delayed=None,
     ]
     followups = {}
     if late_reason_code:
-        # 実機ログ(2026-10-01 22:59)の再現: F4直後は明細一覧の見出しだけが見え、0.3秒後に Reason Code 欄が出る
+        # 実機ログの停止画面を参考にした合成条件。0.3秒の遅延は仮定であり実測ではない
         reason = "Sales Order Line\nLn Item Number\nReason Code\nList Price:\nRequest Date:\nPromise Date:"
         index = pairs.index((f4, line))
         followups[index] = (0.3, reason)

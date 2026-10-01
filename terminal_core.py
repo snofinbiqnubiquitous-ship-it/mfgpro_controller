@@ -166,6 +166,12 @@ class TerminalSession:
         with self.lock:
             return "\n".join(self.screen.display)
 
+    def automation_snapshot(self):
+        """Read text and local VT cursor atomically, without consuming GUI dirty rows."""
+        with self.lock:
+            c = self.screen.cursor
+            return "\n".join(self.screen.display), (c.y, c.x), self.output_generation
+
     def snapshot(self):
         """Return only changed rows with text and style spans; idle calls return None."""
         with self.lock:

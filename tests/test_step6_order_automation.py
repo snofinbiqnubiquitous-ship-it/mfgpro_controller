@@ -14,6 +14,27 @@ from order_entry import (
 )
 
 
+
+def add_header_cursor_fixture(controller, sent):
+    """Legacy pipeline fixtures supply explicit cursor stages; real decoder tests live in test_header_readiness."""
+    def snapshot():
+        text = controller.get_screen_text()
+        customer = controller.payload["customer_code"] + "\r"
+        destination = controller.payload["ship_to_code"] + "\r"
+        count = sent.count(customer)
+        field = "sold-to:"
+        if destination in sent:
+            field = "order date:"
+        elif count >= 2:
+            field = "ship-to:"
+        elif count == 1 and KEY_SEQUENCES["F1"] in sent[sent.index(customer) + 1:]:
+            field = "bill to:"
+        for y, row in enumerate(text.lower().splitlines()):
+            if field in row:
+                return text, (y, row.index(field) + len(field) + 1), len(sent)
+        return text, (-1, -1), len(sent)
+    controller.session.automation_snapshot = snapshot
+
 class Step6GroupingTests(unittest.TestCase):
     def test_empty_items(self):
         self.assertEqual(group_order_items([]), [])
@@ -1029,6 +1050,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
         # execute_full_order を実行 (Step 6到達まで)
         # モックでは Step 6 画面で終了
         try:
+            add_header_cursor_fixture(controller, sent)
             controller.execute_full_order()
         except Exception:
             pass
@@ -1111,6 +1133,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
         )
 
         try:
+            add_header_cursor_fixture(controller, sent)
             controller.execute_full_order()
         except Exception:
             pass
@@ -1209,6 +1232,10 @@ class AutomationControllerExecutionTests(unittest.TestCase):
                 if idx == 0 and txt == KEY_SEQUENCES["F1"]:
                     screen_idx[0] = 1
                 elif idx == 1:
+                    if txt == "20000601\r":
+                        screens[1] = screens[1].replace(
+                            "Sold-To:           Bill To:           Ship-To:              ",
+                            "Sold-To: 20000600  Bill To: 20000600  Ship-To: 20000601     ")
                     if txt == " ":
                         screens[1] = screens[1].replace("Category=Strat Hipo  Press space bar to continue.", "")
                     elif txt == KEY_SEQUENCES["F1"]:
@@ -1260,6 +1287,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
         )
 
         try:
+            add_header_cursor_fixture(controller, sent)
             controller.execute_full_order()
         except Exception:
             pass
@@ -1379,6 +1407,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
         )
 
         try:
+            add_header_cursor_fixture(controller, sent)
             controller.execute_full_order()
         except Exception:
             pass
@@ -1393,7 +1422,7 @@ class AutomationControllerExecutionTests(unittest.TestCase):
 
         sold_to_idx = sent.index("20000600\r")
         space_idx = sent.index(" ")
-        self.assertTrue(sold_to_idx < space_idx, "Sold-To の後に Space 警告解除が送信されること")
+        self.assertTrue(space_idx < sold_to_idx, "開始画面に既にある警告はSold-To送信前に解除すること")
 
         # 3. Order Date からの一括貼り付けバッファ (全8項目) の検証
         paste_sent = [s for s in sent if isinstance(s, str) and "\r" in s and len(s.split("\r")) == 8]

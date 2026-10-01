@@ -34,8 +34,8 @@ class AcceptanceTests(unittest.TestCase):
         self.wait(replay, lambda text: "ready" in text)
 
     def test_missing_bill_to_transition_must_stop_before_next_field(self):
-        replay = StrictReplay("Sales Order Maintenance\nOrder: SO123456 Sold-To:",
-                              [ExpectedSend("TESTCUSTOMER\r"), ExpectedSend(KEY_SEQUENCES["F1"])])
+        from tests.test_header_readiness import header
+        replay = StrictReplay(header("sold"), [ExpectedSend("TESTCUSTOMER\r")])
         controller = SalesOrderAutomationController(
             replay, replay.get_screen_text,
             {"customer_code": "TESTCUSTOMER", "ship_to_code": "TESTDEST"},

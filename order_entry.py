@@ -1842,6 +1842,76 @@ class SalesOrderAutomationController:
         self.log(f"=== QAD 99.7.1.1 受注入力自動化 全工程完了 (Order ID: {self.order_id or '完了'}) ===")
         return self.order_id
 
+    HEADER_CODES_RE = re.compile(
+        r"sold-to:[ \t]*(\S+)[ \t]+bill[ -]to:[ \t]*(\S+)[ \t]+ship-to:[ \t]*(\S+)", re.IGNORECASE)
+
+    @staticmethod
+    def _header_field_at_cursor(text, cursor):
+        """Identify the input region on the header row; labels alone are insufficient."""
+        y, x = cursor
+        lines = text.lower().splitlines()
+        if not 0 <= y < len(lines):
+            return None
+        row = lines[y]
+        if "sold-to:" in row and re.search(r"bill[ -]to:", row) and "ship-to:" in row:
+            labels = list(re.finditer(r"sold-to:|bill[ -]to:|ship-to:", row))
+            for index, label in enumerate(labels):
+                right = labels[index + 1].start() if index + 1 < len(labels) else len(row)
+                if label.end() <= x < right:
+                    return ("sold", "bill", "ship")[index]
+        match = re.search(r"order date:", row)
+        if match and match.end() <= x < match.end() + 12:
+            return "date"
+        return None
+
+    def _wait_header_field(self, expected, confirm_sold=False, after_generation=None):
+        snapshot = getattr(self.session, "automation_snapshot", None)
+        if not callable(snapshot):
+            raise RuntimeError("入力先を確認できる端末スナップショットがありません。送信を停止しました。")
+        last = None
+        since = time.monotonic()
+        confirmed = False
+
+        def ready(_):
+            nonlocal last, since, confirmed
+            text, cursor, generation = snapshot()
+            lower = text.lower()
+            if re.search(r"(?:^|\n)\s*error:", lower):
+                raise RuntimeError(f"ヘッダー入力中にQADエラーを検知しました (待機先={expected}, cursor={cursor})\n{text}")
+            if is_space_prompt(lower):
+                return False
+            if after_generation is not None and generation <= after_generation:
+                return False
+            field = self._header_field_at_cursor(text, cursor)
+            state = (field, cursor, generation)
+            now = time.monotonic()
+            if state != last:
+                self.log(f"Step 2 入力先確認: expected={expected} actual={field or 'UNKNOWN'} cursor={cursor} rx={generation}")
+                last, since = state, now
+                return False
+            # F1はSold-Toに留まる場合に一度だけ。Bill-Toへ移動済みなら送らない。
+            if confirm_sold and not confirmed and field == "sold" and now - since >= 0.4:
+                self.log("Step 2: Sold-To欄への滞留を検知、F1を一度送信")
+                self.send(KEY_SEQUENCES["F1"])
+                confirmed = True
+                last = None
+                return False
+            return field == expected and now - since >= self.SETTLE_QUIET
+
+        return self.wait_for_screen(ready, desc=f"Step 2: 入力先 {expected} 確認")
+
+    def _verify_header_codes(self, c_code: str, s_code: str):
+        """Do not paste dates when the three displayed codes cannot be verified."""
+        txt = self.get_screen_text()
+        match = self.HEADER_CODES_RE.search(txt)
+        actual = tuple(value.lower() for value in match.groups()) if match else None
+        expected = (c_code.lower(), c_code.lower(), s_code.lower())
+        if actual != expected:
+            raise RuntimeError(
+                "ヘッダーの顧客コードを確認できないため停止しました "
+                f"(Sold-To/Bill To/Ship-To: 期待={expected} 画面={actual})\n現在の画面表示:\n{txt}"
+            )
+
     def execute_full_order(self):
         """メインメニュー (mfmenu) またはヘッダー画面から全工程 (Step 1 〜 Step 6.3.0) を実行"""
         self.log("=== QAD 99.7.1.1 受注入力自動化 全工程実行開始 ===")
@@ -1881,63 +1951,24 @@ class SalesOrderAutomationController:
         c_code = str(self.payload.get("customer_code", "")).strip()
         s_code = str(self.payload.get("ship_to_code", "")).strip()
 
-        # 2-1: Sold-To 順次送信 ＋ F1 確定
+        if not c_code or not s_code:
+            raise ValueError("顧客コードと納品先コードが必要です")
+        self._wait_header_field("sold")
         self.log(f"Step 2: Sold-To '{c_code}' 送信")
+        generation = self.session.automation_snapshot()[2]
         self.send(f"{c_code}\r")
-        self.sleep(0.2)
+        self._wait_header_field("bill", confirm_sold=True, after_generation=generation)
 
-        # 実機仕様: Sold-To 入力後に F1 送信でマスタ検証を実行し、警告プロンプト (Category=... Press space bar) を出させる
-        self.log("Step 2: Sold-To 確定のため F1 送信")
-        # 送信前から画面にある Bill-To ラベルで判定が通らないよう、サーバー応答の描画完了を先に待つ
-        self.send_and_settle(KEY_SEQUENCES["F1"], 0)
-
-        # A2: Sold-To送信・F1確定後、警告（Category= 等）があれば wait_for_screen が自動解除しつつ、
-        # Bill-To 欄がアクティブになったことを確実に待機。画面が変わらない場合はタイムアウトで安全停止。
-        # 【重要】Bill To ラベルは常駐するため、警告の連続表示や描画が落ち着くまで待ってから値を送る
-        self.wait_for_stable_screen(
-            lambda txt: ("bill to" in txt or "bill-to" in txt) and not is_space_prompt(txt),
-            desc="Step 2: Sold-To 送信・F1・警告解除後の Bill-To 遷移待機"
-        )
-        self.sleep(0.45)
-
-        # 2-2: Bill-To 順次送信 (Sold-Toと同値)
         self.log(f"Step 2: Bill-To '{c_code}' 送信")
+        generation = self.session.automation_snapshot()[2]
         self.send(f"{c_code}\r")
-        self.sleep(0.4)
+        self._wait_header_field("ship", after_generation=generation)
 
-        # ハイブリッド・スマートウェイト: Bill-To 送信後、住所枠展開および警告プロンプト解除を確実に待機
-        def _is_bill_to_confirmed(txt: str) -> bool:
-            if is_space_prompt(txt):
-                return False
-            return "bill-to" in txt or "bill to" in txt
-
-        self.wait_for_stable_screen(_is_bill_to_confirmed, desc="Step 2: Bill-To 確定および住所枠展開待機")
-        self.sleep(0.45)
-
-        # 2-3: Ship-To 順次送信
         self.log(f"Step 2: Ship-To '{s_code}' 送信")
+        generation = self.session.automation_snapshot()[2]
         self.send(f"{s_code}\r")
-        self.sleep(0.45)
-
-        # 2-4: Ship-To 入力後に Order Date 着地をハイブリッド同期待ち受け
-        # 画面上の固定タイトル "order:" への誤即時マッチを防止し、カーソルが下段Order Date枠に着地したことを確認
-        def _is_order_date_ready(txt: str) -> bool:
-            if is_space_prompt(txt):
-                return False
-            has_shipto_or_header = (
-                "order date:" in txt
-                or "line pricing:" in txt
-                or (s_code.lower() in txt if s_code else False)
-            )
-            cy, cx = self.get_cursor_pos()
-            cursor_ok = (cy >= 7) if cy >= 0 else True
-            return has_shipto_or_header and cursor_ok
-
-        self.wait_for_stable_screen(
-            _is_order_date_ready,
-            desc="Step 2: Sold-To/Bill-To/Ship-To 確定および Order Date 着地待機"
-        )
-        self.sleep(0.2)
+        self._wait_header_field("date", after_generation=generation)
+        self._verify_header_codes(c_code, s_code)
 
         # 2-5: Order Date からの一括貼り付けバッファ (全8項目を改行で結合して一括送信)
         # Line 1: Order Date (today_qad)
