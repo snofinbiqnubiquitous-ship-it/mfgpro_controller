@@ -52,6 +52,7 @@ class OrderConsistencyTests(unittest.TestCase):
         session = make_session("mfmenu Main Menu")
         app = SimpleNamespace(
             active_tab=SimpleNamespace(session=session), session=session, is_connected=True,
+            _record_completed_order=MagicMock(),
             last_order_submission=None, set_status=MagicMock(), _show_input_error=MagicMock(),
             after=lambda delay, callback: callbacks.append(callback),
             _get_current_screen_text=MagicMock(side_effect=AssertionError("GUI画面を参照した")),
@@ -70,6 +71,7 @@ class OrderConsistencyTests(unittest.TestCase):
         self.assertIs(args["session"], session)
         self.assertIn("mfmenu", args["get_screen_text"]())
         self.assertEqual(args["payload"]["items"][0]["quantity"], 1)
+        app._record_completed_order.assert_called_once_with(args["payload"], "SO123456")
         factory.return_value.execute_full_order.assert_called_once()
         factory.return_value.execute_step6.assert_not_called()
         app._get_current_screen_text.assert_not_called()
@@ -83,6 +85,7 @@ class OrderConsistencyTests(unittest.TestCase):
                     callback()
                 self.assertIn(str(error), app._show_input_error.call_args.args[0])
                 self.assertFalse(app._is_running_order_automation)
+                app._record_completed_order.assert_not_called()
 
     def test_preview_describes_current_transport_without_claiming_verification(self):
         chunks = []

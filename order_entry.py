@@ -2493,7 +2493,7 @@ class DateField(ctk.CTkFrame):
 
 class OrderEntryPanel(ctk.CTkFrame):
     def __init__(self, parent, colors, font_family, on_submit, on_close,
-                 customers=(), destinations=(), customer_info=None, item_list_data=None):
+                 customers=(), destinations=(), customer_info=None, item_list_data=None, on_log=None):
         super().__init__(parent, width=590, fg_color=colors["panel"],
                          corner_radius=12, border_width=1, border_color=colors["border"])
         self.colors = colors
@@ -2683,14 +2683,22 @@ class OrderEntryPanel(ctk.CTkFrame):
             relief="flat", bd=0, font=(font_family, 12), padx=30, pady=9,
         )
         self.send_button.grid(row=2, column=0, padx=20, pady=(8, 14), sticky="e")
+        footer_left = tk.Frame(self, bg=colors["panel"])
+        footer_left.grid(row=2, column=0, padx=20, pady=(8, 14), sticky="w")
         self.reset_button = tk.Button(
-            self, text="リセット", command=self.reset_fields,
+            footer_left, text="リセット", command=self.reset_fields,
             bg="#E2E8F0", fg=colors["text"],
             activebackground="#CBD5E1", activeforeground=colors["text"],
             relief="flat", bd=0, font=(font_family, 12), padx=26, pady=9,
             cursor="hand2",
         )
-        self.reset_button.grid(row=2, column=0, padx=20, pady=(8, 14), sticky="w")
+        self.reset_button.pack(side="left")
+        self.log_button = tk.Button(
+            footer_left, text="ログ", command=on_log,
+            bg="#E2E8F0", fg=colors["text"], activebackground="#CBD5E1",
+            relief="flat", bd=0, font=(font_family, 12), padx=22, pady=9, cursor="hand2",
+        )
+        self.log_button.pack(side="left", padx=(8, 0))
         for field in self.fields.values():
             target = field.entry if isinstance(field, DateField) else field
             target.bind("<FocusIn>", lambda event, widget=field: self._keep_visible(widget), add="+")

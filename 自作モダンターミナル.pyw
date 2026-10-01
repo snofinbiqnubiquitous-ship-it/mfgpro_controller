@@ -99,6 +99,7 @@ import tkinter as tk
 from tkinter import colorchooser, filedialog, messagebox
 
 try:
+    from order_history import OrderHistory, DEFAULT_TEMPLATE, show_history, show_template_editor
     import paramiko
     from dateutil import parser as date_parser
     from dateutil.relativedelta import relativedelta
@@ -2296,6 +2297,7 @@ class TerminalApp(ctk.CTk):
             label=f"⏱️ 受注Sleep時間の調整 ({curr_sleep_rate}%)...",
             command=self.open_sleep_rate_dialog,
         )
+        self.edit_menu.add_command(label="注文ログの出力形式…", command=self.edit_order_log_template)
         menubar.add_cascade(label="編集", menu=self.edit_menu)
 
         # 3. 表示メニュー
@@ -2501,6 +2503,8 @@ class TerminalApp(ctk.CTk):
         actions = {
             "order.panel.toggle": ("注文入力", self.toggle_order_panel),
             "order.panel.submit": ("注文入力を送信", self._shortcut_submit_order),
+            "order.history": ("注文ログ", self.show_order_history),
+            "order.history.template": ("注文ログの出力形式", self.edit_order_log_template),
             "order.panel.close": ("注文入力を閉じる", self._shortcut_close_order),
             "order.csv.choices": ("顧客・納品先CSVを選択", self.import_order_choices),
             "order.date.required": ("Required dateを選択", lambda: self._shortcut_open_order_date("required_date")),
@@ -2659,7 +2663,7 @@ class TerminalApp(ctk.CTk):
         self.order_panel = OrderEntryPanel(
             window, self.ui_colors, self.ui_font_family,
             on_submit=self._process_order_submission, on_close=self.toggle_order_panel,
-            customer_info=cust_info, item_list_data=items_data,
+            customer_info=cust_info, item_list_data=items_data, on_log=self.show_order_history,
         )
         self.order_panel.pack(fill="both", expand=True, padx=(4, 8), pady=8)
         self._attach_order_bindtag(window)
@@ -2878,6 +2882,34 @@ class TerminalApp(ctk.CTk):
         # 自動入力を実行
         self._process_order_submission(payload)
 
+    def show_order_history(self):
+        existing = getattr(self, "_order_history_window", None)
+        if existing is not None and existing.winfo_exists():
+            existing.refresh_history()
+            existing.deiconify()
+            existing.lift()
+            return
+        self._order_history_window = show_history(
+            self, OrderHistory(PROJECT_ROOT / "order_history.sqlite3"),
+            lambda: self.config.get("order_log_template", DEFAULT_TEMPLATE),
+            self.ui_colors, self.ui_font_family)
+
+    def edit_order_log_template(self):
+        def save(template):
+            self.config["order_log_template"] = template
+            save_config(self.config)
+        show_template_editor(self, self.config.get("order_log_template", DEFAULT_TEMPLATE),
+                             save, self.ui_colors, self.ui_font_family)
+
+    def _record_completed_order(self, payload, order_id):
+        # A history write failure must not turn a successful server order into a retry.
+        try:
+            OrderHistory(PROJECT_ROOT / "order_history.sqlite3").append(payload, order_id)
+        except Exception as exc:
+            log_error(f"受注登録は完了しましたが注文ログを保存できません: {exc}")
+            self.after(0, lambda error=str(exc): messagebox.showwarning(
+                "注文ログ", f"受注登録は完了しています。再送信しないでください。\nログ保存失敗: {error}", parent=self))
+
     def _process_order_submission(self, payload):
         """注文送信出力を記録し、QAD 99.7.1.1 への自動入力を直接実行"""
         self.last_order_submission = payload
@@ -2939,6 +2971,8 @@ class TerminalApp(ctk.CTk):
                 else:
                     log_info("メインメニューまたはヘッダー画面から全工程 (Step 1〜6.3.0) を実行します。")
                     order_id = controller.execute_full_order()
+
+                self._record_completed_order(target_payload, order_id or getattr(controller, "order_id", None))
 
                 # 完了時に取得した Order ID をダイアログで表示
                 final_order_id = order_id or getattr(controller, "order_id", None) or "取得完了"

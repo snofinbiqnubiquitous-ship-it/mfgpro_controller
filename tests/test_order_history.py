@@ -1,0 +1,38 @@
+import tempfile
+import unittest
+from pathlib import Path
+from order_history import OrderHistory, render_order, validate_template
+
+
+class OrderHistoryTests(unittest.TestCase):
+    def payload(self):
+        return dict(customer_name="顧客A", ship_to="工場B", required_date="2026-10-02", due_date="2026-10-01",
+                    remarks="${価格}", items=[dict(product_name="製品A", width="200", length="600", quantity=2, price="150"),
+                                              dict(product_name="製品B", width="300", length="400", quantity=1, price="120")])
+
+    def test_default_multiple_rows_and_japanese_date(self):
+        self.assertEqual(render_order(self.payload(), "SO123"),
+            "顧客A\nSO123\n製品A  200 x 600 x 2 @150\n製品B  300 x 400 x 1 @120\n2026年10月2日 (金) 工場B着 で手配しました。")
+
+    def test_custom_template_alias_and_literal_payload(self):
+        self.assertEqual(render_order(self.payload(), "SO123", "${処理した注文のOrder ID}\n${Remarks}\n${Require Date}\n${巾}"),
+                         "SO123\n${価格}\n2026年10月2日 (金)\n200\n300")
+        for template in ("", "${誤字}", "${顧客名"):
+            with self.assertRaises(ValueError):
+                validate_template(template)
+
+    def test_persistence_snapshot_and_pagination(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "orders.sqlite3"
+            payload = self.payload()
+            OrderHistory(path).append(payload, "SO123")
+            payload["items"][0]["quantity"] = 99
+            store = OrderHistory(path)
+            order_id, saved = store.get(store.page()[0][0])
+            self.assertEqual(order_id, "SO123")
+            self.assertEqual(saved["items"][0]["quantity"], 2)
+            for i in range(101):
+                store.append(payload, str(i))
+            self.assertEqual(len(store.page()), 100)
+            self.assertEqual(len(store.page(100)), 2)
+            self.assertEqual(store.page()[0][2], "100")

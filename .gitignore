@@ -20,3 +20,6 @@ ENV/
 
 # 検証結果・実サーバーから読み戻した個別注文データ
 verification-output/
+
+# Local completed order history
+order_history.sqlite3*
