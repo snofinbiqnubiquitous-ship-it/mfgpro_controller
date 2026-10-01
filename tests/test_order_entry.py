@@ -12,19 +12,59 @@ from order_entry import (
 
 
 class ProductPopupTests(unittest.TestCase):
+    def make_popup(self, values, current=""):
+        entry = SimpleNamespace(value=current)
+        entry.get = lambda: entry.value
+        popup = SimpleNamespace(
+            all_candidates=values, entry=entry, _page_source=None, _page_query=None,
+            _page_offset=0, _selected_index=-1, filtered_candidates=[], PAGE_SIZE=10,
+        )
+        def show(items):
+            popup.filtered_candidates = items
+            popup._selected_index = items.index(entry.value) if entry.value in items else -1
+        popup._show_popup = Mock(side_effect=show)
+        popup._show_page = lambda offset: AutocompletePopup._show_page(popup, offset)
+        popup._get_page_source = lambda: AutocompletePopup._get_page_source(popup)
+        popup._apply_selection = lambda index: (setattr(popup, "_selected_index", index), setattr(entry, "value", popup.filtered_candidates[index]))
+        popup.show_click_candidates = lambda: AutocompletePopup.show_click_candidates(popup)
+        popup.is_open = lambda: bool(popup.filtered_candidates)
+        return popup
+
     def test_click_and_arrow_show_only_first_page(self):
         values = [f"製品{i:05d}" for i in range(2000)]
-        popup = SimpleNamespace(
-            all_candidates=values, entry=SimpleNamespace(get=lambda: "製品01999"),
-            _show_popup=Mock(), is_open=lambda: False,
-        )
-        popup.show_click_candidates = lambda: AutocompletePopup.show_click_candidates(popup)
+        popup = self.make_popup(values, "製品01999")
         AutocompletePopup._on_entry_click(popup)
         shown = popup._show_popup.call_args.args[0]
-        self.assertEqual(len(shown), 10)
-        self.assertEqual(shown[0], "製品01999")
+        self.assertEqual(shown, values[1990:2000])
         ProductComboBox._open_dropdown_menu(SimpleNamespace(product_autocomplete=popup))
         self.assertEqual(popup._show_popup.call_count, 2)
+
+    def test_arrows_load_adjacent_pages_and_wrap_only_at_ends(self):
+        values = [f"製品{i:05d}" for i in range(23)]
+        popup = self.make_popup(values)
+        popup.show_click_candidates()
+        self.assertEqual(popup.filtered_candidates, values[:10])
+        for _ in range(11):
+            self.assertEqual(AutocompletePopup._on_down_key(popup), "break")
+        self.assertEqual(popup.filtered_candidates, values[10:20])
+        self.assertEqual(popup.entry.value, values[10])
+        self.assertEqual(AutocompletePopup._on_up_key(popup), "break")
+        self.assertEqual(popup.entry.value, values[9])
+        popup._show_page(20)
+        popup._apply_selection(2)
+        AutocompletePopup._on_down_key(popup)
+        self.assertEqual(popup.entry.value, values[0])
+        AutocompletePopup._on_up_key(popup)
+        self.assertEqual(popup.entry.value, values[-1])
+
+    def test_filtered_results_load_next_page_on_boundary(self):
+        values = [f"製品{i:05d}" for i in range(23)]
+        popup = self.make_popup(values, "製品000")
+        popup._page_query = "製品000"
+        popup._show_popup(values[:10])
+        popup._apply_selection(9)
+        AutocompletePopup._on_down_key(popup)
+        self.assertEqual(popup.filtered_candidates, values[10:20])
 
     def test_typing_still_searches_all_products(self):
         from order_entry import search_candidates

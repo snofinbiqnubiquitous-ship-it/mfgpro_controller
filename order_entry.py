@@ -679,6 +679,8 @@ def search_candidates(query, candidates, limit=10):
 class AutocompletePopup:
     """入力欄（CTkComboBox/Entry）の直下に候補リストを自動ポップアップするコントローラ"""
 
+    PAGE_SIZE = 10
+
     def __init__(self, parent_widget, colors, font_family, on_select=None):
         self.parent_widget = parent_widget
         self.colors = colors
@@ -692,6 +694,9 @@ class AutocompletePopup:
         self._is_visible = False
         self._is_updating_entry = False
         self._original_query = ""
+        self._page_source = None
+        self._page_offset = 0
+        self._page_query = None
 
         if hasattr(parent_widget, "_entry"):
             self.entry = parent_widget._entry
@@ -721,14 +726,19 @@ class AutocompletePopup:
         if not self.all_candidates:
             return
         current = self.entry.get().strip()
-        # Display a bounded first page immediately. Typing still searches all items.
-        candidates = self.all_candidates[:10]
-        if current and current in self.all_candidates and current not in candidates:
-            candidates = [current, *candidates[:9]]
-        self._show_popup(candidates)
+        self._page_source = self.all_candidates
+        self._page_query = None
+        selected = self.all_candidates.index(current) if current in self.all_candidates else 0
+        self._show_page((selected // self.PAGE_SIZE) * self.PAGE_SIZE)
+
+    def _show_page(self, offset):
+        self._page_offset = offset
+        self._show_popup(self._page_source[offset:offset + self.PAGE_SIZE])
 
     def set_candidates(self, candidates):
         self.all_candidates = [str(c).strip() for c in candidates if str(c).strip()]
+        self._page_source = None
+        self._page_query = None
 
     def is_open(self):
         return bool(self.popup is not None and self.popup.winfo_exists() and self._is_visible)
@@ -775,6 +785,9 @@ class AutocompletePopup:
         if len(hits) == 1 and hits[0] == query:
             self.close()
             return
+        self._page_source = None
+        self._page_query = query
+        self._page_offset = 0
         self._show_popup(hits)
 
     def _show_popup(self, items):
@@ -850,6 +863,13 @@ class AutocompletePopup:
 
     def _on_down_key(self, event=None):
         if self.is_open() and self.filtered_candidates:
+            if self._selected_index >= len(self.filtered_candidates) - 1:
+                source = self._get_page_source()
+                if source is not None:
+                    offset = self._page_offset + len(self.filtered_candidates)
+                    self._show_page(offset if offset < len(source) else 0)
+                    self._apply_selection(0)
+                    return "break"
             new_idx = (self._selected_index + 1) % len(self.filtered_candidates)
             self._apply_selection(new_idx)
             return "break"
@@ -858,12 +878,23 @@ class AutocompletePopup:
     def _on_up_key(self, event=None):
         if self.is_open() and self.filtered_candidates:
             if self._selected_index <= 0:
+                source = self._get_page_source()
+                if source is not None:
+                    offset = max(0, self._page_offset - self.PAGE_SIZE) if self._page_offset else ((len(source) - 1) // self.PAGE_SIZE) * self.PAGE_SIZE
+                    self._show_page(offset)
+                    self._apply_selection(len(self.filtered_candidates) - 1)
+                    return "break"
                 new_idx = len(self.filtered_candidates) - 1
             else:
                 new_idx = self._selected_index - 1
             self._apply_selection(new_idx)
             return "break"
         return None
+
+    def _get_page_source(self):
+        if self._page_source is None and self._page_query is not None:
+            self._page_source = search_candidates(self._page_query, self.all_candidates, limit=None)
+        return self._page_source
 
     def _on_return_key(self, event=None):
         if self.is_open() and self.filtered_candidates:
