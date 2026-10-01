@@ -1321,7 +1321,7 @@ class SalesOrderAutomationController:
                 if "create wo:" not in curr_txt and "rework:" not in curr_txt:
                     self.log(f"6.1.0: Enter 送信 (Line {prod['line_no']} 自動採番)")
                     self.send("\r")
-                    self.sleep(0.7)
+                    self.sleep(0.45)
 
             # 6.1.1 Create WO ポップアップスキップ (出現時のみ F1 送信)
             self.wait_for_screen(
@@ -1708,7 +1708,7 @@ class SalesOrderAutomationController:
         # 2-1: Sold-To 順次送信 ＋ F1 確定
         self.log(f"Step 2: Sold-To '{c_code}' 送信")
         self.send(f"{c_code}\r")
-        self.sleep(0.15)
+        self.sleep(0.2)
 
         # 実機仕様: Sold-To 入力後に F1 送信でマスタ検証を実行し、警告プロンプト (Category=... Press space bar) を出させる
         self.log("Step 2: Sold-To 確定のため F1 送信")
@@ -1720,12 +1720,12 @@ class SalesOrderAutomationController:
             lambda txt: ("bill to" in txt or "bill-to" in txt) and not is_space_prompt(txt),
             desc="Step 2: Sold-To 送信・F1・警告解除後の Bill-To 遷移待機"
         )
-        self.sleep(0.25)
+        self.sleep(0.5)
 
         # 2-2: Bill-To 順次送信 (Sold-Toと同値)
         self.log(f"Step 2: Bill-To '{c_code}' 送信")
         self.send(f"{c_code}\r")
-        self.sleep(0.2)
+        self.sleep(0.4)
 
         # ハイブリッド・スマートウェイト: Bill-To 送信後、住所枠展開および警告プロンプト解除を確実に待機
         def _is_bill_to_confirmed(txt: str) -> bool:
@@ -1734,12 +1734,12 @@ class SalesOrderAutomationController:
             return "bill-to" in txt or "bill to" in txt
 
         self.wait_for_screen(_is_bill_to_confirmed, desc="Step 2: Bill-To 確定および住所枠展開待機")
-        self.sleep(0.2)
+        self.sleep(0.45)
 
         # 2-3: Ship-To 順次送信
         self.log(f"Step 2: Ship-To '{s_code}' 送信")
         self.send(f"{s_code}\r")
-        self.sleep(0.2)
+        self.sleep(0.45)
 
         # 2-4: Ship-To 入力後に Order Date 着地をハイブリッド同期待ち受け
         # 画面上の固定タイトル "order:" への誤即時マッチを防止し、カーソルが下段Order Date枠に着地したことを確認
@@ -1759,7 +1759,7 @@ class SalesOrderAutomationController:
             _is_order_date_ready,
             desc="Step 2: Sold-To/Bill-To/Ship-To 確定および Order Date 着地待機"
         )
-        self.sleep(0.25)
+        self.sleep(0.55)
 
         # 2-5: Order Date からの一括貼り付けバッファ (全8項目を改行で結合して一括送信)
         # Line 1: Order Date (today_qad)
@@ -1774,12 +1774,12 @@ class SalesOrderAutomationController:
         paste_str = "\r".join(paste_items)
         self.log(f"Step 2: Order Dateからの一括貼り付けバッファ送信 ({len(paste_items)} 項目: Order Date〜Remarks)")
         self.send(paste_str)
-        self.sleep(0.3)
+        self.sleep(0.6)
 
         # 2-6: ヘッダー確定: F1 送信
         self.log("Step 2: F1 送信 (ヘッダー確定)")
         self.send(KEY_SEQUENCES["F1"])
-        self.sleep(0.3)
+        self.sleep(0.6)
 
         # Step 3: Tax Usage ポップアップ または Salesperson画面（警告があれば wait_for_screen が自動解除）
         self.wait_for_screen(
@@ -1791,7 +1791,7 @@ class SalesOrderAutomationController:
             self.set_status("Step 3: Tax ポップアップスキップ中...", "working")
             self.log("Step 3: F1 送信 (Tax スキップ)")
             self.send(KEY_SEQUENCES["F1"])
-            self.sleep(0.2)
+            self.sleep(0.4)
 
         # Step 4: Salesperson / Freight 画面
         self.wait_for_screen(
@@ -1803,7 +1803,7 @@ class SalesOrderAutomationController:
             self.set_status("Step 4: Salesperson / Freight 画面スキップ中...", "working")
             self.log("Step 4: F1 送信 (Salesperson スキップ)")
             self.send(KEY_SEQUENCES["F1"])
-            self.sleep(0.2)
+            self.sleep(0.4)
 
         # Step 5: 特記事項 (Transaction Comments / 案C: 既定コメント全クリア置換)
         self.wait_for_screen(
@@ -1817,19 +1817,19 @@ class SalesOrderAutomationController:
                 self.set_status("Step 5: 特記事項入力中 (案C: 全クリア置換)...", "working")
                 self.log("Step 5: F1 送信 (コメント本文エディタへ移動)")
                 self.send(KEY_SEQUENCES["F1"])
-                self.sleep(0.2)
+                self.sleep(0.35)
 
                 # 案C: 得意先マスター等の既定コメントを全クリア
                 self.log("Step 5: 案C実行 - 既定コメントの全クリア (F8: Clear送信)")
                 self.send(KEY_SEQUENCES.get("F8", "\x1b[19"))
-                self.sleep(0.15)
+                self.sleep(0.3)
 
                 # クリア確認ダイアログ（プロンプト）が出現した場合は応答
                 check_txt = clean_screen_text(self.get_screen_text()).lower()
                 if "clear" in check_txt and any(p in check_txt for p in ("y/n", "yes/no", "confirm", "?")):
                     self.log("Step 5: クリア確認プロンプト検知 -> 'yes' 送信")
                     self.send("y\r")
-                    self.sleep(0.15)
+                    self.sleep(0.3)
 
                 # 万一画面に既定テキストが残っている場合の補完クリア (Ctrl-Z)
                 post_clear_txt = clean_screen_text(self.get_screen_text())
@@ -1840,13 +1840,13 @@ class SalesOrderAutomationController:
                 if editor_lines:
                     self.log("Step 5: Ctrl-Z (^z) 送信によるクリア補完")
                     self.send("\x1a")
-                    self.sleep(0.15)
+                    self.sleep(0.3)
 
                 # 新規コメント本文の入力
                 self.log(f"Step 5: 新規特記事項本文入力 (全 {len(so_comm.splitlines())} 行)")
                 for c_line in so_comm.splitlines():
                     self.send(f"{c_line}\r")
-                    self.sleep(0.1)
+                    self.sleep(0.15)
 
                 self.log("Step 5: F1 送信 (コメント本文確定)")
                 self.send(KEY_SEQUENCES["F1"])
@@ -1865,11 +1865,11 @@ class SalesOrderAutomationController:
                 if quote_appeared:
                     self.log("Step 5: 'Print On Quote:' 検知 -> F1 送信で確定")
                     self.send(KEY_SEQUENCES["F1"])
-                    self.sleep(0.2)
+                    self.sleep(0.4)
 
                 self.log("Step 5: F4 送信 (明細画面へ進む)")
                 self.send(KEY_SEQUENCES["F4"])
-                self.sleep(0.25)
+                self.sleep(0.5)
 
                 # コメント画面残留チェック（抜けるまで最大3回F4）
                 for _ in range(3):
@@ -1877,21 +1877,21 @@ class SalesOrderAutomationController:
                     if "transaction comments" in c_txt and "sales order line" not in c_txt:
                         self.log("Step 5: コメント画面残留検知 -> 再度 F4 送信")
                         self.send(KEY_SEQUENCES["F4"])
-                        self.sleep(0.2)
+                        self.sleep(0.4)
                     else:
                         break
             else:
                 self.set_status("Step 5: 特記事項スキップ中...", "working")
                 self.log("Step 5: F4 送信 (コメントなし・明細へ直行)")
                 self.send(KEY_SEQUENCES["F4"])
-                self.sleep(0.2)
+                self.sleep(0.4)
 
                 for _ in range(3):
                     c_txt = clean_screen_text(self.get_screen_text()).lower()
                     if "transaction comments" in c_txt and "sales order line" not in c_txt:
                         self.log("Step 5: コメント画面残留検知 -> 再度 F4 送信")
                         self.send(KEY_SEQUENCES["F4"])
-                        self.sleep(0.2)
+                        self.sleep(0.4)
                     else:
                         break
 
