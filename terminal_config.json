@@ -45,5 +45,45 @@
   },
   "shortcut_assignments": {
     "order.panel.toggle": "F2"
+  },
+  "demo_payload": {
+    "purchase_order": "test",
+    "customer_code": "20000600",
+    "ship_to_code": "20000601",
+    "address": "960-8201\nTOPPANインフォメディア(株)福島工場\n福島県福島市岡島字宮田30-2\n\n\n024-536-6111",
+    "remarks": "test",
+    "so_comment": "test",
+    "required_date": "2026-10-03",
+    "due_date": "2026-10-02",
+    "items": [
+      {
+        "product_name": "BW0100D",
+        "length": "600",
+        "width": "200",
+        "quantity": 1,
+        "price": "200"
+      },
+      {
+        "product_name": "BW0100D",
+        "length": "600",
+        "width": "300",
+        "quantity": 2,
+        "price": "200"
+      },
+      {
+        "product_name": "BW0100D",
+        "length": "600",
+        "width": "500",
+        "quantity": 1,
+        "price": "200"
+      },
+      {
+        "product_name": "BW0116Q3-2",
+        "length": "600",
+        "width": "200",
+        "quantity": 1,
+        "price": "200"
+      }
+    ]
   }
 }
