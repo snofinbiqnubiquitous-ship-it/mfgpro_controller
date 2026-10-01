@@ -2,6 +2,7 @@
 import json
 import re
 import sqlite3
+import unicodedata
 from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
@@ -40,6 +41,12 @@ def japanese_date(value):
         return ""
     day = date.fromisoformat(str(value))
     return f"{day.year}年{day.month}月{day.day}日 ({'月火水木金土日'[day.weekday()]})"
+
+
+def display_width(value):
+    """Count half-width cells for plain text shown in a Japanese monospace font."""
+    return sum(0 if unicodedata.combining(char) else 2 if unicodedata.east_asian_width(char) in "WF" else 1
+               for char in value)
 
 
 def resolve_header_value(payload, key):
@@ -86,10 +93,9 @@ def render_order(payload, order_id, template=DEFAULT_TEMPLATE):
                 row.update({name: str(item.get(key, "")) for name, key in ITEM_FIELDS.items()})
                 curr_product = str(item.get("product_name", "")).strip()
                 if curr_product and curr_product == last_product:
-                    row["ItemCode"] = ""
-                    row["Item Code"] = ""
-                    row["Item code"] = ""
-                    row["製品名"] = ""
+                    padding = " " * display_width(curr_product)
+                    for name in ("ItemCode", "Item Code", "Item code", "製品名"):
+                        row[name] = padding
                 elif curr_product:
                     last_product = curr_product
             result.append(TOKEN_RE.sub(lambda m: row[m[1]], line))
@@ -116,9 +122,10 @@ class OrderHistory:
             db.execute("INSERT INTO orders(created, order_id, customer, payload) VALUES (?, ?, ?, ?)",
                        (datetime.now().isoformat(timespec="seconds"), order_id or "", customer, json.dumps(payload, ensure_ascii=False)))
 
-    def page(self, offset=0):
+    def page(self, offset=0, limit=100):
         with self.connect() as db:
-            return db.execute("SELECT id, created, order_id, customer FROM orders ORDER BY id DESC LIMIT 100 OFFSET ?", (offset,)).fetchall()
+            return db.execute("SELECT id, created, order_id, customer FROM orders ORDER BY id DESC LIMIT ? OFFSET ?",
+                              (-1 if limit is None else limit, offset)).fetchall()
 
     def get(self, record_id):
         with self.connect() as db:
@@ -138,15 +145,20 @@ def show_history(parent, store, template, colors, font):
     window.minsize(560, 420)
     window.transient(parent)
     window.configure(fg_color=colors["panel"])
-    listing = tk.Listbox(window, height=7, font=(font, 12), exportselection=False,
+    list_frame = ctk.CTkFrame(window, fg_color="transparent")
+    list_frame.pack(side="top", fill="x", padx=16, pady=(16, 8), anchor="n")
+    listing = tk.Listbox(list_frame, height=7, font=(font, 12), exportselection=False,
                          bg=colors["panel"], fg=colors["text"], relief="flat")
-    listing.pack(fill="x", padx=16, pady=(16, 8))
-    output = ctk.CTkTextbox(window, font=(font, 14), wrap="word")
-    output.pack(fill="both", expand=True, padx=16, pady=8)
+    scroll = ctk.CTkScrollbar(list_frame, command=listing.yview)
+    scroll.pack(side="right", fill="y")
+    listing.configure(yscrollcommand=scroll.set)
+    listing.pack(side="left", fill="both", expand=True)
+    output = ctk.CTkTextbox(window, font=("MS Gothic", 14), wrap="none")
+    output.pack(side="top", fill="both", expand=True, padx=16, pady=8, anchor="n")
     output.configure(state="disabled")
     controls = ctk.CTkFrame(window, fg_color="transparent")
     controls.pack(fill="x", padx=16, pady=(0, 16))
-    rows, offset = [], [0]
+    rows = []
 
     def select(event=None):
         if not listing.curselection():
@@ -160,25 +172,22 @@ def show_history(parent, store, template, colors, font):
         output.configure(state="normal")
         output.delete("1.0", "end")
         output.insert("1.0", text)
+        output.yview_moveto(0)
+        output.xview_moveto(0)
         output.configure(state="disabled")
 
-    def refresh(delta=0):
+    def refresh():
         try:
-            new_offset = max(0, offset[0] + delta)
-            data = store.page(new_offset)
+            data = store.page(limit=None)
         except (OSError, sqlite3.Error) as exc:
             messagebox.showerror("注文ログ", str(exc), parent=window)
             return
-        if not data and new_offset > 0:
-            following.configure(state="disabled")
-            return
-        offset[0] = new_offset
         rows[:] = data
         listing.delete(0, "end")
-        for _, created, order_id, customer in rows:
-            listing.insert("end", f"{created.replace('T', ' ')}  {order_id or '未取得'}  {customer}")
-        previous.configure(state="normal" if offset[0] else "disabled")
-        following.configure(state="normal" if len(rows) == 100 else "disabled")
+        if rows:
+            listing.insert("end", *(f"{created.replace('T', ' ')}  {order_id or '未取得'}  {customer}"
+                                    for _, created, order_id, customer in rows))
+        listing.yview_moveto(0)
         output.configure(state="normal")
         output.delete("1.0", "end")
         output.configure(state="disabled")
@@ -192,10 +201,6 @@ def show_history(parent, store, template, colors, font):
             window.clipboard_clear()
             window.clipboard_append(text)
 
-    previous = ctk.CTkButton(controls, text="新しい100件", width=110, command=lambda: refresh(-100))
-    previous.pack(side="left")
-    following = ctk.CTkButton(controls, text="古い100件", width=110, command=lambda: refresh(100))
-    following.pack(side="left", padx=8)
     ctk.CTkButton(controls, text="更新", width=70, command=refresh).pack(side="left")
     ctk.CTkButton(controls, text="コピー", width=90, command=copy_text).pack(side="right")
     window.refresh_history = refresh

@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from order_history import OrderHistory, render_order, validate_template
+from order_history import OrderHistory, render_order, validate_template, display_width
 
 
 class OrderHistoryTests(unittest.TestCase):
@@ -36,6 +36,7 @@ class OrderHistoryTests(unittest.TestCase):
             self.assertEqual(len(store.page()), 100)
             self.assertEqual(len(store.page(100)), 2)
             self.assertEqual(store.page()[0][2], "100")
+            self.assertEqual(len(store.page(limit=None)), 102)
 
     def test_fallback_ship_to_and_customer_name_from_address_or_code(self):
         demo_payload = {
@@ -67,9 +68,9 @@ class OrderHistoryTests(unittest.TestCase):
             "顧客A",
             "SO123",
             "製品A  200 x 600 x 2 @150",
-            "  300 x 600 x 1 @150",
+            "       300 x 600 x 1 @150",
             "製品B  400 x 500 x 3 @200",
-            "  500 x 500 x 1 @200",
+            "       500 x 500 x 1 @200",
             "製品A  200 x 600 x 1 @150",
             "2026年10月2日 (金) 工場B着 で手配しました。"
         ]
@@ -90,5 +91,8 @@ class OrderHistoryTests(unittest.TestCase):
             ]
         }
         rendered = render_order(payload, "SO1", "${ItemCode} ${幅}")
-        self.assertEqual(rendered, "BW0100D 200\n 300\nBW0200 400")
+        self.assertEqual(rendered, "BW0100D 200\n        300\nBW0200 400")
+        lines = rendered.splitlines()
+        self.assertEqual(display_width(lines[0].split("200")[0]),
+                         display_width(lines[1].split("300")[0]))
 

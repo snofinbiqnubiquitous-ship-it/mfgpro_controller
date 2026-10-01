@@ -2324,7 +2324,8 @@ class TerminalApp(ctk.CTk):
         view.add_cascade(label="注文入力の候補CSV", menu=order_csv_menu)
         menubar.add_cascade(label="表示", menu=view)
 
-        self.shortcut_menu = tk.Menu(menubar, tearoff=False)
+        tools_menu = tk.Menu(menubar, tearoff=False)
+        self.shortcut_menu = tk.Menu(tools_menu, tearoff=False)
         self.shortcut_menu.add_command(label="ショートカット変更...", command=self.open_shortcut_settings)
         self.shortcut_menu.add_separator()
         self._shortcut_order_menu_index = self.shortcut_menu.index("end") + 1
@@ -2333,23 +2334,20 @@ class TerminalApp(ctk.CTk):
             accelerator=self.shortcut_assignments.get("order.panel.toggle", ""),
             command=self.toggle_order_panel,
         )
-        menubar.add_cascade(label="ショートカット", menu=self.shortcut_menu)
 
         # 5. update メニュー
-        self.update_menu = tk.Menu(menubar, tearoff=False)
+        self.update_menu = tk.Menu(tools_menu, tearoff=False)
         self.update_menu.add_command(label="Item list", command=self.run_item_list_update_automation)
-        menubar.add_cascade(label="update", menu=self.update_menu)
 
         # 6. デモ注文メニュー
-        self.demo_menu = tk.Menu(menubar, tearoff=False)
+        self.demo_menu = tk.Menu(tools_menu, tearoff=False)
         self.demo_menu.add_command(label="🧪 デモ注文を実行 (2製品)", command=self.run_demo_order_submission)
         self.demo_menu.add_command(label="⚙️ デモ送信データの設定・編集...", command=self.open_demo_payload_dialog)
         self.demo_menu.add_separator()
         self.demo_menu.add_command(label="📅 日付を今日基準に自動更新 (Due:明日, Req:2日後)", command=self.reset_demo_dates_to_today)
-        menubar.add_cascade(label="デモ注文", menu=self.demo_menu)
 
-        # 6. カラーパレットメニュー（独立メニュー）
-        self.palette_menu = tk.Menu(menubar, tearoff=False)
+        # カラーパレットメニュー
+        self.palette_menu = tk.Menu(tools_menu, tearoff=False)
         self.palette_menu.add_command(label="🎨 カラーパレットを開く...", command=self.open_color_palette)
         self.palette_menu.add_separator()
         self.palette_menu.add_command(label="ライト（標準グレー）", command=lambda: self.switch_theme("light"))
@@ -2358,7 +2356,11 @@ class TerminalApp(ctk.CTk):
         self.palette_menu.add_command(label="アンバー（琥珀色）", command=lambda: self.switch_theme("amber"))
         self.palette_menu.add_separator()
         self.palette_menu.add_command(label="配色を標準に戻す", command=self.reset_custom_colors)
-        menubar.add_cascade(label="カラーパレット", menu=self.palette_menu)
+        tools_menu.add_cascade(label="ショートカット", menu=self.shortcut_menu)
+        tools_menu.add_cascade(label="デモ注文", menu=self.demo_menu)
+        tools_menu.add_cascade(label="update", menu=self.update_menu)
+        tools_menu.add_cascade(label="カラーパレット", menu=self.palette_menu)
+        menubar.add_cascade(label="ツール", menu=tools_menu)
 
         # 6. ログイン情報メニュー
         login_menu = tk.Menu(menubar, tearoff=False)
@@ -6890,7 +6892,7 @@ class TerminalApp(ctk.CTk):
             "・「ログイン」ボタンまたはメニュー「接続」→「ログイン / 接続」から開始します。\n"
             "・メニューバーの「ログイン情報」からホストやユーザー・パスワードを安全に登録・保存できます。\n\n"
             "【カラーパレット・テーマ】\n"
-            "・メニューバーの「カラーパレット」から、専用パレットウィンドウを開いてワンクリックで配色を変更できます。\n"
+            "・メニューバーの「ツール → カラーパレット」から、専用パレットウィンドウを開いてワンクリックで配色を変更できます。\n"
             "・ライト、ダーク、クラシックグリーン、アンバーの標準テンプレートや、カラーピッカーでの自由な色指定が可能です。\n\n"
             "【画面サイズ・余白調整】\n"
             "・画面サイズに合わせて文字が自動的に最大化され、上下左右中央に綺麗にフィットします（文字切れ防止対応済み）。\n"
