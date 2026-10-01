@@ -1364,29 +1364,43 @@ class SalesOrderAutomationController:
                 if "create wo:" not in curr_txt and "rework:" not in curr_txt:
                     self.log(f"6.1.0: Enter 送信 (Line {prod['line_no']} 自動採番)")
                     self.send("\r")
-                    self.sleep(0.25)
+                    self.sleep(0.4)
 
-            # 6.1.1 Create WO ポップアップスキップ (出現時のみ F1 送信)
+            # 6.1.1 MFG/PRO 応答同期: Create WO ポップアップ（または明細行展開）の出現を確実に待機
+            # 【重要】静的ヘッダー（'item number'）単体での判定はすり抜けの原因となるため行わない
+            def _is_post_ln_ready(txt: str) -> bool:
+                if "create wo:" in txt or "rework:" in txt:
+                    return True
+                if "5=delete" in txt or "5=del" in txt:
+                    return True
+                return False
+
             self.wait_for_screen(
-                lambda txt: "create wo:" in txt or "rework:" in txt or ("item number" in txt and "create wo:" not in txt) or "5=delete" in txt,
-                desc=f"6.1.1 Create WO ポップアップ または Item Number 欄 (Line {prod['line_no']})"
+                _is_post_ln_ready,
+                desc=f"6.1.1 MFG/PRO応答待機 (Line {prod['line_no']} Create WO または 明細行展開)"
             )
             curr_txt = clean_screen_text(self.get_screen_text()).lower()
             if "create wo:" in curr_txt or "rework:" in curr_txt:
-                self.log(f"6.1.1: F1 送信 (Line {prod['line_no']} Create WO ポップアップスキップ)")
+                self.log(f"6.1.1: F1 送信 (Line {prod['line_no']} Create WO ポップアップ解除)")
                 self.send(KEY_SEQUENCES["F1"])
-                self.sleep(0.18)
+                # 【重要】F1 送信後、MFG/PRO がポップアップを閉じて Item Number 欄へ遷移したこと（Create WO 消滅）を確実に待機
+                self.wait_for_screen(
+                    lambda txt: "create wo:" not in txt and "rework:" not in txt,
+                    desc=f"6.1.1 Create WO ポップアップ消滅待ち (Line {prod['line_no']})"
+                )
+                self.sleep(0.25)
 
             # 6.1.3 Item Number 入力
             self.wait_for_screen(
                 lambda txt: "create wo:" not in txt and ("sales order line" in txt or "item number" in txt or "5=delete" in txt),
                 desc=f"6.1.3 Item Number 入力欄 (Line {prod['line_no']})"
             )
-            self.log(f"6.1.3: 品番 '{p_name}' + F1 送信")
+            self.log(f"6.1.3: 品番 '{p_name}' 送信")
             self.send(f"{p_name}")
-            self.sleep(0.15)
-            self.send(KEY_SEQUENCES["F1"])
             self.sleep(0.2)
+            self.log(f"6.1.3: F1 送信 (品番確定)")
+            self.send(KEY_SEQUENCES["F1"])
+            self.sleep(0.25)
 
             # 6.1.3 Site ポップアップ入力（ハイブリッド・スマートウェイト）
             # 【重要】画面下部の固定枠 "Loc: Site: CB2" に誤爆しないよう、
@@ -1828,12 +1842,12 @@ class SalesOrderAutomationController:
         paste_str = "\r".join(paste_items)
         self.log(f"Step 2: Order Dateからの一括貼り付けバッファ送信 ({len(paste_items)} 項目: Order Date〜Remarks)")
         self.send(paste_str)
-        self.sleep(0.35)
+        self.sleep(0.5)
 
         # 2-6: ヘッダー確定: F1 送信
         self.log("Step 2: F1 送信 (ヘッダー確定)")
         self.send(KEY_SEQUENCES["F1"])
-        self.sleep(0.35)
+        self.sleep(0.5)
 
         # Step 3: Tax Usage ポップアップ または Salesperson画面（警告があれば wait_for_screen が自動解除）
         self.wait_for_screen(
@@ -1845,7 +1859,7 @@ class SalesOrderAutomationController:
             self.set_status("Step 3: Tax ポップアップスキップ中...", "working")
             self.log("Step 3: F1 送信 (Tax スキップ)")
             self.send(KEY_SEQUENCES["F1"])
-            self.sleep(0.15)
+            self.sleep(0.25)
 
         # Step 4: Salesperson / Freight 画面
         self.wait_for_screen(
@@ -1857,7 +1871,7 @@ class SalesOrderAutomationController:
             self.set_status("Step 4: Salesperson / Freight 画面スキップ中...", "working")
             self.log("Step 4: F1 送信 (Salesperson スキップ)")
             self.send(KEY_SEQUENCES["F1"])
-            self.sleep(0.15)
+            self.sleep(0.25)
 
         # Step 5: 特記事項 (Transaction Comments / 案C: 既定コメント全クリア置換)
         self.wait_for_screen(
@@ -1923,7 +1937,7 @@ class SalesOrderAutomationController:
 
                 self.log("Step 5: F4 送信 (明細画面へ進む)")
                 self.send(KEY_SEQUENCES["F4"])
-                self.sleep(0.35)
+                self.sleep(0.5)
 
                 # コメント画面残留チェック（抜けるまで最大3回F4）
                 for _ in range(3):
@@ -1931,21 +1945,21 @@ class SalesOrderAutomationController:
                     if "transaction comments" in c_txt and "sales order line" not in c_txt:
                         self.log("Step 5: コメント画面残留検知 -> 再度 F4 送信")
                         self.send(KEY_SEQUENCES["F4"])
-                        self.sleep(0.22)
+                        self.sleep(0.35)
                     else:
                         break
             else:
                 self.set_status("Step 5: 特記事項スキップ中...", "working")
                 self.log("Step 5: F4 送信 (コメントなし・明細へ直行)")
                 self.send(KEY_SEQUENCES["F4"])
-                self.sleep(0.28)
+                self.sleep(0.45)
 
                 for _ in range(3):
                     c_txt = clean_screen_text(self.get_screen_text()).lower()
                     if "transaction comments" in c_txt and "sales order line" not in c_txt:
                         self.log("Step 5: コメント画面残留検知 -> 再度 F4 送信")
                         self.send(KEY_SEQUENCES["F4"])
-                        self.sleep(0.22)
+                        self.sleep(0.35)
                     else:
                         break
 
