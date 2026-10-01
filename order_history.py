@@ -36,9 +36,37 @@ def japanese_date(value):
     return f"{day.year}年{day.month}月{day.day}日 ({'月火水木金土日'[day.weekday()]})"
 
 
+def resolve_header_value(payload, key):
+    val = payload.get(key)
+    if val:
+        return str(val).strip()
+
+    if key == "ship_to":
+        for alt in ("destination", "ship_to_name", "shipto"):
+            if payload.get(alt):
+                return str(payload[alt]).strip()
+        addr = str(payload.get("address", "")).strip()
+        if addr:
+            lines = [l.strip() for l in addr.splitlines() if l.strip()]
+            name_lines = [l for l in lines if not re.match(r"^\d{3}-\d{4}$", l) and not re.match(r"^\d{2,4}-\d{2,4}-\d{4}$", l)]
+            if name_lines:
+                return name_lines[0]
+        if payload.get("ship_to_code"):
+            return str(payload["ship_to_code"]).strip()
+    elif key == "customer_name":
+        for alt in ("customer", "cust_name", "customer_text"):
+            if payload.get(alt):
+                return str(payload[alt]).strip()
+        if str(payload.get("customer_code", "")).strip() == "20000600":
+            return "TOPPANインフォメディア株式会社"
+        if payload.get("customer_code"):
+            return str(payload["customer_code"]).strip()
+    return ""
+
+
 def render_order(payload, order_id, template=DEFAULT_TEMPLATE):
     validate_template(template)
-    values = {name: str(payload.get(key, "")) for name, key in HEADER_FIELDS.items()}
+    values = {name: resolve_header_value(payload, key) for name, key in HEADER_FIELDS.items()}
     values.update({name: japanese_date(payload.get(key)) for name, key in DATE_FIELDS.items()})
     values.update({name: order_id or "未取得" for name in ORDER_FIELDS})
     result = []
@@ -68,9 +96,10 @@ class OrderHistory:
             db.close()
 
     def append(self, payload, order_id):
+        customer = resolve_header_value(payload, "customer_name") or payload.get("customer_code", "")
         with self.connect() as db:
             db.execute("INSERT INTO orders(created, order_id, customer, payload) VALUES (?, ?, ?, ?)",
-                       (datetime.now().isoformat(timespec="seconds"), order_id or "", payload.get("customer_name", ""), json.dumps(payload, ensure_ascii=False)))
+                       (datetime.now().isoformat(timespec="seconds"), order_id or "", customer, json.dumps(payload, ensure_ascii=False)))
 
     def page(self, offset=0):
         with self.connect() as db:

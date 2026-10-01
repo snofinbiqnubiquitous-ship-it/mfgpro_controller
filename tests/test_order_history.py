@@ -36,3 +36,16 @@ class OrderHistoryTests(unittest.TestCase):
             self.assertEqual(len(store.page()), 100)
             self.assertEqual(len(store.page(100)), 2)
             self.assertEqual(store.page()[0][2], "100")
+
+    def test_fallback_ship_to_and_customer_name_from_address_or_code(self):
+        demo_payload = {
+            "customer_code": "20000600",
+            "ship_to_code": "20000601",
+            "address": "960-8201\nTOPPANインフォメディア(株)福島工場\n福島県福島市岡島字宮田30-2\n\n\n024-536-6111",
+            "required_date": "2026-10-04",
+            "items": [{"product_name": "BW0100D", "width": "200", "length": "600", "quantity": 1, "price": "200"}]
+        }
+        rendered = render_order(demo_payload, "SO199729")
+        self.assertIn("TOPPANインフォメディア株式会社", rendered)
+        self.assertIn("TOPPANインフォメディア(株)福島工場着 で手配しました。", rendered)
+

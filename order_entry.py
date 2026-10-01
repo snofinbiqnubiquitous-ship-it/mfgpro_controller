@@ -3370,6 +3370,8 @@ def get_default_demo_payload() -> dict:
     due_date = (today + timedelta(days=1)).strftime("%Y-%m-%d")
     req_date = (today + timedelta(days=2)).strftime("%Y-%m-%d")
     return {
+        "customer_name": "TOPPANインフォメディア株式会社",
+        "ship_to": "TOPPANインフォメディア(株)福島工場",
         "purchase_order": "test",
         "customer_code": "20000600",
         "ship_to_code": "20000601",
