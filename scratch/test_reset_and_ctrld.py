@@ -71,7 +71,7 @@ class TestTerminalAndOrderEntry(unittest.TestCase):
         panel.fields["so_comment"].insert("1.0", "SOコメントテスト")
         panel._display_address("東京都テスト区1-2-3")
 
-        # Required Date と due date の初期値（または任意設定値）
+        # Required Date と Due date の初期値（または任意設定値）
         init_req_date = panel.fields["required_date"].value
         init_due_date = panel.fields["due_date"].value
         self.assertIsNotNone(init_req_date)
@@ -87,7 +87,7 @@ class TestTerminalAndOrderEntry(unittest.TestCase):
         # 4. リセット実行
         panel.reset_fields()
 
-        # 5. Required Date と due date は保持されていることを検証
+        # 5. Required Date と Due date は保持されていることを検証
         self.assertEqual(panel.fields["required_date"].value, init_req_date)
         self.assertEqual(panel.fields["due_date"].value, init_due_date)
 

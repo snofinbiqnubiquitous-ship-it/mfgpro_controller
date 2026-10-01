@@ -63,9 +63,9 @@ QAD応答 → SSH受信 → CP932逐次デコード → pyte仮想画面
 
 注文パネルは右側に表示します。Ctrl単独の2回押し、F2、またはメニューから開閉します。ショートカット変更後は保存された割当を確認してください。F3は出力チェック画面です。通常文字の単独割当には制限があり、利用可能な組合せは設定ダイアログの検査に従います。
 
-- 上部: 顧客名、納品先、Required date、due date、Purchase Order、Remarks、SO comment。
+- 上部: 顧客名、納品先、Required date、Due date、Purchase Order、Remarks、SO comment。
 - 日付表示: `yyyy/M/d (ddd)`。初期値は当日です。
-- 明細: 製品名・巾・長さ・本数・価格の5列、最大5行。未使用行は空白にします。
+- 明細: Item Code・巾・長さ・本数・価格の5列、最大5行。未使用行は空白にします。
 - 顧客名・納品先と1行以上の明細が必要です。本数は正の整数、巾・長さは正数、価格は0以上です。
 - Remarks・SO commentは初期値が空白。Purchase Orderとコメント類は任意です。
 - 同一製品に異なる単価を設定できないシステム制約を維持します。
@@ -182,9 +182,9 @@ python scripts/build_order_manual.py
 ```text
 ${顧客名}
 ${Order ID}
-${製品名}  ${幅} x ${長さ} x ${本数} @${価格}
+${ItemCode}  ${幅} x ${長さ} x ${本数} @${価格}
 ${Required Date} ${納品先}着 で手配しました。
 ```
 
-日付変数は `2026年10月2日 (金)` の形式です。顧客・納品先・各コード・住所・Purchase Order・Remarks・SO comment・Required Date・due date・Order IDと、製品名・幅（巾）・長さ・本数・価格を使用できます。
+日付変数は `2026年10月2日 (金)` の形式です。顧客・納品先・各コード・住所・Purchase Order・Remarks・SO comment・Required Date・Due date・Order IDと、Item Code・幅（巾）・長さ・本数・価格を使用できます。
 失敗・中断した送信は完了履歴に追加しません。実際の入力処理は変更せず、完了後にデータを保存します。

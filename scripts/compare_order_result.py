@@ -32,7 +32,7 @@ def normalize_order(data):
     quantities = defaultdict(Decimal)
     for index, row in enumerate(rows, 1):
         if not isinstance(row, dict) or not isinstance(row.get("product_name"), str) or not row["product_name"].strip():
-            raise ValueError(f"items[{index}]: 製品名が必要です")
+            raise ValueError(f"items[{index}]: Item Codeが必要です")
         numbers = {}
         for field in ("width", "length", "price", "quantity"):
             try:

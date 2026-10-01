@@ -75,3 +75,20 @@ class OrderHistoryTests(unittest.TestCase):
         ]
         self.assertEqual(rendered, "\n".join(expected_lines))
 
+    def test_item_code_and_due_date_template(self):
+        template = "${ItemCode}\n${Due date}"
+        rendered = render_order(self.payload(), "SO123", template)
+        self.assertEqual(rendered, "製品A\n製品B\n2026年10月1日 (木)")
+
+    def test_duplicate_item_code_suppression(self):
+        payload = {
+            "customer_name": "顧客A",
+            "items": [
+                {"product_name": "BW0100D", "width": "200"},
+                {"product_name": "BW0100D", "width": "300"},
+                {"product_name": "BW0200", "width": "400"},
+            ]
+        }
+        rendered = render_order(payload, "SO1", "${ItemCode} ${幅}")
+        self.assertEqual(rendered, "BW0100D 200\n 300\nBW0200 400")
+

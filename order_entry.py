@@ -35,7 +35,7 @@ ORDER_TOTALS_COMMIT_KEY = "F1"
 
 WEEKDAYS = ("月", "火", "水", "木", "金", "土", "日")
 ITEM_FIELDS = ("product_name", "width", "length", "quantity", "price")
-ITEM_LABELS = ("製品名", "巾", "長さ", "本数", "価格")
+ITEM_LABELS = ("Item code", "巾", "長さ", "本数", "価格")
 SHORTCUT_MODIFIERS = {"ctrl": "Ctrl", "control": "Ctrl", "shift": "Shift"}
 SHORTCUT_RESERVED = {"Ctrl+Shift+Esc", "Ctrl+A", "Ctrl+C", "Ctrl+D", "Ctrl+E", "Ctrl+H",
                      "Ctrl+T", "Ctrl+V", "Ctrl+W", "Ctrl+Tab", "Ctrl+Shift+C",
@@ -1023,7 +1023,7 @@ def collect_order(header, rows):
     for key, label in (("customer_name", "顧客名"), ("ship_to", "納品先")):
         if not result[key]:
             raise OrderValidationError(key, f"{label}を入力してください。")
-    for key, label in (("required_date", "Required date"), ("due_date", "due date")):
+    for key, label in (("required_date", "Required date"), ("due_date", "Due date")):
         value = header.get(key)
         if not isinstance(value, date):
             raise OrderValidationError(key, f"{label}を選択してください。")
@@ -2704,13 +2704,13 @@ class OrderEntryPanel(ctk.CTkFrame):
         self.address_box.grid(row=3, column=0, rowspan=3, padx=4, pady=(0, 10), sticky="nsew")
         self.address_box.configure(state="disabled")
 
-        # 右側（col 1）に Required date と due date を縦2段で配置
+        # 右側（col 1）に Required date と Due date を縦2段で配置
         self._label(self.body, "Required date", 2, 1)
         req_field = DateField(self.body, colors, font_family)
         req_field.grid(row=3, column=1, padx=4, pady=(0, 6), sticky="ew")
         self.fields["required_date"] = req_field
 
-        self._label(self.body, "due date", 4, 1)
+        self._label(self.body, "Due date", 4, 1)
         due_field = DateField(self.body, colors, font_family)
         due_field.grid(row=5, column=1, padx=4, pady=(0, 10), sticky="ew")
         self.fields["due_date"] = due_field
@@ -2771,7 +2771,7 @@ class OrderEntryPanel(ctk.CTkFrame):
                 self.fields[(row, key)] = field
             self.item_entries.append(entries)
 
-            # 製品名の下に一行編集不能の行を入れて、Value (C列+D列の結合値) を表示
+            # Item Codeの下に一行編集不能の行を入れて、Value (C列+D列の結合値) を表示
             desc_entry = ctk.CTkEntry(
                 self.table, height=24, font=(font_family, 11),
                 fg_color="#F8FAFC", text_color=colors.get("muted", "#64748B"),
@@ -3276,7 +3276,7 @@ class OrderEntryPanel(ctk.CTkFrame):
         self.on_submit(payload)
 
     def reset_fields(self):
-        """Required Date と due date 以外のすべての入力欄をクリア・リセット"""
+        """Required Date と Due date 以外のすべての入力欄をクリア・リセット"""
         self.close_popups()
 
         if self.error_field is not None:
@@ -3304,7 +3304,7 @@ class OrderEntryPanel(ctk.CTkFrame):
         # 住所
         self._display_address("")
 
-        # ※ Required Date と due date はクリアせずそのまま保持
+        # ※ Required Date と Due date はクリアせずそのまま保持
 
         # Purchase Order
         if "purchase_order" in self.fields:
@@ -3349,7 +3349,7 @@ def show_order_output(parent, payload, colors, font_family):
     text.pack(fill="both", expand=True, padx=16, pady=16)
     lines = []
     for key, label in (("customer_name", "顧客名"), ("ship_to", "納品先"),
-                       ("required_date", "Required date"), ("due_date", "due date"),
+                       ("required_date", "Required date"), ("due_date", "Due date"),
                        ("purchase_order", "Purchase Order"), ("remarks", "Remarks"),
                        ("so_comment", "SO comment")):
         value = payload[key]
@@ -4298,12 +4298,12 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
                     tb.insert("end", f"     6.2.1-Conf. 長さ {length_val}m 更新確定: ", "term_label")
                     tb.insert("end", "<F1>\n", "term_key")
                     tb.insert("end", f"          コメント: 'Please confirm update' に対し初期値 'yes' を F1 で確定\n", "term_comment")
-                    tb.insert("end", f"          画面待機: SL一覧画面 (製品名登録メニューNo1) への復帰を検知\n\n", "term_comment")
+                    tb.insert("end", f"          画面待機: SL一覧画面 (Item Code登録メニューNo1) への復帰を検知\n\n", "term_comment")
 
                 # 全長さ完了 -> F4 -> Please confirm update -> Enter
                 tb.insert("end", f"   6.1.4-Done. 品番 '{p_name}' の全スリット設定完了: ", "term_label")
                 tb.insert("end", "<F4>\n", "term_key")
-                tb.insert("end", f"        コメント: 当該製品の全長さ入力が完了したため SL一覧画面で F4 を送信\n", "term_comment")
+                tb.insert("end", f"        コメント: 当該Item Codeの全長さ入力が完了したため SL一覧画面で F4 を送信\n", "term_comment")
                 tb.insert("end", f"        画面待機: 'Please confirm update' 確認プロンプトの出現を検知\n", "term_comment")
 
                 tb.insert("end", f"   6.1.4-Conf. スリット明細確定: ", "term_label")

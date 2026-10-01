@@ -6,14 +6,20 @@ from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
 
-DEFAULT_TEMPLATE = "${顧客名}\n${Order ID}\n${製品名}  ${幅} x ${長さ} x ${本数} @${価格}\n${Required Date} ${納品先}着 で手配しました。"
+DEFAULT_TEMPLATE = "${顧客名}\n${Order ID}\n${ItemCode}  ${幅} x ${長さ} x ${本数} @${価格}\n${Required Date} ${納品先}着 で手配しました。"
 HEADER_FIELDS = {
     "顧客名": "customer_name", "納品先": "ship_to", "顧客コード": "customer_code",
     "納品先コード": "ship_to_code", "Purchase Order": "purchase_order",
     "Remarks": "remarks", "SO comment": "so_comment", "住所": "address",
 }
-ITEM_FIELDS = {"製品名": "product_name", "幅": "width", "巾": "width", "長さ": "length", "本数": "quantity", "価格": "price"}
-DATE_FIELDS = {"Required Date": "required_date", "Require Date": "required_date", "Required date": "required_date", "due date": "due_date", "Due Date": "due_date"}
+ITEM_FIELDS = {
+    "ItemCode": "product_name", "Item Code": "product_name", "Item code": "product_name",
+    "製品名": "product_name", "幅": "width", "巾": "width", "長さ": "length", "本数": "quantity", "価格": "price"
+}
+DATE_FIELDS = {
+    "Required Date": "required_date", "Require Date": "required_date", "Required date": "required_date",
+    "Due date": "due_date", "Due Date": "due_date", "due date": "due_date"
+}
 ORDER_FIELDS = {"Order ID", "処理した注文のOrder ID"}
 TOKENS = set(HEADER_FIELDS) | set(ITEM_FIELDS) | set(DATE_FIELDS) | ORDER_FIELDS
 TOKEN_RE = re.compile(r"\$\{([^{}]+)\}")
@@ -80,6 +86,9 @@ def render_order(payload, order_id, template=DEFAULT_TEMPLATE):
                 row.update({name: str(item.get(key, "")) for name, key in ITEM_FIELDS.items()})
                 curr_product = str(item.get("product_name", "")).strip()
                 if curr_product and curr_product == last_product:
+                    row["ItemCode"] = ""
+                    row["Item Code"] = ""
+                    row["Item code"] = ""
                     row["製品名"] = ""
                 elif curr_product:
                     last_product = curr_product
@@ -209,7 +218,7 @@ def show_template_editor(parent, current, save, colors, font):
     editor.insert("1.0", current)
     controls = ctk.CTkFrame(window, fg_color="transparent")
     controls.pack(fill="x", padx=16, pady=(0, 16))
-    choices = ["${" + name + "}" for name in [*HEADER_FIELDS, "Order ID", "Required Date", "due date", "製品名", "幅", "長さ", "本数", "価格"]]
+    choices = ["${" + name + "}" for name in [*HEADER_FIELDS, "Order ID", "Required Date", "Due date", "ItemCode", "幅", "長さ", "本数", "価格"]]
     variable = ctk.CTkComboBox(controls, values=choices, width=170, state="readonly")
     variable.set(choices[0])
     variable.pack(side="left")

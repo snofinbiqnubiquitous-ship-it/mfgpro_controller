@@ -2508,7 +2508,7 @@ class TerminalApp(ctk.CTk):
             "order.panel.close": ("注文入力を閉じる", self._shortcut_close_order),
             "order.csv.choices": ("顧客・納品先CSVを選択", self.import_order_choices),
             "order.date.required": ("Required dateを選択", lambda: self._shortcut_open_order_date("required_date")),
-            "order.date.due": ("due dateを選択", lambda: self._shortcut_open_order_date("due_date")),
+            "order.date.due": ("Due dateを選択", lambda: self._shortcut_open_order_date("due_date")),
         }
         ordinal = {}
 
