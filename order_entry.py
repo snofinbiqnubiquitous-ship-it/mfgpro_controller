@@ -1909,9 +1909,38 @@ class SalesOrderAutomationController:
         match = re.search(r"order date:", row)
         if match and match.end() <= x < match.end() + 12:
             return "date"
+        match = re.search(r"remarks:", row)
+        if match:
+            end = row.find("entered by:", match.end())
+            if match.end() <= x < (end if end >= 0 else len(row)):
+                return "remarks"
         return None
 
-    def _wait_header_field(self, expected, confirm_sold=False, after_generation=None):
+    @staticmethod
+    def _header_values_match(text, fields):
+        """Verify the visible edited values before allowing header confirmation."""
+        regions = (
+            ("order date:", "line pricing:", fields[0]),
+            ("required date:", "manual:", fields[1]),
+            ("due date:", "channel:", fields[3]),
+            ("purchase order:", "reprice:", fields[6]),
+            ("remarks:", "entered by:", fields[7]),
+        )
+        lines = text.splitlines()
+        for label, next_label, expected in regions:
+            row = next((row for row in lines if label in row.lower()), None)
+            if row is None:
+                return False
+            lower = row.lower()
+            start = lower.index(label) + len(label)
+            end = lower.find(next_label, start)
+            if end < 0:
+                return False
+            if row[start:end].strip() != expected:
+                return False
+        return True
+
+    def _wait_header_field(self, expected, confirm_sold=False, after_generation=None, values=None):
         snapshot = getattr(self.session, "automation_snapshot", None)
         if not callable(snapshot):
             raise RuntimeError("入力先を確認できる端末スナップショットがありません。送信を停止しました。")
@@ -1930,10 +1959,11 @@ class SalesOrderAutomationController:
             if after_generation is not None and generation <= after_generation:
                 return False
             field = self._header_field_at_cursor(text, cursor)
-            state = (field, cursor, generation)
+            values_ready = values is None or self._header_values_match(text, values)
+            state = (field, cursor, generation, values_ready)
             now = time.monotonic()
             if state != last:
-                self.log(f"Step 2 入力先確認: expected={expected} actual={field or 'UNKNOWN'} cursor={cursor} rx={generation}")
+                self.log(f"Step 2 入力先確認: expected={expected} actual={field or 'UNKNOWN'} cursor={cursor} rx={generation} values_ready={values_ready}")
                 last, since = state, now
                 return False
             # F1はSold-Toに留まる場合に一度だけ。Bill-Toへ移動済みなら送らない。
@@ -1943,7 +1973,7 @@ class SalesOrderAutomationController:
                 confirmed = True
                 last = None
                 return False
-            return field == expected and now - since >= self.SETTLE_QUIET
+            return field == expected and values_ready and now - since >= self.SETTLE_QUIET
 
         return self.wait_for_screen(ready, desc=f"Step 2: 入力先 {expected} 確認")
 
@@ -2030,11 +2060,15 @@ class SalesOrderAutomationController:
         paste_str = "\r".join(paste_items)
         # 実機運用で安定している8項目一括送信を維持し、送信後は画面応答の描画完了を待つ
         self.log(f"Step 2: Order Dateからの一括貼り付けバッファ送信 ({len(paste_items)} 項目: Order Date〜Remarks)")
+        generation = self.session.automation_snapshot()[2]
         self.send_and_settle(paste_str, 0.5, desc="Step 2: ヘッダー8項目一括送信", critical=True)
+        self._wait_header_field("remarks", after_generation=generation, values=paste_items)
 
         # 2-6: ヘッダー確定: F1 送信
         self.log("Step 2: F1 送信 (ヘッダー確定)")
         self.send_and_settle(KEY_SEQUENCES["F1"], 0.5, critical=True)
+        text, cursor, generation = self.session.automation_snapshot()
+        self.log(f"Step 2 ヘッダー確定後: cursor={cursor} rx={generation} input={self._header_field_at_cursor(text, cursor) or 'UNKNOWN'}")
 
         # Step 3: Tax Usage ポップアップ または Salesperson画面（警告があれば wait_for_screen が自動解除）
         self.wait_for_screen(

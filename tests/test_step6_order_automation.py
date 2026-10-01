@@ -29,6 +29,15 @@ def add_header_cursor_fixture(controller, sent):
             field = "ship-to:"
         elif count == 1 and KEY_SEQUENCES["F1"] in sent[sent.index(customer) + 1:]:
             field = "bill to:"
+        paste = next((data for data in sent if data.count("\r") == 7), None)
+        if paste:
+            fields = paste.split("\r")
+            text = "\n".join(row for row in text.splitlines() if not any(
+                label in row.lower() for label in ("order date:", "required date:", "due date:", "purchase order:", "remarks:")))
+            text += (f"\nOrder Date: {fields[0]} Line Pricing: Yes\nRequired Date: {fields[1]} Manual:"
+                     f"\nDue Date: {fields[3]} Channel:\nPurchase Order: {fields[6]} Reprice: No"
+                     f"\nRemarks: {fields[7]} Entered By: user")
+            field = "remarks:"
         for y, row in enumerate(text.lower().splitlines()):
             if field in row:
                 return text, (y, row.index(field) + len(field) + 1), len(sent)
