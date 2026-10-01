@@ -358,3 +358,18 @@ flowchart TD
   - 実機実行ログ（`logs/terminal_debug.log`）をリポジトリに保存・共有。
 
 
+
+
+## 11. 2026-10-02 常駐見出しによる先走り（Bill-To・Reason Code）と画面安定待ち
+
+実機ログ（`logs/terminal_debug.log`）で次の2件の停止を確認した。
+
+- **Bill-To（2026-10-01 23:38 / 10-02 00:31）**: Sold-To確定F1の直後に Category 警告が出た回で、Space で解除した直後に Bill-To の値を送信。常駐する `Bill To` 見出しで待機条件が即成立したため、続けて表示された警告に値が吸い込まれ、次に送った納品先コードが Bill To 欄に入り `ERROR: Not a valid customer` で停止。警告がヘッダー確定後に出る回は成功していた。
+- **List Price / Reason Code（2026-10-01 22:59）**: 明細1行目の Transaction Comments を F4 で抜けた直後、背景に常駐する `Sales Order Line` 見出しで「明細一覧に復帰」と判定。後から出た Reason Code ポップアップ（List Price/Request Date/Promise Date）に2行目の Ln 採番 Enter が入り停止。
+
+**対策**: `wait_for_screen` に加え `wait_for_stable_screen(predicate, quiet=0.4)` を追加。条件成立後も0.4秒間画面（受信通番と画面文字列）が変化しないことを確認してから戻る。待機中の警告は Space で解除して待ち直す。適用箇所は Sold-To確定後の Bill-To 待ち、Bill-To 入力後、Ship-To 入力後の Order Date 待ち、6.2.5 Reason Code 判定、6.1.0 明細一覧復帰の5箇所。待機時間は速度設定で縮めない。
+
+**テスト**: `tests/test_order_replay.py` に上記2件の再現（連続警告、0.3秒遅れの Reason Code）を追加。安定待ちを旧来の `wait_for_screen` に戻すと、両方とも実機と同じ誤送信で失敗することを確認済み。
+
+なお、同ログの Site（20:06）・Tax（20:03）での停止は旧版コード（ログ文言で判別）によるもので、Ln 誤入力は8.5章の対策で解消済み。
+

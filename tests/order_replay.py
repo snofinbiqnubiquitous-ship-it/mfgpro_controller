@@ -13,6 +13,8 @@ class ExpectedSend:
     data: str
     response: str | None = None
     delay: float = 0.0
+    # 応答の後にさらに遅れて描画される画面（連続する警告や後から出るポップアップ）: (遅延秒, 画面)
+    followup: tuple | None = None
 
 
 class StrictReplay:
@@ -68,6 +70,10 @@ class StrictReplay:
         if expected.response is not None:
             self.ready_at = self.now + expected.delay
             self.schedule(expected.delay, self.screen_bytes(expected.response))
+            if expected.followup is not None:
+                later, screen = expected.followup
+                self.ready_at = self.now + later
+                self.schedule(later, self.screen_bytes(screen))
             self.sleep(0)
 
     def assert_finished(self):
@@ -75,7 +81,7 @@ class StrictReplay:
             raise AssertionError(f"必要な送信が未実施: {self.expected[0].data!r}")
 
 
-def step6_replay(early_warning=False, no_warning=False, delay=0.0, delayed=None):
+def step6_replay(early_warning=False, no_warning=False, delay=0.0, delayed=None, late_reason_code=False):
     """単一明細の合成シナリオ。実機ログをそのまま再現したものではない。"""
     f1, f4 = "\x1bOP", "\x1bOS"
     line = "Sales Order Line\nLn Item Number"
@@ -98,6 +104,13 @@ def step6_replay(early_warning=False, no_warning=False, delay=0.0, delayed=None)
         (f1, "Tax Usage:"), (f1, "Transaction Comments"),
         (f4, line), (f4, totals),
     ]
+    followups = {}
+    if late_reason_code:
+        # 実機ログ(2026-10-01 22:59)の再現: F4直後は明細一覧の見出しだけが見え、0.3秒後に Reason Code 欄が出る
+        reason = "Sales Order Line\nLn Item Number\nReason Code\nList Price:\nRequest Date:\nPromise Date:"
+        index = pairs.index((f4, line))
+        followups[index] = (0.3, reason)
+        pairs[index + 1:index + 1] = [("65\r", reason), ("28\r", reason), ("28\r", reason), (f1, line)]
     if early_warning:
         pairs += [(f1, warning), (" ", done)]
     elif no_warning:
@@ -109,7 +122,8 @@ def step6_replay(early_warning=False, no_warning=False, delay=0.0, delayed=None)
     targets = None if delayed is None else {i % len(pairs) for i in delayed}
     replay = StrictReplay(line, [
         ExpectedSend(data, response,
-                     delay if response is not None and (targets is None or index in targets) else 0.0)
+                     delay if response is not None and (targets is None or index in targets) else 0.0,
+                     followups.get(index))
         for index, (data, response) in enumerate(pairs)
     ])
     payload = {"items": [{"product_name": "TEST", "width": "1000", "length": "500",

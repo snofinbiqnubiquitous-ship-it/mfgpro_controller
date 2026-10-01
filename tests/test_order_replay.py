@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import patch
 
-from order_entry import SalesOrderAutomationController
+from order_entry import KEY_SEQUENCES, SalesOrderAutomationController
 from tests.order_replay import StrictReplay, ExpectedSend, step6_replay
 
 
@@ -107,4 +107,40 @@ class ReplayTests(unittest.TestCase):
             self.assertFalse(controller.send_and_settle("X", 0.1))
         self.assertGreaterEqual(replay.now, controller.RESPONSE_WINDOW)
         self.assertTrue(any("画面応答がありません" in line for line in logs))
+        replay.assert_finished()
+
+    def test_late_reason_code_popup_is_answered_before_next_line(self):
+        # 実機ログ 2026-10-01 22:59: 常駐する Sales Order Line 見出しで復帰と誤判定し、
+        # 後から出た Reason Code (List Price) 欄に次行の Enter を送って停止した
+        replay, payload = step6_replay(late_reason_code=True)
+        controller = SalesOrderAutomationController(replay, replay.get_screen_text, payload,
+                                                     sleep_func=replay.sleep)
+        with patch("order_entry.time.monotonic", side_effect=lambda: replay.now):
+            self.assertEqual(controller.execute_step6(), "SO123456")
+        replay.assert_finished()
+
+    def test_consecutive_warnings_after_sold_to_are_cleared_before_bill_to(self):
+        # 実機ログ 2026-10-02 00:31: Sold-To確定後の警告を解除した直後に Bill-To を送り、
+        # 続けて出た警告に値が吸い込まれて Bill To に納品先コードが入った
+        f1 = KEY_SEQUENCES["F1"]
+        header = "Sales Order Maintenance\nOrder: SO123456 Sold-To: CUST Bill To: CUST Ship-To:"
+        first = header + "\nCategory=Strat Hipo Press space bar to continue."
+        second = header + "\nCredit limit exceeded. Press space bar to continue."
+        dated = header + "\nOrder Date: 10/02/26"
+        replay = StrictReplay(header.replace("CUST", ""), [
+            ExpectedSend("CUST\r", header),
+            ExpectedSend(f1, first),
+            ExpectedSend(" ", header, followup=(0.3, second)),
+            ExpectedSend(" ", header),
+            ExpectedSend("CUST\r", header),
+            ExpectedSend("DEST\r", dated),
+        ])
+        controller = SalesOrderAutomationController(
+            replay, replay.get_screen_text, {"customer_code": "CUST", "ship_to_code": "DEST"},
+            sleep_func=replay.sleep, default_timeout=2)
+        with patch("order_entry.time.monotonic", side_effect=lambda: replay.now):
+            with self.assertRaises(AssertionError) as raised:
+                controller.execute_full_order()
+        # Ship-To まで正しい順序で送った後、予定外のヘッダー一括送信で再現を終える
+        self.assertIn("予定外の追加送信", str(raised.exception))
         replay.assert_finished()

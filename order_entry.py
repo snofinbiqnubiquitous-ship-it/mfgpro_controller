@@ -1411,6 +1411,36 @@ class SalesOrderAutomationController:
         curr = clean_screen_text(self.get_screen_text())
         raise TimeoutError(f"画面遷移待機タイムアウト ({to}秒): {desc}\n現在の画面表示:\n{curr}")
 
+    STABLE_QUIET = 0.4
+
+    def wait_for_stable_screen(self, predicate, quiet: float = None, timeout: float = None,
+                               poll_interval: float = 0.05, desc: str = ""):
+        """predicate を満たし、かつ quiet 秒間画面が変化しない状態まで待つ。
+
+        背景に常駐する見出し（Bill To / Sales Order Line 等）だけで条件が成立し、
+        直後に描画される警告やポップアップ（Category警告、Reason Code等）より先に
+        次のキーを送ってしまうことを防ぐ。待機中に出た警告は wait_for_screen が Space で解除する。
+        """
+        quiet = self.STABLE_QUIET if quiet is None else quiet
+        to = timeout if timeout is not None else self.default_timeout
+        start = time.monotonic()
+        last_sig = None
+        stable_since = start
+        while True:
+            remaining = to - (time.monotonic() - start)
+            if remaining <= 0:
+                curr = clean_screen_text(self.get_screen_text())
+                raise TimeoutError(f"画面安定待機タイムアウト ({to}秒): {desc}\n現在の画面表示:\n{curr}")
+            txt = self.wait_for_screen(predicate, timeout=remaining, poll_interval=poll_interval, desc=desc)
+            now = time.monotonic()
+            sig = (self._output_generation(), txt)
+            if sig != last_sig:
+                last_sig = sig
+                stable_since = now
+            elif now - stable_since >= quiet:
+                return txt
+            self._raw_sleep(poll_interval)
+
     def execute_step6(self, items: list[dict] = None):
         """Step 6.1.0 〜 Step 6.3.0: 明細登録および最終完了までの自動入力"""
         target_items = items if items is not None else self.payload.get("items", [])
@@ -1725,7 +1755,9 @@ class SalesOrderAutomationController:
                 self.sleep(0.22)
 
             # 6.2.5-Rsn: Reason Code ポップアップまたは メイン明細画面 (Sales Order Line / Ln Item Number / Create WO) の出現を待機
-            self.wait_for_screen(
+            # 【重要】Sales Order Line は背景に常駐するため、描画が落ち着くまで待ってから判定する
+            # （F4直後の一瞬で「明細一覧に復帰」と誤判定し、後から出る Reason Code 欄に次行の Enter が入るのを防ぐ）
+            self.wait_for_stable_screen(
                 lambda txt: (
                     "reason code" in txt
                     or "create wo:" in txt
@@ -1747,7 +1779,7 @@ class SalesOrderAutomationController:
                 self.sleep(0.22)
 
             # 6.1.0 メイン明細一覧 (Sales Order Line 空のLn または 次行 Create WO) への復帰待機
-            self.wait_for_screen(
+            self.wait_for_stable_screen(
                 lambda txt: ("sales order line" in txt or "ln item number" in txt or "create wo:" in txt or "rework:" in txt)
                             and "transaction comments" not in txt and "reason code" not in txt,
                 desc="6.1.0 メイン明細一覧復帰"
@@ -1861,7 +1893,8 @@ class SalesOrderAutomationController:
 
         # A2: Sold-To送信・F1確定後、警告（Category= 等）があれば wait_for_screen が自動解除しつつ、
         # Bill-To 欄がアクティブになったことを確実に待機。画面が変わらない場合はタイムアウトで安全停止。
-        self.wait_for_screen(
+        # 【重要】Bill To ラベルは常駐するため、警告の連続表示や描画が落ち着くまで待ってから値を送る
+        self.wait_for_stable_screen(
             lambda txt: ("bill to" in txt or "bill-to" in txt) and not is_space_prompt(txt),
             desc="Step 2: Sold-To 送信・F1・警告解除後の Bill-To 遷移待機"
         )
@@ -1878,7 +1911,7 @@ class SalesOrderAutomationController:
                 return False
             return "bill-to" in txt or "bill to" in txt
 
-        self.wait_for_screen(_is_bill_to_confirmed, desc="Step 2: Bill-To 確定および住所枠展開待機")
+        self.wait_for_stable_screen(_is_bill_to_confirmed, desc="Step 2: Bill-To 確定および住所枠展開待機")
         self.sleep(0.45)
 
         # 2-3: Ship-To 順次送信
@@ -1900,7 +1933,7 @@ class SalesOrderAutomationController:
             cursor_ok = (cy >= 7) if cy >= 0 else True
             return has_shipto_or_header and cursor_ok
 
-        self.wait_for_screen(
+        self.wait_for_stable_screen(
             _is_order_date_ready,
             desc="Step 2: Sold-To/Bill-To/Ship-To 確定および Order Date 着地待機"
         )
