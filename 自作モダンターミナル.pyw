@@ -2974,6 +2974,10 @@ class TerminalApp(ctk.CTk):
         """Google Chromeスタイルの角丸・幅広タブボタンを再描画（オーバーラップ配置で隙間完全ゼロ化）"""
         for w in self.tabs_container.winfo_children():
             w.destroy()
+        # 旧タブは破棄済み。配色変更を繰り返しても古いタブ画像が溜まり続けないよう上限を設ける。
+        tab_image_cache = getattr(self, "_tab_image_cache", None)
+        if tab_image_cache is not None and len(tab_image_cache) > 64:
+            tab_image_cache.clear()
 
         active_tab = self.active_tab
         term_bg = self.terminal_colors.get("terminal", "#1E293B")
@@ -5834,24 +5838,60 @@ class TerminalApp(ctk.CTk):
         if cur:
             self._update_tab_screen(cur)
 
+    _FONT_MEASURE_CACHE_LIMIT = 2048
+
+    def _font_measure_cache(self):
+        cache = getattr(self, "_font_measure_cache_data", None)
+        if cache is None or len(cache) >= self._FONT_MEASURE_CACHE_LIMIT:
+            cache = {}
+            self._font_measure_cache_data = cache
+        return cache
+
+    def _measure_font_text(self, size, text):
+        """同じフォント・サイズ・文字の幅は再計測しない（Tkフォントの生成と破棄を省く）"""
+        key = ("w", self.terminal_font_family, size, text)
+        cache = self._font_measure_cache()
+        width = cache.get(key)
+        if width is None:
+            import tkinter.font as tkfont
+            width = tkfont.Font(family=self.terminal_font_family, size=size).measure(text)
+            cache[key] = width
+        return width
+
+    def _measure_font_cell(self, size):
+        """自動フィット用の文字幅と行高を再利用する"""
+        key = ("cell", self.terminal_font_family, size)
+        cache = self._font_measure_cache()
+        cell = cache.get(key)
+        if cell is None:
+            import tkinter.font as tkfont
+            f = tkfont.Font(family=self.terminal_font_family, size=size)
+            cell = (f.measure("M"), f.metrics("linespace"))
+            cache[key] = cell
+        return cell
+
+    def _measure_widget_font(self, font_spec, text):
+        """表示中のフォントで直接計測する（一時フォントを作らない）"""
+        return int(self.tk.call("font", "measure", font_spec, text))
+
     def _align_border_line(self, line):
         """半角カナ・漢字を含む罫線行のピクセル幅を純ASCII罫線行と揃える"""
         border_right = {"┐", "┘", "│"}
         if not line or line[-1] not in border_right:
             return line, []
-        import tkinter.font as tkfont
         try:
-            f = tkfont.Font(font=self.textbox._textbox.cget("font"))
+            font_spec = self.textbox._textbox.cget("font")
+            ref_cw = self._measure_widget_font(font_spec, "M")
+            line_width = self._measure_widget_font(font_spec, line)
         except Exception:
             return line, []
-        ref_width = f.measure("M") * self.active_cols
-        line_width = f.measure(line)
+        ref_width = ref_cw * self.active_cols
         needed = ref_width - line_width
         if needed <= 0:
             return line, []
 
         is_box_line = line and line[0] in {"┌", "└"}
-        cw = f.measure("M")
+        cw = ref_cw
         if cw <= 0:
             return line, []
 
@@ -5880,7 +5920,7 @@ class TerminalApp(ctk.CTk):
                     best_sz = cur_font_size
                     best_diff = 999
                     for sz in range(max(4, cur_font_size - 14), cur_font_size):
-                        w = tkfont.Font(family=self.terminal_font_family, size=sz).measure(" ")
+                        w = self._measure_font_text(sz, " ")
                         if abs(w - target_w) < best_diff:
                             best_diff = abs(w - target_w)
                             best_sz = sz
@@ -5913,7 +5953,7 @@ class TerminalApp(ctk.CTk):
                 best_sz = cur_font_size
                 best_diff = 999
                 for sz in range(max(6, cur_font_size - 10), cur_font_size + 10):
-                    w = tkfont.Font(family=self.terminal_font_family, size=sz).measure(pad_char)
+                    w = self._measure_font_text(sz, pad_char)
                     if abs(w - tw) < best_diff:
                         best_diff = abs(w - tw)
                         best_sz = sz
@@ -5963,7 +6003,6 @@ class TerminalApp(ctk.CTk):
             if not spaces:
                 return
 
-            import tkinter.font as tkfont
             sp_idx = spaces[0]
             char_idx_str = f"1.{sp_idx}"
             cur_tags = tb.tag_names(char_idx_str)
@@ -5978,12 +6017,12 @@ class TerminalApp(ctk.CTk):
                         pass
                 tb.tag_remove(existing_tag, char_idx_str, f"1.{sp_idx + 1}")
 
-            cur_w = tkfont.Font(family=self.terminal_font_family, size=cur_sz).measure(" ")
+            cur_w = self._measure_font_text(cur_sz, " ")
             target_space_w = cur_w + diff_x
             best_sz = cur_sz
             best_d = 999
             for sz in range(max(4, self.font_size - 14), self.font_size + 10):
-                w = tkfont.Font(family=self.terminal_font_family, size=sz).measure(" ")
+                w = self._measure_font_text(sz, " ")
                 if abs(w - target_space_w) < best_d:
                     best_d = abs(w - target_space_w)
                     best_sz = sz
@@ -6628,7 +6667,6 @@ class TerminalApp(ctk.CTk):
             inner_w = pw - 12
             inner_h = ph - 12
 
-        import tkinter.font as tkfont
         target_cols = getattr(self, "active_cols", 80)
         target_rows = ROWS
 
@@ -6638,9 +6676,7 @@ class TerminalApp(ctk.CTk):
 
         # 24行が絶対に1ピクセルも切れることなくスクロールバー不要で収まる最大フォントを探索
         for size in range(36, 11, -1):
-            f = tkfont.Font(family=self.terminal_font_family, size=-size)
-            cw = f.measure("M")
-            ch = f.metrics("linespace")
+            cw, ch = self._measure_font_cell(-size)
             if cw * target_cols <= inner_w - 6 and ch * target_rows <= inner_h - 4:
                 best_size = size
                 best_cw = cw

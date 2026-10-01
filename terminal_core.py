@@ -12,6 +12,10 @@ from wcwidth import wcwidth
 
 
 ENCODING = "cp932"
+# 32prn終了マーカー。受信済み部分を毎回先頭から再検索しないよう、新着部分の直前から探す。
+PRINTER_END_ESC = b"\x1b[4i"
+PRINTER_END_RE = re.compile(rb'\nend(\r|\n)')
+PRINTER_SCAN_OVERLAP = 4  # 最長マーカー5バイト - 1
 # 設計書準拠: データ欠落・折り返し防止のためSSH通信および仮想端末は132桁を確保
 COLS, ROWS = 132, 24
 KEY_SEQUENCES = {
@@ -68,7 +72,9 @@ def extract_row_data(line, cols):
         data = c.data
         if not data:
             continue
-        is_wide_char = (len(data) > 0 and wcwidth(data[0]) == 2)
+        # 全角幅の文字はU+1100以降のみ。ASCII・罫線・半角カナ以前はwcwidth呼び出しを省く。
+        first = data[0]
+        is_wide_char = first >= "\u1100" and wcwidth(first) == 2
 
         tags = []
         # 下線付き文字（入力欄）では、余計な反転背景（背景文字化）を抑止して自然な文字＋下線表示にする
@@ -117,6 +123,9 @@ class TerminalSession:
         self.ssh = None
         self.is_capturing_printer = False
         self.printer_buffer = bytearray()
+        self._printer_scan_from = 0
+        # 受信データを画面へ反映するたびに増える通番。自動入力はこれでサーバー応答の到着を判定する。
+        self.output_generation = 0
 
     def start(self):
         threading.Thread(target=self._run, daemon=True, name="qad-ssh").start()
@@ -149,6 +158,8 @@ class TerminalSession:
     def feed(self, data, final=False):
         with self.lock:
             self.stream.feed(self.decoder.decode(data, final=final))
+            if data:
+                self.output_generation += 1
 
     def get_screen_text(self):
         """当該接続の仮想画面を取得する。GUI用の差分フラグは消費しない。"""
@@ -167,14 +178,12 @@ class TerminalSession:
             rows = self.screen.lines
 
             # 80列を超える文字が存在するか判定（通常画面なら80桁にフィットして描画幅を最大化）
+            # pyteの行は疎な辞書のため、実在するセルだけを調べる（未設定セルは空白）。
             has_wide = False
             for r in range(rows):
-                buf = self.screen.buffer[r]
-                for c in range(80, cols):
-                    if buf[c].data != " ":
-                        has_wide = True
-                        break
-                if has_wide:
+                if any(80 <= c < cols and ch.data != " "
+                       for c, ch in self.screen.buffer[r].items()):
+                    has_wide = True
                     break
 
             active_cols = cols if has_wide else 80
@@ -240,6 +249,7 @@ class TerminalSession:
                     if marker_pos != -1:
                         self.is_capturing_printer = True
                         self.printer_buffer.clear()
+                        self._printer_scan_from = 0
                         if marker_pos > 0:
                             self.feed(chunk[:marker_pos])
                         self.printer_buffer.extend(chunk[marker_pos:])
@@ -250,25 +260,32 @@ class TerminalSession:
 
                 if self.is_capturing_printer:
                     # 終了マーカーの検知 (\x1b[4i または \nend)
-                    if b"\x1b[4i" in self.printer_buffer:
-                        end_idx = self.printer_buffer.find(b"\x1b[4i") + 4
+                    # 前回までの範囲にマーカーは無いため、境界をまたぐ分だけ戻って新着部分を検索する。
+                    scan_from = self._printer_scan_from
+                    esc_pos = self.printer_buffer.find(PRINTER_END_ESC, scan_from)
+                    m = None if esc_pos != -1 else PRINTER_END_RE.search(self.printer_buffer, scan_from)
+                    if esc_pos != -1:
+                        end_idx = esc_pos + 4
                         captured = bytes(self.printer_buffer[:end_idx])
                         trailing = bytes(self.printer_buffer[end_idx:])
                         self.is_capturing_printer = False
                         self.printer_buffer.clear()
+                        self._printer_scan_from = 0
                         self.events.put((self, "32printer_data", captured))
                         if trailing:
                             self.feed(trailing)
-                    elif re.search(rb'\nend(\r|\n)', self.printer_buffer):
-                        m = re.search(rb'\nend(\r|\n)', self.printer_buffer)
+                    elif m:
                         end_idx = m.end()
                         captured = bytes(self.printer_buffer[:end_idx])
                         trailing = bytes(self.printer_buffer[end_idx:])
                         self.is_capturing_printer = False
                         self.printer_buffer.clear()
+                        self._printer_scan_from = 0
                         self.events.put((self, "32printer_data", captured))
                         if trailing:
                             self.feed(trailing)
+                    else:
+                        self._printer_scan_from = max(0, len(self.printer_buffer) - PRINTER_SCAN_OVERLAP)
         except Exception as exc:
             if not self.stop_event.is_set():
                 error = str(exc)

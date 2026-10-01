@@ -48,6 +48,11 @@ class StrictReplay:
     def get_screen_text(self):
         return self.terminal.get_screen_text()
 
+    @property
+    def output_generation(self):
+        # 本番のTerminalSessionと同じく、受信を画面へ反映した回数を返す
+        return self.terminal.output_generation
+
     def send(self, data):
         if self.stop_event.is_set():
             raise AssertionError("切断後に送信した")
@@ -70,7 +75,7 @@ class StrictReplay:
             raise AssertionError(f"必要な送信が未実施: {self.expected[0].data!r}")
 
 
-def step6_replay(early_warning=False, no_warning=False):
+def step6_replay(early_warning=False, no_warning=False, delay=0.0):
     """単一明細の合成シナリオ。実機ログをそのまま再現したものではない。"""
     f1, f4 = "\x1bOP", "\x1bOS"
     line = "Sales Order Line\nLn Item Number"
@@ -99,7 +104,9 @@ def step6_replay(early_warning=False, no_warning=False):
         pairs += [(f1, totals), (f1, done)]
     else:
         pairs += [(f1, totals), (f1, warning), (" ", done)]
-    replay = StrictReplay(line, [ExpectedSend(*pair) for pair in pairs])
+    # delay: 画面応答が届くまでの遅延。届く前に次のキーを送るとStrictReplayが失敗させる。
+    replay = StrictReplay(line, [ExpectedSend(data, response, delay if response is not None else 0.0)
+                                 for data, response in pairs])
     payload = {"items": [{"product_name": "TEST", "width": "1000", "length": "500",
                           "quantity": 1, "price": "100"}]}
     return replay, payload
