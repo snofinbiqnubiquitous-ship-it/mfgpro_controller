@@ -1463,9 +1463,11 @@ class SalesOrderAutomationController:
                 desc=f"6.1.3 Item Number 入力欄 (Line {prod['line_no']})"
             )
             self.log(f"6.1.3: 品番 '{p_name}' 送信")
-            self.send_and_settle(f"{p_name}", 0.2)
+            self.send(f"{p_name}")
+            self.sleep(0.2)
             self.log(f"6.1.3: F1 送信 (品番確定)")
-            self.send_and_settle(KEY_SEQUENCES["F1"], 0.25)
+            self.send(KEY_SEQUENCES["F1"])
+            self.sleep(0.25)
 
             # 6.1.3 Site ポップアップ入力（ハイブリッド・スマートウェイト）
             # 【重要】画面下部の固定枠 "Loc: Site: CB2" に誤爆しないよう、
@@ -1494,8 +1496,10 @@ class SalesOrderAutomationController:
 
             self.wait_for_screen(_is_site_popup_ready, desc=f"6.1.3 Site ポップアップ (品番 '{p_name}' 確定後)")
             self.log(f"6.1.3: Site '{site_val}' + F1 送信")
-            self.send_and_settle(site_val, 0.15)
-            self.send_and_settle(KEY_SEQUENCES["F1"], 0.2)
+            self.send(site_val)
+            self.sleep(0.15)
+            self.send(KEY_SEQUENCES["F1"])
+            self.sleep(0.2)
 
             # 6.1.4 Qty Ordered UM スキップ
             self.wait_for_screen(
@@ -1506,7 +1510,8 @@ class SalesOrderAutomationController:
             curr_txt = clean_screen_text(self.get_screen_text()).lower()
             if "sl run" not in curr_txt and "cum width" not in curr_txt and "total qty (m2)" not in curr_txt and "item width(mm):" not in curr_txt:
                 self.log("6.1.4: F1 送信 (Qty Ordered UM スキップ)")
-                self.send_and_settle(KEY_SEQUENCES["F1"], 0.15)
+                self.send(KEY_SEQUENCES["F1"])
+                self.sleep(0.15)
 
             # 6.1.4 No1 スリット設定画面 (SL一覧)
             self.wait_for_screen(
@@ -1523,13 +1528,17 @@ class SalesOrderAutomationController:
 
                 # F1 を押して SL 取得 ➔ Enter ➔ Enter で Run を初期値のままスキップして Len(m) 欄へ移動
                 self.log(f"  SL {sl_no}: F1 -> Enter -> Enter で Len(m) 欄へ移動")
-                self.send_and_settle(KEY_SEQUENCES["F1"], 0.15)
-                self.send_and_settle("\r", 0.12)
-                self.send_and_settle("\r", 0.15)
+                self.send(KEY_SEQUENCES["F1"])
+                self.sleep(0.15)
+                self.send("\r")
+                self.sleep(0.12)
+                self.send("\r")
+                self.sleep(0.15)
 
                 # 6.2.0 Len(m) 長さ入力 (長さ + Enter)
                 self.log(f"  6.2.0: 長さ '{len_val}' + Enter 送信")
-                self.send_and_settle(f"{len_val}\r", 0.2)
+                self.send(f"{len_val}\r")
+                self.sleep(0.2)
 
                 # 6.2.1 ロール明細ポップアップ (Ser T Rolls Width)
                 self.wait_for_screen(
@@ -1543,29 +1552,35 @@ class SalesOrderAutomationController:
                     self.log(f"    Roll {r_idx}/{len(entries)}: 本数={r_rolls}, 幅={r_width}mm")
 
                     # Ser スキップ (Enter)
-                    self.send_and_settle("\r", 0.12)
+                    self.send("\r")
+                    self.sleep(0.12)
 
                     # Rolls 入力 (本数 + Enter)
-                    self.send_and_settle(f"{r_rolls}\r", 0.12)
+                    self.send(f"{r_rolls}\r")
+                    self.sleep(0.12)
 
                     # Width 入力 (幅 + Enter)
-                    self.send_and_settle(f"{r_width}\r", 0.15)
+                    self.send(f"{r_width}\r")
+                    self.sleep(0.15)
 
                 # 当該長さのロール入力完了 -> F4 -> Please confirm update -> F1
                 self.log(f"  6.2.1: F4 送信 (長さ '{len_val}'m ロール入力完了)")
-                self.send_and_settle(KEY_SEQUENCES["F4"], 0.18)
+                self.send(KEY_SEQUENCES["F4"])
+                self.sleep(0.18)
 
                 curr_txt = clean_screen_text(self.get_screen_text()).lower()
                 if "confirm update" in curr_txt:
                     self.log("  6.2.1: F1 送信 ('yes' 確定)")
-                    self.send_and_settle(KEY_SEQUENCES["F1"], 0.18)
+                    self.send(KEY_SEQUENCES["F1"])
+                    self.sleep(0.18)
                 else:
                     self.wait_for_screen(
                         lambda txt: "please confirm update" in txt,
                         desc=f"6.2.1 Please confirm update プロンプト (SL {sl_no})"
                     )
                     self.log("  6.2.1: F1 送信 ('yes' 確定)")
-                    self.send_and_settle(KEY_SEQUENCES["F1"], 0.18)
+                    self.send(KEY_SEQUENCES["F1"])
+                    self.sleep(0.18)
 
                 # SL一覧画面へ復帰確認 (ロールポップアップを抜けてSL一覧へ戻ったことを検知)
                 self.wait_for_screen(
@@ -1575,19 +1590,22 @@ class SalesOrderAutomationController:
 
             # 当該品番の全長さ入力完了 -> SL一覧画面で F4 -> Please confirm update -> F1
             self.log(f"6.1.4: F4 送信 (品番 '{p_name}' 全スリット設定完了)")
-            self.send_and_settle(KEY_SEQUENCES["F4"], 0.18)
+            self.send(KEY_SEQUENCES["F4"])
+            self.sleep(0.18)
 
             curr_txt = clean_screen_text(self.get_screen_text()).lower()
             if "confirm update" in curr_txt:
                 self.log("6.1.4: F1 送信 ('yes' 確定)")
-                self.send_and_settle(KEY_SEQUENCES["F1"], 0.18)
+                self.send(KEY_SEQUENCES["F1"])
+                self.sleep(0.18)
             else:
                 self.wait_for_screen(
                     lambda txt: "please confirm update" in txt,
                     desc=f"6.1.4 全明細 Please confirm update プロンプト (品番 '{p_name}')"
                 )
                 self.log("6.1.4: F1 送信 ('yes' 確定)")
-                self.send_and_settle(KEY_SEQUENCES["F1"], 0.18)
+                self.send(KEY_SEQUENCES["F1"])
+                self.sleep(0.18)
 
             # 6.2.2 ATP Enforcement WARNING / 6.2.3 Orig Order Qty / Pricing Date 画面待機
             self.wait_for_screen(
@@ -1597,7 +1615,8 @@ class SalesOrderAutomationController:
             curr_txt = clean_screen_text(self.get_screen_text()).lower()
             if "atp enforcement" in curr_txt:
                 self.log("6.2.2: ATP Enforcement WARNING 検知 -> F1 送信で承諾・スキップ")
-                self.send_and_settle(KEY_SEQUENCES["F1"], 0.18)
+                self.send(KEY_SEQUENCES["F1"])
+                self.sleep(0.18)
                 # ATPスキップ後、次画面（Orig Order Qty または Pricing Date）の出現を待機
                 self.wait_for_screen(
                     lambda txt: "orig order qty:" in txt or "pricing date:" in txt,
@@ -1607,7 +1626,8 @@ class SalesOrderAutomationController:
 
             if "orig order qty:" in curr_txt:
                 self.log("6.2.3: Orig Order Qty スキップ (F1)")
-                self.send_and_settle(KEY_SEQUENCES["F1"], 0.18)
+                self.send(KEY_SEQUENCES["F1"])
+                self.sleep(0.18)
 
             # 6.2.3 Pricing Date 画面スキップ
             self.wait_for_screen(
@@ -1615,7 +1635,8 @@ class SalesOrderAutomationController:
                 desc="6.2.3 Pricing Date 画面"
             )
             self.log("6.2.3: F1 送信 (Pricing Date スキップ)")
-            self.send_and_settle(KEY_SEQUENCES["F1"], 0.18)
+            self.send(KEY_SEQUENCES["F1"])
+            self.sleep(0.18)
 
             # 6.2.4 値段入力画面 (List Price スキップ -> Price に単価入力)
             self.wait_for_screen(
@@ -1623,11 +1644,14 @@ class SalesOrderAutomationController:
                 desc="6.2.4 値段入力画面"
             )
             self.log("6.2.4: F1 送信 (List Price スキップ)")
-            self.send_and_settle(KEY_SEQUENCES["F1"], 0.15)
+            self.send(KEY_SEQUENCES["F1"])
+            self.sleep(0.15)
 
             self.log(f"6.2.4: 単価 '{price_val}' + F1 送信 (単価確定)")
-            self.send_and_settle(f"{price_val}", 0.12)
-            self.send_and_settle(KEY_SEQUENCES["F1"], 0.22)
+            self.send(f"{price_val}")
+            self.sleep(0.12)
+            self.send(KEY_SEQUENCES["F1"])
+            self.sleep(0.22)
 
             # 6.2.4-Detail: 明細詳細枠 (Loc: / Sales Acct:) または後続画面の待機
             # 実機では単価確定後に画面中下段の詳細枠 (Desc: / Loc: / Sales Acct: 等) が展開され、
@@ -1642,7 +1666,8 @@ class SalesOrderAutomationController:
             curr_txt = clean_screen_text(self.get_screen_text()).lower()
             if ("sales acct:" in curr_txt and "disc acct:" in curr_txt) or "jpy cost:" in curr_txt or ("loc:" in curr_txt and "sales acct:" in curr_txt):
                 self.log("6.2.4: 明細詳細枠 (Loc: / Sales Acct:) 検知 -> F1 送信でスキップ")
-                self.send_and_settle(KEY_SEQUENCES["F1"], 0.18)
+                self.send(KEY_SEQUENCES["F1"])
+                self.sleep(0.18)
                 # 詳細枠が閉じる（または次画面へ遷移する）のを待機
                 self.wait_for_screen(
                     lambda txt: "tax usage:" in txt or "tax environment:" in txt or "tax class:" in txt or
@@ -1667,7 +1692,8 @@ class SalesOrderAutomationController:
             curr_txt = clean_screen_text(self.get_screen_text()).lower()
             if ("tax usage:" in curr_txt or "tax environment:" in curr_txt or "tax class:" in curr_txt) and "transaction comments" not in curr_txt:
                 self.log("6.2.5: F1 送信 (Tax スキップ)")
-                self.send_and_settle(KEY_SEQUENCES["F1"], 0.18)
+                self.send(KEY_SEQUENCES["F1"])
+                self.sleep(0.18)
 
             # 6.2.5 Transaction Comments 画面スキップ (背景の誤検知を防ぎ確実にコメントまたは理由コードを待機)
             self.wait_for_screen(
@@ -1684,7 +1710,8 @@ class SalesOrderAutomationController:
             curr_txt = clean_screen_text(self.get_screen_text()).lower()
             if "transaction comments" in curr_txt or "master reference:" in curr_txt:
                 self.log("6.2.5: F4 送信 (明細行 Transaction Comments 終了 -> Reason Code または 次画面へ)")
-                self.send_and_settle(KEY_SEQUENCES["F4"], 0.22)
+                self.send(KEY_SEQUENCES["F4"])
+                self.sleep(0.22)
 
             # 6.2.5-Rsn: Reason Code ポップアップまたは メイン明細画面 (Sales Order Line / Ln Item Number / Create WO) の出現を待機
             self.wait_for_screen(
@@ -1699,10 +1726,14 @@ class SalesOrderAutomationController:
             curr_txt = clean_screen_text(self.get_screen_text()).lower()
             if "reason code" in curr_txt:
                 self.log("6.2.5: Reason Code 検知 (65 -> 28 INTERNAL -> 28 INTERNAL + F1)")
-                self.send_and_settle("65\r", 0.12)
-                self.send_and_settle("28\r", 0.12)
-                self.send_and_settle("28\r", 0.12)
-                self.send_and_settle(KEY_SEQUENCES["F1"], 0.22)
+                self.send("65\r")
+                self.sleep(0.12)
+                self.send("28\r")
+                self.sleep(0.12)
+                self.send("28\r")
+                self.sleep(0.12)
+                self.send(KEY_SEQUENCES["F1"])
+                self.sleep(0.22)
 
             # 6.1.0 メイン明細一覧 (Sales Order Line 空のLn または 次行 Create WO) への復帰待機
             self.wait_for_screen(
@@ -1718,7 +1749,8 @@ class SalesOrderAutomationController:
         curr_txt = clean_screen_text(self.get_screen_text()).lower()
         if "create wo:" in curr_txt or "rework:" in curr_txt:
             self.log("6.3.0: 次行 Create WO 解除 (F1)")
-            self.send_and_settle(KEY_SEQUENCES["F1"], 0.15)
+            self.send(KEY_SEQUENCES["F1"])
+            self.sleep(0.15)
 
         self.log("6.3.0: F4 を送信して最終合計画面へ進みます")
         for attempt in range(6):
@@ -1727,9 +1759,11 @@ class SalesOrderAutomationController:
                 break
             if "create wo:" in curr_txt or "rework:" in curr_txt:
                 self.log("6.3.0: 次行 Create WO 解除 (F1)")
-                self.send_and_settle(KEY_SEQUENCES["F1"], 0.15)
+                self.send(KEY_SEQUENCES["F1"])
+                self.sleep(0.15)
                 continue
-            self.send_and_settle(KEY_SEQUENCES["F4"], 0.18)
+            self.send(KEY_SEQUENCES["F4"])
+            self.sleep(0.18)
 
         self.wait_for_screen(
             lambda txt: "line total:" in txt or "total tax:" in txt or "enter data or press f4" in txt,
@@ -1786,7 +1820,8 @@ class SalesOrderAutomationController:
         if not self._has_valid_order_id(curr_txt) and ("order:" in curr_txt or "sales order maintenance" in curr_txt):
             self.set_status("Step 1: Order番号自動採番中 (F1 送信)...", "working")
             self.log("Step 1: Order番号自動採番 (空欄で F1 送信)")
-            self.send_and_settle(KEY_SEQUENCES["F1"], 0.15)
+            self.send(KEY_SEQUENCES["F1"])
+            self.sleep(0.15)
             # Step 2: Order ID が採番され、Sold-To 欄へ着地したことを確実に検知
             self.wait_for_screen(
                 lambda txt: self._has_valid_order_id(txt) and "sold-to" in txt,
@@ -1805,7 +1840,8 @@ class SalesOrderAutomationController:
 
         # 2-1: Sold-To 順次送信 ＋ F1 確定
         self.log(f"Step 2: Sold-To '{c_code}' 送信")
-        self.send_and_settle(f"{c_code}\r", 0.12)
+        self.send(f"{c_code}\r")
+        self.sleep(0.12)
 
         # 実機仕様: Sold-To 入力後に F1 送信でマスタ検証を実行し、警告プロンプト (Category=... Press space bar) を出させる
         self.log("Step 2: Sold-To 確定のため F1 送信")
@@ -1822,7 +1858,8 @@ class SalesOrderAutomationController:
 
         # 2-2: Bill-To 順次送信 (Sold-Toと同値)
         self.log(f"Step 2: Bill-To '{c_code}' 送信")
-        self.send_and_settle(f"{c_code}\r", 0.18)
+        self.send(f"{c_code}\r")
+        self.sleep(0.18)
 
         # ハイブリッド・スマートウェイト: Bill-To 送信後、住所枠展開および警告プロンプト解除を確実に待機
         def _is_bill_to_confirmed(txt: str) -> bool:
@@ -1835,7 +1872,8 @@ class SalesOrderAutomationController:
 
         # 2-3: Ship-To 順次送信
         self.log(f"Step 2: Ship-To '{s_code}' 送信")
-        self.send_and_settle(f"{s_code}\r", 0.18)
+        self.send(f"{s_code}\r")
+        self.sleep(0.18)
 
         # 2-4: Ship-To 入力後に Order Date 着地をハイブリッド同期待ち受け
         # 画面上の固定タイトル "order:" への誤即時マッチを防止し、カーソルが下段Order Date枠に着地したことを確認
@@ -1885,7 +1923,8 @@ class SalesOrderAutomationController:
         if "tax usage:" in curr_txt or "tax environment:" in curr_txt:
             self.set_status("Step 3: Tax ポップアップスキップ中...", "working")
             self.log("Step 3: F1 送信 (Tax スキップ)")
-            self.send_and_settle(KEY_SEQUENCES["F1"], 0.25)
+            self.send(KEY_SEQUENCES["F1"])
+            self.sleep(0.25)
 
         # Step 4: Salesperson / Freight 画面
         self.wait_for_screen(
@@ -1896,7 +1935,8 @@ class SalesOrderAutomationController:
         if "salesperson 1:" in curr_txt or "freight list:" in curr_txt:
             self.set_status("Step 4: Salesperson / Freight 画面スキップ中...", "working")
             self.log("Step 4: F1 送信 (Salesperson スキップ)")
-            self.send_and_settle(KEY_SEQUENCES["F1"], 0.25)
+            self.send(KEY_SEQUENCES["F1"])
+            self.sleep(0.25)
 
         # Step 5: 特記事項 (Transaction Comments / 案C: 既定コメント全クリア置換)
         self.wait_for_screen(
@@ -1909,17 +1949,20 @@ class SalesOrderAutomationController:
             if so_comm:
                 self.set_status("Step 5: 特記事項入力中 (案C: 全クリア置換)...", "working")
                 self.log("Step 5: F1 送信 (コメント本文エディタへ移動)")
-                self.send_and_settle(KEY_SEQUENCES["F1"], 0.15)
+                self.send(KEY_SEQUENCES["F1"])
+                self.sleep(0.15)
 
                 # 案C: 得意先マスター等の既定コメントを全クリア
                 self.log("Step 5: 案C実行 - 既定コメントの全クリア (F8: Clear送信)")
-                self.send_and_settle(KEY_SEQUENCES.get("F8", "\x1b[19"), 0.12)
+                self.send(KEY_SEQUENCES.get("F8", "\x1b[19"))
+                self.sleep(0.12)
 
                 # クリア確認ダイアログ（プロンプト）が出現した場合は応答
                 check_txt = clean_screen_text(self.get_screen_text()).lower()
                 if "clear" in check_txt and any(p in check_txt for p in ("y/n", "yes/no", "confirm", "?")):
                     self.log("Step 5: クリア確認プロンプト検知 -> 'yes' 送信")
-                    self.send_and_settle("y\r", 0.12)
+                    self.send("y\r")
+                    self.sleep(0.12)
 
                 # 万一画面に既定テキストが残っている場合の補完クリア (Ctrl-Z)
                 post_clear_txt = clean_screen_text(self.get_screen_text())
@@ -1929,15 +1972,17 @@ class SalesOrderAutomationController:
                 ]
                 if editor_lines:
                     self.log("Step 5: Ctrl-Z (^z) 送信によるクリア補完")
-                    self.send_and_settle("\x1a", 0.12)
+                    self.send("\x1a")
+                    self.sleep(0.12)
 
                 # 新規コメント本文の入力
                 self.log(f"Step 5: 新規特記事項本文入力 (全 {len(so_comm.splitlines())} 行)")
                 for c_line in so_comm.splitlines():
-                    self.send_and_settle(f"{c_line}\r", 0.08)
+                    self.send(f"{c_line}\r")
+                    self.sleep(0.08)
 
                 self.log("Step 5: F1 送信 (コメント本文確定)")
-                self.send_and_settle(KEY_SEQUENCES["F1"], 0)
+                self.send(KEY_SEQUENCES["F1"])
 
                 # 'Print On Quote:' ポップアップの出現を最大 2.0 秒待機
                 quote_appeared = False
@@ -1952,7 +1997,8 @@ class SalesOrderAutomationController:
 
                 if quote_appeared:
                     self.log("Step 5: 'Print On Quote:' 検知 -> F1 送信で確定")
-                    self.send_and_settle(KEY_SEQUENCES["F1"], 0.15)
+                    self.send(KEY_SEQUENCES["F1"])
+                    self.sleep(0.15)
 
                 self.log("Step 5: F4 送信 (明細画面へ進む)")
                 self.send_and_settle(KEY_SEQUENCES["F4"], 0.5, critical=True)

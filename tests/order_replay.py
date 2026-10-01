@@ -75,7 +75,7 @@ class StrictReplay:
             raise AssertionError(f"必要な送信が未実施: {self.expected[0].data!r}")
 
 
-def step6_replay(early_warning=False, no_warning=False, delay=0.0):
+def step6_replay(early_warning=False, no_warning=False, delay=0.0, delayed=None):
     """単一明細の合成シナリオ。実機ログをそのまま再現したものではない。"""
     f1, f4 = "\x1bOP", "\x1bOS"
     line = "Sales Order Line\nLn Item Number"
@@ -105,8 +105,13 @@ def step6_replay(early_warning=False, no_warning=False, delay=0.0):
     else:
         pairs += [(f1, totals), (f1, warning), (" ", done)]
     # delay: 画面応答が届くまでの遅延。届く前に次のキーを送るとStrictReplayが失敗させる。
-    replay = StrictReplay(line, [ExpectedSend(data, response, delay if response is not None else 0.0)
-                                 for data, response in pairs])
+    # delayed: 遅延させる送信の番号（負数は末尾から）。None なら全送信を遅延させる。
+    targets = None if delayed is None else {i % len(pairs) for i in delayed}
+    replay = StrictReplay(line, [
+        ExpectedSend(data, response,
+                     delay if response is not None and (targets is None or index in targets) else 0.0)
+        for index, (data, response) in enumerate(pairs)
+    ])
     payload = {"items": [{"product_name": "TEST", "width": "1000", "length": "500",
                           "quantity": 1, "price": "100"}]}
     return replay, payload

@@ -76,9 +76,10 @@ class ReplayTests(unittest.TestCase):
         replay.send("b")
         replay.assert_finished()
 
-    def test_slow_server_responses_are_awaited_before_next_key(self):
-        # 旧実装の固定待機(0.12〜0.25秒)を超える0.7秒の応答遅延でも、応答前に次のキーを送らない
-        replay, payload = step6_replay(delay=0.7)
+    def test_slow_server_responses_are_awaited_at_known_slow_points(self):
+        # 遅延実績のある箇所（Ln採番Enter・Create WO解除F1・最終確定F1）は、
+        # 固定待機を超える0.7秒の応答遅延でも応答前に次のキーを送らない
+        replay, payload = step6_replay(delay=0.7, delayed=(0, 1, -3, -2))
         controller = SalesOrderAutomationController(replay, replay.get_screen_text, payload,
                                                      sleep_func=replay.sleep)
         with patch("order_entry.time.monotonic", side_effect=lambda: replay.now):
