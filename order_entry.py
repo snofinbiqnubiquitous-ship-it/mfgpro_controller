@@ -612,7 +612,15 @@ class HighlightComboBox(ctk.CTkComboBox):
             self.on_change(self.get())
 
 
-ProductComboBox = HighlightComboBox
+class ProductComboBox(HighlightComboBox):
+    """Show the lightweight search popup from the arrow as well as the entry."""
+
+    def _open_dropdown_menu(self):
+        autocomplete = getattr(self, "product_autocomplete", None)
+        if autocomplete is not None:
+            autocomplete.show_click_candidates()
+            return
+        super()._open_dropdown_menu()
 
 
 def to_katakana(text):
@@ -707,9 +715,17 @@ class AutocompletePopup:
 
     def _on_entry_click(self, event=None):
         if not self.is_open():
-            candidates = list(self.all_candidates) if self.all_candidates else []
-            if candidates:
-                self._show_popup(candidates)
+            self.show_click_candidates()
+
+    def show_click_candidates(self):
+        if not self.all_candidates:
+            return
+        current = self.entry.get().strip()
+        # Display a bounded first page immediately. Typing still searches all items.
+        candidates = self.all_candidates[:10]
+        if current and current in self.all_candidates and current not in candidates:
+            candidates = [current, *candidates[:9]]
+        self._show_popup(candidates)
 
     def set_candidates(self, candidates):
         self.all_candidates = [str(c).strip() for c in candidates if str(c).strip()]
@@ -791,7 +807,8 @@ class AutocompletePopup:
             self._selected_index = -1
             self.listbox.selection_clear(0, "end")
 
-        self.parent_widget.update_idletasks()
+        if self.parent_widget.winfo_width() <= 1:
+            self.parent_widget.update_idletasks()
         rx = self.parent_widget.winfo_rootx()
         ry = self.parent_widget.winfo_rooty() + self.parent_widget.winfo_height() + 2
         rw = max(self.parent_widget.winfo_width(), 260)
@@ -861,9 +878,8 @@ class AutocompletePopup:
                 self.select_value(self.filtered_candidates[0])
                 return "break"
         else:
-            candidates = list(self.all_candidates) if self.all_candidates else []
-            if candidates:
-                self._show_popup(candidates)
+            if self.all_candidates:
+                self.show_click_candidates()
                 return "break"
         return None
 
@@ -2653,6 +2669,7 @@ class OrderEntryPanel(ctk.CTkFrame):
                         on_select=lambda val, r=row: self._on_product_selected(r, val),
                     )
                     ac.set_candidates(item_keys)
+                    field.product_autocomplete = ac
                     self.product_autocompletes.append(ac)
 
                     field._entry.bind("<KeyRelease>", lambda event, r=row: self._on_product_entry_changed(r), add="+")

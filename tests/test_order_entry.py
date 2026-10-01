@@ -2,11 +2,34 @@ import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 from order_entry import (
-    DateField, DoubleControlTap, OrderValidationError, collect_order, format_order_date,
+    AutocompletePopup, ProductComboBox, DateField, DoubleControlTap, OrderValidationError, collect_order, format_order_date,
     read_choice_csv, normalize_shortcut, shortcut_from_key_event, parse_typed_date
 )
+
+
+class ProductPopupTests(unittest.TestCase):
+    def test_click_and_arrow_show_only_first_page(self):
+        values = [f"製品{i:05d}" for i in range(2000)]
+        popup = SimpleNamespace(
+            all_candidates=values, entry=SimpleNamespace(get=lambda: "製品01999"),
+            _show_popup=Mock(), is_open=lambda: False,
+        )
+        popup.show_click_candidates = lambda: AutocompletePopup.show_click_candidates(popup)
+        AutocompletePopup._on_entry_click(popup)
+        shown = popup._show_popup.call_args.args[0]
+        self.assertEqual(len(shown), 10)
+        self.assertEqual(shown[0], "製品01999")
+        ProductComboBox._open_dropdown_menu(SimpleNamespace(product_autocomplete=popup))
+        self.assertEqual(popup._show_popup.call_count, 2)
+
+    def test_typing_still_searches_all_products(self):
+        from order_entry import search_candidates
+        values = [f"製品{i:05d}" for i in range(2000)]
+        self.assertEqual(search_candidates("製品01999", values, limit=10)[0], "製品01999")
 
 
 class TypedDateParseTests(unittest.TestCase):
