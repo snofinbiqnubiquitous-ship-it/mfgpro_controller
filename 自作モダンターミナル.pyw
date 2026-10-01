@@ -2180,8 +2180,7 @@ class TerminalApp(ctk.CTk):
         self.shortcut_capture_entry = None
         self._shortcut_order_menu_index = None
         self.shortcut_menu = None
-        self._order_original_width = None
-        self._order_expanded_width = None
+        self.order_window = None
 
         self._build_menu()
         self._build_tab_bar()
@@ -2426,13 +2425,16 @@ class TerminalApp(ctk.CTk):
         self.bind_class(self._order_bindtag, "<FocusOut>", lambda event: self._order_control_tap.reset())
         self.bind_class(self._order_bindtag, "<ButtonPress>", lambda event: self._order_control_tap.reset())
         self.bind("<Map>", self._on_order_widget_map, add="+")
+        self.bind("<Configure>", self._on_main_window_configure, add="+")
+        self.bind("<Unmap>", self._on_main_window_unmap, add="+")
+        self.bind("<Map>", self._on_main_window_map, add="+")
         self._attach_order_bindtag(self)
 
     def _attach_order_bindtag(self, widget):
         if not hasattr(widget, "winfo_toplevel"):
             return
         top = widget.winfo_toplevel()
-        if top is not self and top is not self.shortcut_dialog:
+        if top is not self and top is not self.shortcut_dialog and top is not getattr(self, "order_window", None):
             return
         tags = widget.bindtags()
         if self._order_bindtag not in tags:
@@ -2616,66 +2618,118 @@ class TerminalApp(ctk.CTk):
             self._sync_order_panel()
         self.order_panel.fields[field].open_calendar()
 
+    ORDER_WINDOW_WIDTH = 602
+
     def _preload_order_panel(self):
         """アプリ起動時のアイドル時間に注文パネルを事前生成し、初回F2押下時の遅延を完全にゼロ化"""
         if self.order_panel is None:
             try:
-                info_path = PROJECT_ROOT / "customerInfo.txt"
-                cust_info = read_customer_info_file(info_path if info_path.is_file() else None)
-                items_data = read_item_list_file(PROJECT_ROOT)
-                self.order_panel = OrderEntryPanel(
-                    self, self.ui_colors, self.ui_font_family,
-                    on_submit=self._process_order_submission, on_close=self.toggle_order_panel,
-                    customer_info=cust_info, item_list_data=items_data,
-                )
-                self._attach_order_bindtag(self.order_panel)
-                path = self.config.get("order_choices_csv")
-                if path and Path(path).is_file():
-                    try:
-                        self.order_panel.set_customer_ship_tos(read_customer_ship_to_csv(path))
-                    except Exception:
-                        pass
-                self.order_panel.grid_remove()
+                self._create_order_panel(report_csv_error=False)
             except Exception as e:
                 log_warning(f"OrderPanel プリロード例外: {e}")
 
+    def _create_order_panel(self, report_csv_error=True):
+        """注文入力パネルを、本体の右隣に固定する専用ウィンドウ内へ生成する。
+
+        開閉は透明度と入力可否の切替だけで行い、本体ウィンドウのサイズ変更と
+        全体の再レイアウト・再描画（開閉ラグの原因）を発生させない。
+        """
+        info_path = PROJECT_ROOT / "customerInfo.txt"
+        cust_info = read_customer_info_file(info_path if info_path.is_file() else None)
+        items_data = read_item_list_file(PROJECT_ROOT)
+        window = ctk.CTkToplevel(self)
+        window.attributes("-alpha", 0.0)
+        window.overrideredirect(True)
+        window.transient(self)
+        window.configure(fg_color=self.ui_colors["background"])
+        window.bind("<Map>", self._on_order_widget_map, add="+")
+        self.order_window = window
+        self._order_window_geometry = None
+        self.order_panel = OrderEntryPanel(
+            window, self.ui_colors, self.ui_font_family,
+            on_submit=self._process_order_submission, on_close=self.toggle_order_panel,
+            customer_info=cust_info, item_list_data=items_data,
+        )
+        self.order_panel.pack(fill="both", expand=True, padx=(4, 8), pady=8)
+        self._attach_order_bindtag(window)
+        self._set_order_window_input(False)
+        self._position_order_window()
+        path = self.config.get("order_choices_csv")
+        if path and Path(path).is_file():
+            try:
+                self.order_panel.set_customer_ship_tos(read_customer_ship_to_csv(path))
+            except (OSError, UnicodeError, ValueError, csv.Error) as exc:
+                if report_csv_error:
+                    self.set_status(f"注文候補CSVを読み込めません：{exc}", "error")
+
+    def _set_order_window_input(self, enabled):
+        try:
+            self.order_window.attributes("-disabled", not enabled)
+        except (tk.TclError, AttributeError):
+            pass
+
+    def _virtual_screen_right(self):
+        try:
+            import ctypes
+            metrics = ctypes.windll.user32.GetSystemMetrics
+            return metrics(76) + metrics(78)  # SM_XVIRTUALSCREEN + SM_CXVIRTUALSCREEN
+        except Exception:
+            return self.winfo_screenwidth()
+
+    def _position_order_window(self):
+        """本体ウィンドウの右端に隣接させる。画面右端に収まらない場合は内側へ寄せる。"""
+        window = getattr(self, "order_window", None)
+        if window is None or not window.winfo_exists():
+            return
+        width = self.ORDER_WINDOW_WIDTH
+        height = max(200, self.winfo_height())
+        x = self.winfo_rootx() + self.winfo_width()
+        x = max(0, min(x, self._virtual_screen_right() - width))
+        y = self.winfo_rooty()
+        geometry = f"{width}x{height}+{x}+{y}"
+        if geometry != getattr(self, "_order_window_geometry", None):
+            self._order_window_geometry = geometry
+            window.geometry(geometry)
+
+    def _on_main_window_configure(self, event):
+        if event.widget is self and getattr(self, "order_window", None) is not None:
+            self._position_order_window()
+
+    def _on_main_window_unmap(self, event):
+        # 本体の最小化中はパネルも隠す（表示状態の指定は保持）
+        if event.widget is self and getattr(self, "order_window", None) is not None:
+            self.order_window.attributes("-alpha", 0.0)
+            self._set_order_window_input(False)
+
+    def _on_main_window_map(self, event):
+        if (event.widget is self and getattr(self, "order_window", None) is not None
+                and self.order_panel_visible.get()):
+            self._position_order_window()
+            self._set_order_window_input(True)
+            self.order_window.attributes("-alpha", 1.0)
+
     def _sync_order_panel(self):
+        if self.order_panel is None:
+            self._create_order_panel(report_csv_error=True)
+        window = self.order_window
         if self.order_panel_visible.get():
-            if self.order_panel is None:
-                info_path = PROJECT_ROOT / "customerInfo.txt"
-                cust_info = read_customer_info_file(info_path if info_path.is_file() else None)
-                items_data = read_item_list_file(PROJECT_ROOT)
-                self.order_panel = OrderEntryPanel(
-                    self, self.ui_colors, self.ui_font_family,
-                    on_submit=self._process_order_submission, on_close=self.toggle_order_panel,
-                    customer_info=cust_info, item_list_data=items_data,
-                )
-                self._attach_order_bindtag(self.order_panel)
-                path = self.config.get("order_choices_csv")
-                if path and Path(path).is_file():
-                    try:
-                        self.order_panel.set_customer_ship_tos(read_customer_ship_to_csv(path))
-                    except (OSError, UnicodeError, ValueError, csv.Error) as exc:
-                        self.set_status(f"注文候補CSVを読み込めません：{exc}", "error")
-            self.order_panel.grid(row=0, column=1, rowspan=6, padx=(4, 8), pady=8, sticky="nsew")
-            self.grid_columnconfigure(1, minsize=602)
-            if self._order_original_width is None and self.state() == "normal":
-                self._order_original_width = self.winfo_width()
-                available = self.winfo_screenwidth() - max(0, self.winfo_x()) - 20
-                width = max(self.winfo_width(), min(self.winfo_width() + 602, available))
-                self._order_expanded_width = width
-                self.geometry(f"{width}x{self.winfo_height()}")
-            self.order_panel.focus_first()
+            self._position_order_window()
+            self._set_order_window_input(True)
+            window.attributes("-alpha", 1.0)
+            window.lift()
+            target = self.order_panel._get_inner_widget(self.order_panel.fields["customer_name"])
+            try:
+                target.focus_force()
+            except tk.TclError:
+                self.order_panel.focus_first()
         else:
-            if self.order_panel is not None:
-                self.order_panel.close_popups()
-                self.order_panel.grid_remove()
-            self.grid_columnconfigure(1, minsize=0)
-            if (self._order_original_width is not None and self.state() == "normal"
-                    and self.winfo_width() == self._order_expanded_width):
-                self.geometry(f"{self._order_original_width}x{self.winfo_height()}")
-            self._order_original_width = self._order_expanded_width = None
-            self.focus_terminal()
+            self.order_panel.close_popups()
+            window.attributes("-alpha", 0.0)
+            self._set_order_window_input(False)
+            try:
+                self.textbox._textbox.focus_force()
+            except (tk.TclError, AttributeError):
+                self.focus_terminal()
 
     def import_order_choices(self, field=None):
         path = filedialog.askopenfilename(parent=self, title="顧客・納品先CSVを読み込む",
@@ -6701,6 +6755,42 @@ class TerminalApp(ctk.CTk):
             except Exception:
                 pass
             self._rerender_all()
+        self._update_min_window_size(inner_w, inner_h)
+
+    MIN_WINDOW_HEIGHT = 660
+
+    def _update_min_window_size(self, inner_w=None, inner_h=None):
+        """最小幅を画面出力に合わせる。最小の高さで決まる文字サイズの列幅と、下部バーの必要幅の大きい方。"""
+        try:
+            text = self.textbox._textbox
+            inner_w = inner_w or text.winfo_width()
+            inner_h = inner_h or text.winfo_height()
+            if inner_w <= 100 or inner_h <= 100 or self.state() != "normal":
+                return
+            chrome_w = self.winfo_width() - inner_w
+            chrome_h = self.winfo_height() - inner_h
+            cols = getattr(self, "active_cols", 80)
+            if self.auto_fit:
+                # 自動フィットと同じ規則で、最小の高さのときに選ばれる文字サイズを求める
+                available_h = self.MIN_WINDOW_HEIGHT - chrome_h
+                cw = self._measure_font_cell(-12)[0]
+                for size in range(36, 11, -1):
+                    cell_w, cell_h = self._measure_font_cell(-size)
+                    if cell_h * ROWS <= available_h - 4:
+                        cw = cell_w
+                        break
+            else:
+                cw = self._measure_font_text(self.font_size, "M")
+            needed = cw * cols + 6 + chrome_w
+            for widget in self.grid_slaves(column=0):
+                needed = max(needed, widget.winfo_reqwidth() + self.winfo_width() - widget.winfo_width())
+            # 現在より広い最小幅は強制しない（132桁表示へ切り替えた時にウィンドウを勝手に広げない）
+            min_w = max(400, min(int(needed), self.winfo_width()))
+            if getattr(self, "_min_window_width", None) != min_w:
+                self._min_window_width = min_w
+                self.minsize(min_w, self.MIN_WINDOW_HEIGHT)
+        except (tk.TclError, AttributeError):
+            pass
 
     def toggle_auto_fit(self):
         self.auto_fit = self.auto_fit_var.get()
@@ -6718,6 +6808,7 @@ class TerminalApp(ctk.CTk):
         except Exception:
             pass
         self._rerender_all()
+        self.after_idle(self._update_min_window_size)
 
     def disconnect_server(self):
         cur = self.active_tab

@@ -5,8 +5,19 @@ import unittest
 
 from order_entry import (
     DateField, DoubleControlTap, OrderValidationError, collect_order, format_order_date,
-    read_choice_csv, normalize_shortcut, shortcut_from_key_event
+    read_choice_csv, normalize_shortcut, shortcut_from_key_event, parse_typed_date
 )
+
+
+class TypedDateParseTests(unittest.TestCase):
+    def test_accepts_supported_formats(self):
+        for text in ("2026/12/05", "2026/12/5", "2026-12-05", "20261205", "２０２６／１２／０５", "2026/12/5 (土)"):
+            self.assertEqual(parse_typed_date(text), date(2026, 12, 5), text)
+
+    def test_rejects_invalid_dates(self):
+        for text in ("", "2026/13/01", "2026/02/30", "12/05/2026", "2026/12"):
+            with self.assertRaises(ValueError, msg=text):
+                parse_typed_date(text)
 
 
 class OrderDataTests(unittest.TestCase):
@@ -167,6 +178,15 @@ class OrderNavigationTests(unittest.TestCase):
     def tearDown(self):
         self.root.destroy()
 
+    def test_right_arrow_on_ship_to_moves_to_required_date(self):
+        panel = self.panel
+        ship_inner = panel._get_inner_widget(panel.fields["ship_to"])
+        ship_inner.focus_force()
+        self.root.update()
+        ship_inner.event_generate("<Right>")
+        self.root.update()
+        self.assertIs(self.root.focus_get(), panel._get_inner_widget(panel.fields["required_date"]))
+
     def test_arrow_key_spatial_navigation(self):
         panel = self.panel
         root = self.root
@@ -258,6 +278,52 @@ class DateFieldKeyboardNavTests(unittest.TestCase):
     def tearDown(self):
         self.df.close_calendar()
         self.root.destroy()
+
+    def test_typing_digit_opens_popup_and_accepts_direct_date(self):
+        df, root = self.df, self.root
+        df.set_date(date(2026, 9, 24))
+        df.entry._entry.focus_force()
+        root.update()
+        df.entry._entry.event_generate("<KeyPress-2>")
+        root.update()
+        root.after(50)
+        for _ in range(5):
+            root.update()
+        self.assertTrue(df._is_calendar_open())
+        typed = df.input_entry._entry
+        self.assertEqual(typed.get(), "2")
+        typed.insert("end", "026/12/05")
+        typed.focus_force()
+        root.update()
+        typed.event_generate("<Return>")
+        root.update()
+        self.assertFalse(df._is_calendar_open())
+        self.assertEqual(df.value, date(2026, 12, 5))
+        self.assertEqual(df.variable.get(), "2026/12/5 (土)")
+
+    def test_invalid_direct_date_keeps_popup_open(self):
+        df, root = self.df, self.root
+        df.set_date(date(2026, 9, 24))
+        df.open_calendar()
+        root.update()
+        df._start_typing("2026/02/30")
+        df.input_entry._entry.focus_force()
+        root.update()
+        df.input_entry._entry.event_generate("<Return>")
+        root.update()
+        self.assertTrue(df._is_calendar_open())
+        self.assertEqual(df.value, date(2026, 9, 24))
+
+    def test_calendar_cursor_move_updates_direct_input(self):
+        df, root = self.df, self.root
+        df.set_date(date(2026, 9, 24))
+        df.open_calendar()
+        for _ in range(5):
+            root.update()
+        df._move_cursor_date(1)
+        root.update()
+        self.assertEqual(df.cursor_date, date(2026, 9, 25))
+        self.assertEqual(df.input_var.get(), "2026/09/25")
 
     def test_calendar_cursor_key_navigation_and_confirm(self):
         df = self.df

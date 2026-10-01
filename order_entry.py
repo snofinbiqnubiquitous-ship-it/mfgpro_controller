@@ -927,6 +927,17 @@ def format_order_date(value):
     return f"{value.year}/{value.month}/{value.day} ({WEEKDAYS[value.weekday()]})"
 
 
+def parse_typed_date(text):
+    """直接入力の日付 (yyyy/mm/dd, yyyy/m/d, yyyy-mm-dd, yyyymmdd。全角・曜日付きも可) を date にする。"""
+    value = unicodedata.normalize("NFKC", str(text)).strip()
+    value = re.sub(r"\s*\(.*\)\s*$", "", value)
+    match = (re.fullmatch(r"(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})", value)
+             or re.fullmatch(r"(\d{4})(\d{2})(\d{2})", value))
+    if not match:
+        raise ValueError(f"日付の形式が正しくありません: {text}")
+    return date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+
+
 class OrderValidationError(ValueError):
     def __init__(self, field, message):
         self.field = field
@@ -2089,6 +2100,7 @@ class DateField(ctk.CTkFrame):
         self._month_label = None
         self._cell_buttons = []
         self._date_to_button = {}
+        self.input_entry = None
         self.grid_columnconfigure(0, weight=1)
         self.entry = ctk.CTkEntry(
             self, textvariable=self.variable, state="readonly", height=34, width=140,
@@ -2100,6 +2112,8 @@ class DateField(ctk.CTkFrame):
         self.entry.bind("<Return>", lambda event: self._on_entry_confirm_or_open())
         self.entry.bind("<KP_Enter>", lambda event: self._on_entry_confirm_or_open())
         self.entry.bind("<space>", lambda event: self._on_entry_confirm_or_open())
+        # 日付欄で数字を打ち始めたら、ポップアップを開いて直接入力欄へ引き継ぐ
+        self.entry._entry.bind("<KeyPress>", self._on_entry_typed, add="+")
         for key, step in (("<Left>", -1), ("<Right>", 1), ("<Up>", -7), ("<Down>", 7)):
             self.entry._entry.bind(key, lambda event, s=step: self._on_entry_arrow(s), add="+")
         self.button = tk.Button(
@@ -2111,6 +2125,12 @@ class DateField(ctk.CTkFrame):
 
     def _is_calendar_open(self):
         return self.popup is not None and self.popup.winfo_exists()
+
+    def _on_entry_typed(self, event):
+        if event.char and event.char.isdigit() and not (event.state & 0x4):
+            self.open_calendar(initial_text=event.char)
+            return "break"
+        return None
 
     def _on_entry_confirm_or_open(self):
         if self._is_calendar_open():
@@ -2140,10 +2160,13 @@ class DateField(ctk.CTkFrame):
         self._month_label = None
         self._cell_buttons = []
         self._date_to_button = {}
+        self.input_entry = None
 
-    def open_calendar(self):
+    def open_calendar(self, initial_text=None):
         if self.popup is not None and self.popup.winfo_exists():
             self.popup.lift()
+            if initial_text:
+                self._start_typing(initial_text)
             return "break"
         self.cursor_date = self.value
         self.month = self.value.replace(day=1)
@@ -2155,8 +2178,9 @@ class DateField(ctk.CTkFrame):
         self.popup.protocol("WM_DELETE_WINDOW", self.close_calendar)
         self.popup.bind("<Escape>", lambda event: self.close_calendar())
         self._bind_calendar_keys(self.popup)
+        self._build_date_input()
         self.calendar_body = ctk.CTkFrame(self.popup, fg_color="transparent")
-        self.calendar_body.pack(padx=12, pady=12, fill="both", expand=True)
+        self.calendar_body.pack(padx=12, pady=(8, 12), fill="both", expand=True)
         self._bind_calendar_keys(self.calendar_body)
         self._build_calendar_widgets()
         self._draw_month()
@@ -2167,8 +2191,69 @@ class DateField(ctk.CTkFrame):
         if y + height > self.winfo_screenheight() - 48:
             y = max(0, self.winfo_rooty() - height - 4)
         self.popup.geometry(f"+{x}+{y}")
-        self.popup.after(10, self._focus_calendar)
+        if initial_text:
+            self.popup.after(10, lambda: self._start_typing(initial_text))
+        else:
+            self.popup.after(10, self._focus_calendar)
         return "break"
+
+    def _build_date_input(self):
+        """yyyy/mm/dd の直接入力欄。Enterで確定、↓でカレンダーへ移動。"""
+        self.input_var = tk.StringVar(self.popup, value=self.value.strftime("%Y/%m/%d"))
+        self.input_entry = ctk.CTkEntry(
+            self.popup, textvariable=self.input_var, height=32, font=(self.font_family, 13),
+            fg_color="#FFFFFF", text_color=self.colors["text"],
+            border_color=self.colors["border"], corner_radius=7,
+        )
+        self.input_entry.pack(padx=12, pady=(12, 0), fill="x")
+        inner = self.input_entry._entry
+        # カレンダー用のキー割当（ポップアップ全体のバインド）を入力欄では無効にする
+        inner.bindtags(tuple(tag for tag in inner.bindtags() if tag != str(self.popup)))
+        inner.bind("<Return>", lambda event: self._apply_typed_date())
+        inner.bind("<KP_Enter>", lambda event: self._apply_typed_date())
+        inner.bind("<Escape>", lambda event: (self.close_calendar(), "break")[1])
+        inner.bind("<Down>", lambda event: (self._focus_calendar(), "break")[1])
+        inner.bind("<KeyRelease>", lambda event: self._set_input_error(False), add="+")
+        self.popup.bind("<KeyPress>", self._on_popup_typed, add="+")
+
+    def _on_popup_typed(self, event):
+        # カレンダー操作中に数字を打つと、入力欄へ移って新しく入力を始める
+        if self.input_entry is None or event.widget is self.input_entry._entry:
+            return None
+        if event.char and event.char.isdigit() and not (event.state & 0x4):
+            self._start_typing(event.char)
+            return "break"
+        return None
+
+    def _start_typing(self, text):
+        if self.input_entry is None or not self.input_entry.winfo_exists():
+            return
+        inner = self.input_entry._entry
+        inner.delete(0, "end")
+        inner.insert(0, text)
+        inner.focus_set()
+        inner.icursor("end")
+
+    def _set_input_error(self, error):
+        if self.input_entry is not None and self.input_entry.winfo_exists():
+            color = self.colors.get("danger", "#DC2626") if error else self.colors["border"]
+            self.input_entry.configure(border_color=color)
+
+    def _apply_typed_date(self):
+        try:
+            value = parse_typed_date(self.input_var.get())
+        except ValueError:
+            self._set_input_error(True)
+            return "break"
+        self.set_date(value)
+        return "break"
+
+    def _sync_input_text(self):
+        if self.input_entry is None or not self.input_entry.winfo_exists():
+            return
+        if self.popup.focus_get() is not self.input_entry._entry:
+            self.input_var.set(self.cursor_date.strftime("%Y/%m/%d"))
+            self._set_input_error(False)
 
     def _build_calendar_widgets(self):
         prev_btn = tk.Button(
@@ -2272,6 +2357,7 @@ class DateField(ctk.CTkFrame):
                 if new_btn:
                     self._style_day_button(new_btn, True)
                     self._selected_button = new_btn
+            self._sync_input_text()
             self._focus_calendar()
         return "break"
 
@@ -2338,6 +2424,7 @@ class DateField(ctk.CTkFrame):
                         fg=self.colors["panel"],
                         activebackground=self.colors["panel"],
                     )
+        self._sync_input_text()
 
 
 class OrderEntryPanel(ctk.CTkFrame):
@@ -2760,7 +2847,14 @@ class OrderEntryPanel(ctk.CTkFrame):
                 if widget.index("insert") != widget.index("end-1c"):
                     return None
 
-        nearest = self._find_nearest_nav_field(widget, direction)
+        # 納品先で → を押したら Required date へ移動する（画面配置上の最寄り判定より優先）
+        if direction == "Right" and widget is self._get_inner_widget(self.fields["ship_to"]):
+            if getattr(self, "ship_to_autocomplete", None) is not None:
+                self.ship_to_autocomplete.close()
+            req_field = self.fields["required_date"]
+            nearest = {"field": req_field, "inner": self._get_inner_widget(req_field)}
+        else:
+            nearest = self._find_nearest_nav_field(widget, direction)
         if not nearest:
             return "break" if direction in ("Up", "Down") and isinstance(widget, tk.Entry) else None
 
