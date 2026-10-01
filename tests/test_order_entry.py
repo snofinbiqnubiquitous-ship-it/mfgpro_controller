@@ -1,5 +1,5 @@
 import tempfile
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 import unittest
 
@@ -550,8 +550,11 @@ class CustomerInfoAndAddressTests(unittest.TestCase):
         p = submitted_payloads[0]
         self.assertEqual(p["customer_code"], "20000600")
         self.assertEqual(p["ship_to_code"], "20000601")
-        self.assertEqual(p["required_date"], "2026-10-01")
-        self.assertEqual(p["due_date"], "2026-09-30")
+        today = date.today()
+        exp_due = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+        exp_req = (today + timedelta(days=2)).strftime("%Y-%m-%d")
+        self.assertEqual(p["required_date"], exp_req)
+        self.assertEqual(p["due_date"], exp_due)
         self.assertEqual(len(p["items"]), 2)
         self.assertEqual(p["items"][0]["product_name"], "BW0100D")
         self.assertEqual(p["items"][1]["product_name"], "BW0116Q3-2")
