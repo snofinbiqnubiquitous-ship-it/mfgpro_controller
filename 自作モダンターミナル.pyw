@@ -41,8 +41,13 @@ for _candidate in _CANDIDATES:
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-# --- デバッグログ設定 (terminal_debug.log) ---
-LOG_FILE = PROJECT_ROOT / "terminal_debug.log"
+# --- デバッグログ設定 (logs/terminal_debug.log) ---
+LOG_DIR = PROJECT_ROOT / "logs"
+try:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
+LOG_FILE = LOG_DIR / "terminal_debug.log"
 logger = logging.getLogger("ModernTerminal")
 logger.setLevel(logging.DEBUG)
 if not logger.handlers:
@@ -51,6 +56,12 @@ if not logger.handlers:
         rfh.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
         logger.addHandler(rfh)
     except Exception as _log_e:
+        pass
+    try:
+        rfh_root = RotatingFileHandler(str(PROJECT_ROOT / "terminal_debug.log"), maxBytes=5 * 1024 * 1024, backupCount=2, encoding="utf-8")
+        rfh_root.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+        logger.addHandler(rfh_root)
+    except Exception:
         pass
 
 def log_debug(msg):
@@ -2942,10 +2953,20 @@ class TerminalApp(ctk.CTk):
                 log_warning("受注入力自動化が中断されました。")
                 self.after(0, lambda: self.set_status("⚠️ 受注入力自動化が中断されました", "warning", clear_delay=5))
             except TimeoutError as te:
+                try:
+                    curr_screen = screen_reader()
+                    log_error(f"【受注入力タイムアウト時の画面ダンプ】:\n{curr_screen}")
+                except Exception:
+                    pass
                 log_error(f"受注入力自動化タイムアウト: {te}")
                 self.after(0, lambda message=str(te): self.set_status(f"❌ 画面待機タイムアウト: {message}", "error", clear_delay=8))
                 self.after(0, lambda message=str(te): self._show_input_error(f"自動入力待機タイムアウト:\n{message}"))
             except Exception as ex:
+                try:
+                    curr_screen = screen_reader()
+                    log_error(f"【受注入力エラー発生時の画面ダンプ】:\n{curr_screen}")
+                except Exception:
+                    pass
                 log_error(f"受注入力自動化エラー: {ex}", exc_info=True)
                 self.after(0, lambda message=str(ex): self.set_status(f"❌ 自動入力エラー: {message}", "error", clear_delay=8))
                 self.after(0, lambda message=str(ex): self._show_input_error(f"自動入力中にエラーが発生しました:\n{message}"))
