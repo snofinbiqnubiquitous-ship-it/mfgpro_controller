@@ -16,7 +16,7 @@ python -m venv .venv
 
 通常は`.pyw`のダブルクリックで起動できます。同じフォルダに`.venv`があれば、そのPythonへ自動的に切り替えます。起動エラーをコンソールで確認する場合は`pythonw.exe`の代わりに`python.exe`を使います。
 
-依存ライブラリはCustomTkinter（GUI）、Paramiko（SSH）、pyte（仮想端末）、Pillow、python-dateutilです。バージョン指定は[requirements.txt](requirements.txt)を参照してください。
+依存ライブラリはCustomTkinter（GUI）、Paramiko（SSH）、pyte（仮想端末）、Pillow、python-dateutil、tkcalendar、Babelです。バージョン指定は[requirements.txt](requirements.txt)を参照してください。
 
 ## システム構成
 
@@ -190,3 +190,17 @@ ${Required Date} ${納品先}着 で手配しました。
 失敗・中断した送信は完了履歴に追加しません。実際の入力処理は変更せず、完了後にデータを保存します。
 
 同じ製品が連続する行では製品名の表示幅に合わせた空白を残し、幅の開始位置を揃えます。ログ本文は等幅フォントで先頭から表示します。ショートカット・デモ注文・update・カラーパレットは「ツール」メニュー内にあります。
+
+
+### Due Date / Required Date の共通ピッカー
+
+F2サイドバーのどちらの日付欄からも同じピッカーが開きます。上部のDue Date / Required Dateで編集対象を切り替え、カレンダーで選択すると次の項目へ移ります。両端は濃い色、区間は淡い色で表示します。前後関係を変えてもDue DateとRequired Dateの項目を入れ替えません。
+両方とも `yyyy/mm/dd` の直接入力が可能で、Enterで入力を反映します。「決定」で2項目をまとめて適用し、キャンセル・Esc・パネルを閉じる操作では未確定の変更を破棄します。矢印キーで日を移動し、Page Up / Page Downで月を移動できます。
+
+追加ライブラリを取得するため、更新後に一度実行してください。
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+`tkcalendar==1.6.1`を使用し、CustomTkinterで操作部を整えています。範囲の色付けは表示中の最大42日だけを対象にするため、長い区間でも全日付を生成しません。

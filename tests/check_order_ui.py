@@ -78,9 +78,10 @@ def main():
                 date_field = panel.fields["required_date"]
                 date_field.open_calendar()
                 pump(app)
-                date_field.month = date(2026, 12, 1)
-                date_field._move_month(1)
-                assert date_field.month == date(2027, 1, 1)
+                date_picker = panel.date_range_picker
+                date_picker.calendar.see(date(2026, 12, 1))
+                date_picker.move_month(1)
+                assert date_picker.calendar.get_displayed_month() == (1, 2027)
                 date_field.set_date(date(2026, 9, 24))
                 panel.fields["due_date"].set_date(date(2026, 10, 1))
                 assert date_field.variable.get() == "2026/9/24 (木)"

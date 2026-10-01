@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 REGRESSION = [
-    "tests.test_order_history", "tests.test_header_readiness", "tests.test_order_consistency", "tests.test_order_replay", "tests.test_order_result_comparison",
+    "tests.test_order_date_picker", "tests.test_order_history", "tests.test_header_readiness", "tests.test_order_consistency", "tests.test_order_replay", "tests.test_order_result_comparison",
     "tests.test_order_entry.OrderDataTests", "tests.test_order_entry.ControlTapTests",
     "tests.test_order_entry.ShortcutModifierTests",
     "tests.test_step6_order_automation.Step6GroupingTests",

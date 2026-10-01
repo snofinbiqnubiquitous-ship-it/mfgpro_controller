@@ -16,6 +16,7 @@ from tkinter import messagebox
 import unicodedata
 
 import customtkinter as ctk
+from order_date_picker import OrderDateRangePicker
 
 try:
     from terminal_core import KEY_SEQUENCES
@@ -2302,11 +2303,17 @@ class DateField(ctk.CTkFrame):
         return None
 
     def _on_entry_confirm_or_open(self):
+        picker = getattr(self, "range_picker", None)
+        if picker is not None and picker.is_open():
+            return picker.commit()
         if self._is_calendar_open():
             return self._confirm_date()
         return self.open_calendar()
 
     def _on_entry_arrow(self, step):
+        picker = getattr(self, "range_picker", None)
+        if picker is not None and picker.is_open():
+            return picker.move_cursor(step)
         if self._is_calendar_open():
             return self._move_cursor_date(step)
         return None
@@ -2322,6 +2329,10 @@ class DateField(ctk.CTkFrame):
         self.entry.focus_set()
 
     def close_calendar(self):
+        picker = getattr(self, "range_picker", None)
+        if picker is not None:
+            picker.close()
+            return
         if self.popup is not None and self.popup.winfo_exists():
             self.popup.destroy()
         self.popup = None
@@ -2332,6 +2343,9 @@ class DateField(ctk.CTkFrame):
         self.input_entry = None
 
     def open_calendar(self, initial_text=None):
+        picker = getattr(self, "range_picker", None)
+        if picker is not None:
+            return picker.open(self, initial_text)
         if self.popup is not None and self.popup.winfo_exists():
             self.popup.lift()
             if initial_text:
@@ -2714,6 +2728,8 @@ class OrderEntryPanel(ctk.CTkFrame):
         due_field = DateField(self.body, colors, font_family)
         due_field.grid(row=5, column=1, padx=4, pady=(0, 10), sticky="ew")
         self.fields["due_date"] = due_field
+        self.date_range_picker = OrderDateRangePicker(
+            due_field, req_field, colors, font_family, parse_typed_date, format_order_date)
         self._label(self.body, "Purchase Order", 6, 0, 2)
         self.fields["purchase_order"] = self._entry(self.body)
         self.fields["purchase_order"].grid(row=7, column=0, columnspan=2, padx=4, pady=(0, 10), sticky="ew")
