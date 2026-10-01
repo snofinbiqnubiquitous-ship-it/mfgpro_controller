@@ -1852,7 +1852,7 @@ class SalesOrderAutomationController:
         # 2-1: Sold-To 順次送信 ＋ F1 確定
         self.log(f"Step 2: Sold-To '{c_code}' 送信")
         self.send(f"{c_code}\r")
-        self.sleep(0.12)
+        self.sleep(0.2)
 
         # 実機仕様: Sold-To 入力後に F1 送信でマスタ検証を実行し、警告プロンプト (Category=... Press space bar) を出させる
         self.log("Step 2: Sold-To 確定のため F1 送信")
@@ -1865,12 +1865,12 @@ class SalesOrderAutomationController:
             lambda txt: ("bill to" in txt or "bill-to" in txt) and not is_space_prompt(txt),
             desc="Step 2: Sold-To 送信・F1・警告解除後の Bill-To 遷移待機"
         )
-        self.sleep(0.2)
+        self.sleep(0.45)
 
         # 2-2: Bill-To 順次送信 (Sold-Toと同値)
         self.log(f"Step 2: Bill-To '{c_code}' 送信")
         self.send(f"{c_code}\r")
-        self.sleep(0.18)
+        self.sleep(0.4)
 
         # ハイブリッド・スマートウェイト: Bill-To 送信後、住所枠展開および警告プロンプト解除を確実に待機
         def _is_bill_to_confirmed(txt: str) -> bool:
@@ -1879,12 +1879,12 @@ class SalesOrderAutomationController:
             return "bill-to" in txt or "bill to" in txt
 
         self.wait_for_screen(_is_bill_to_confirmed, desc="Step 2: Bill-To 確定および住所枠展開待機")
-        self.sleep(0.18)
+        self.sleep(0.45)
 
         # 2-3: Ship-To 順次送信
         self.log(f"Step 2: Ship-To '{s_code}' 送信")
         self.send(f"{s_code}\r")
-        self.sleep(0.18)
+        self.sleep(0.45)
 
         # 2-4: Ship-To 入力後に Order Date 着地をハイブリッド同期待ち受け
         # 画面上の固定タイトル "order:" への誤即時マッチを防止し、カーソルが下段Order Date枠に着地したことを確認
