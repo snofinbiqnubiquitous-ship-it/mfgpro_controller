@@ -19,7 +19,7 @@ KEY_SEQUENCES = {
     "BackSpace": "\b", "Delete": "\x7f", "KP_Delete": "\x7f",
     "Tab": "\t", "Escape": "\x1b",
     "F1": "\x1bOP", "F2": "\x1bOQ", "F3": "\x1bOR", "F4": "\x1bOS",
-    "F5": "\x1b[15", "F6": "\x1b[17", "F7": "\x1b[18", "F8": "\x1b[19",
+    "F5": "\x1b[15~", "F6": "\x1b[17", "F7": "\x1b[18", "F8": "\x1b[19",
     "F9": "\x1b[20", "F10": "\x1b[21", "F11": "\x1b[23", "F12": "\x1b[24",
     "Clear": "\x1b[19",
     "Up": "\x1b[A", "Down": "\x1b[B", "Right": "\x1b[C", "Left": "\x1b[D",
@@ -31,7 +31,7 @@ KEY_SEQUENCES = {
 # ボタン名とキーの対応。QADの画面ごとに意味が違うキーは機能名を付けない。
 TOOLBAR_GROUPS = (
     ("ファンクション", (("F1  実行", "F1"), ("F2", "F2"),
-                          ("F3", "F3"), ("F4", "F4"))),
+                          ("F3", "F3"), ("F4", "F4"), ("F5", "F5"))),
     ("入力・操作", (("Enter  決定", "Return"), ("Space  次頁", "space"),
                      ("Esc", "Escape"), ("Ctrl + F", "Ctrl+F"),
                      ("Tab", "Tab"), ("Backspace", "BackSpace"))),

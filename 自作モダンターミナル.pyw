@@ -5985,13 +5985,13 @@ class TerminalApp(ctk.CTk):
                 self._show_input_error(f"ショートカット 'Ctrl+{event.keysym}' は無効化されています")
                 return "break"
 
-            # ② ファンクションキー: F1, F4 以外はすべて遮断
+            # ② ファンクションキー: F1, F4, F5 以外はすべて遮断（F5はテスト可能とする）
             if event.keysym.startswith("F") and event.keysym[1:].isdigit():
-                if event.keysym not in ("F1", "F4"):
-                    self._show_input_error(f"ファンクションキー '{event.keysym}' は無効化されています（F1 / F4 のみ有効）")
+                if event.keysym not in ("F1", "F4", "F5"):
+                    self._show_input_error(f"ファンクションキー '{event.keysym}' は無効化されています（F1 / F4 / F5 のみ有効）")
                     return "break"
 
-        # 3. 通常キー送信（英数字・記号・Enter・Space・Tab・Backspace・矢印キー・F1・F4等）
+        # 3. 通常キー送信（英数字・記号・Enter・Space・Tab・Backspace・矢印キー・F1・F4・F5等）
         if self.is_connected:
             if event.keysym == "F1":
                 if self._handle_f1_action():
@@ -6001,6 +6001,9 @@ class TerminalApp(ctk.CTk):
                     log_info("F4押下によりクエリ待機を解除しました")
                     self._is_waiting_query = False
                     self.set_status("● 接続済み (Ready)", "info")
+            elif event.keysym == "F5":
+                f5_seq = key_sequence("F5")
+                log_info(f"F5押下検知: F5キーシーケンス {repr(f5_seq)} をサーバーへ送信")
             self._send(key_sequence(event.keysym, event.char, event.state))
         return "break"
 
@@ -6593,10 +6596,10 @@ class TerminalApp(ctk.CTk):
             "・Ctrl+C: 選択範囲（または画面全体）のコピー\n"
             "・Ctrl+V: クリップボードの内容を貼り付け\n"
             "・Ctrl+A: 画面全体の文字を選択\n"
-            "・Ctrl+D: 今日の日付を mm/dd/yy 書式で直接貼り付け・入力\n"
+            "・Ctrl+D: カーソル位置の文字を削除（Deleteキー相当）\n"
             "・Ctrl+E: 画面のデータをCSV化してExcelで開く\n"
             "・Ctrl+H: HOME画面（メインメニュー）に戻る\n"
-            "・右側ツールバーおよび「キー送信」メニューから各ファンクションキー（F1〜F4）やEnter等を送信できます。\n"
+            "・右側ツールバーおよび「キー送信」メニューから各ファンクションキー（F1〜F5）やEnter等を送信できます。\n"
             "・ターミナル内のTabキーはQADに送信され、Ctrl+Shift+Tabで上部ボタンへフォーカス移動できます。",
             parent=self,
         )
