@@ -73,8 +73,15 @@ def new_run(procedure, replies, *args):
     report.receive_rows(300)
     return rec.events
 
-spec = importlib.util.spec_from_file_location('dt', ROOT / 'addons' / 'data_transmission.py')
-dt = importlib.util.module_from_spec(spec); spec.loader.exec_module(dt)
+def load(name):
+    spec = importlib.util.spec_from_file_location(name, ROOT / 'addons' / name)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+inventory = load('11_inventory_transmission.py')
+complaint = load('12_complaint_transmission.py')
+backlog = load('13_backlog_sales_transmission.py')
 
 def replies(after='Selection:', screen=None, prompt=True):
     r = login_replies(after, prompt)
@@ -84,14 +91,14 @@ def replies(after='Selection:', screen=None, prompt=True):
 
 cases = {
     'inventory': (old_run(['_run_inventory_gas_transmission_worker'], [replies()], ('h', 22, 'u', 'p')),
-                  new_run(dt.extract_inventory, replies())),
+                  new_run(inventory.extract, replies())),
     'complaint': (old_run(['_run_complaint_gas_transmission_worker'], [replies('Roll Japan Production', ('99.3.21.4\r', 'Item Number'))],
                           ('h', 22, 'u', 'p', 'BW0100D', '04/01/26', '10/02/26', 'N1', None)),
-                  new_run(dt.extract_complaint, replies('Roll Japan Production', ('99.3.21.4\r', 'Item Number')), 'BW0100D', '04/01/26', '10/02/26', 'N1')),
+                  new_run(complaint.extract, replies('Roll Japan Production', ('99.3.21.4\r', 'Item Number')), 'BW0100D', '04/01/26', '10/02/26', 'N1')),
     'order_backlog': (old_run(['_parallel_extract_99_7_6_20'], [replies(screen=('99.7.6.20\r', 'Sales Order'))], ('h', 22, 'u', 'p')),
-                      new_run(dt.extract_order_backlog, replies(screen=('99.7.6.20\r', 'Sales Order')))),
+                      new_run(backlog.extract_order_backlog, replies(screen=('99.7.6.20\r', 'Sales Order')))),
     'sales': (old_run(['_parallel_extract_99_7_5_11'], [replies(screen=('99.7.5.11\r', 'Invoice'))], ('h', 22, 'u', 'p')),
-              new_run(lambda s, p: dt.extract_sales(s, p, datetime.date.today().replace(day=1).strftime('%m/%d/%y'), datetime.date.today().strftime('%m/%d/%y')),
+              new_run(lambda s, p: backlog.extract_sales(s, p, datetime.date.today().replace(day=1).strftime('%m/%d/%y'), datetime.date.today().strftime('%m/%d/%y')),
                       replies(screen=('99.7.5.11\r', 'Invoice')))),
 }
 for name, (old, new) in cases.items():

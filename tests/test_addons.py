@@ -1,18 +1,22 @@
-"""Offline behaviour tests for the distributed add-ons (no SSH, no browser)."""
+"""Offline behaviour tests for the four distributed add-ons (no SSH, no browser)."""
 import importlib.util
+import threading
 import unittest
 from pathlib import Path
 
 from addon_host import AddonAPI, AddonHost, AddonRecord
+from addon_kit import GAS_BUSY
 from qad_report import KEY_CTRL_F, KEY_F1, ReportShell
 from tests.qad_fakes import FakeClient, FakeClock, FakeShell, REPORT_ROWS, login_replies, prn_stream
 from tests.test_addon_host import FakeUI
 
 ADDONS = Path(__file__).resolve().parents[1] / "addons"
+FILES = {"order_booking": "01_order_booking.py", "inventory": "11_inventory_transmission.py",
+         "complaint": "12_complaint_transmission.py", "backlog_sales": "13_backlog_sales_transmission.py"}
 
 
-def load_module(name):
-    spec = importlib.util.spec_from_file_location(f"test_addon_{name}", ADDONS / f"{name}.py")
+def load_module(key):
+    spec = importlib.util.spec_from_file_location(f"test_addon_{key}", ADDONS / FILES[key])
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -30,79 +34,85 @@ class AddonUI(FakeUI):
         self.messages.append((kind, title))
 
 
-class DataTransmissionTests(unittest.TestCase):
+class TransmissionTests(unittest.TestCase):
+    """All GAS items are registered together to check the shared busy group."""
+
     def setUp(self):
-        self.module = load_module("data_transmission")
         self.clock = FakeClock()
-        self.shells = []
-        self.replies = []
-        self.sent_to_gas = []
+        self.shells, self.replies, self.sent_to_gas = [], [], []
         self.ui = AddonUI()
         self.host = AddonHost(self.ui)
-        record = AddonRecord("data_transmission", "データ送信", ADDONS / "data_transmission.py")
-        self.module.register(AddonAPI(self.host, record), shell_factory=self.shell_factory,
-                             sender=lambda data, url, title: self.sent_to_gas.append((data, url)),
-                             clock=self.clock)
-        self.host.records.append(record)
-        self.host._finish_loading()
+        self.modules = {}
+        for key in ("inventory", "complaint", "backlog_sales"):
+            module = load_module(key)
+            record = AddonRecord(module.ADDON["id"], module.ADDON["name"], ADDONS / FILES[key])
+            module.register(AddonAPI(self.host, record), shell_factory=self.shell_factory,
+                            sender=lambda data, url, title: self.sent_to_gas.append((data, url)), clock=self.clock)
+            self.host.records.append(record)
+            self.host._attach(record)
+            self.modules[key] = module
+        self.host.refresh_all()
 
     def shell_factory(self, *login):
-        replies = self.replies.pop(0) if self.replies else {}
-        shell = FakeShell(self.clock, replies)
+        shell = FakeShell(self.clock, self.replies.pop(0) if self.replies else {})
         self.shells.append(shell)
         return ReportShell(*login, client_factory=lambda: FakeClient(shell), clock=self.clock, sleep=self.clock.sleep)
 
-    def run_action(self, key):
-        self.host.actions[f"data_transmission.{key}"][1]()
-        threads = [t for t in __import__("threading").enumerate() if t.name.startswith("addon-data_transmission")]
-        for thread in threads:
+    def wait_workers(self):
+        for thread in [t for t in threading.enumerate() if t.name.startswith("addon-")]:
             while thread.is_alive():
                 self.host.drain()
                 thread.join(0.01)
         self.host.drain()
 
+    def run_item(self, action_id):
+        self.host.actions[action_id][1]()
+        self.wait_workers()
+
     def test_inventory_keeps_key_sequence_and_forwards_rows(self):
         replies = login_replies()
         replies[KEY_CTRL_F] = [(1.0, prn_stream())]
         self.replies.append(replies)
-        self.run_action("inventory")
-        self.assertEqual(self.sent_to_gas, [(REPORT_ROWS, self.module.INVENTORY_GAS_URL)])
+        self.run_item("inventory_transmission.run")
+        self.assertEqual(self.sent_to_gas, [(REPORT_ROWS, self.modules["inventory"].GAS_URL)])
         self.assertEqual(self.shells[0].sent, ["2\r", "1\r", " ", "99.3.6.1\r", "\r" * 8 + "1fgi\r1fgi\r",
                                                KEY_F1, "32prn\r", KEY_F1, KEY_F1, KEY_CTRL_F])
         self.assertIn("転送完了", self.ui.statuses[-1][0])
-        self.assertFalse(self.host.lock(self.module.BUSY).locked())
+        self.assertFalse(self.host.lock(GAS_BUSY).locked())
         self.assertTrue(all(state == "normal" for state in self.ui.states.values()))
 
     def test_unconfirmed_main_menu_stops_before_menu_code(self):
         self.replies.append({"2\r": [(0.2, "Selection:")], "1\r": [(0.2, "Unexpected screen")]})
-        self.run_action("inventory")
+        self.run_item("inventory_transmission.run")
         self.assertEqual(self.shells[0].sent, ["2\r", "1\r"])
         self.assertEqual(self.sent_to_gas, [])
         self.assertEqual(self.ui.messages, [("error", "エラー")])
-        self.assertEqual(self.ui.statuses[-1][1], "error")
-        self.assertFalse(self.host.lock(self.module.BUSY).locked())
+        self.assertFalse(self.host.lock(GAS_BUSY).locked())
 
-    def test_second_start_is_rejected_while_busy(self):
-        self.host.lock(self.module.BUSY).acquire()
-        self.host.actions["data_transmission.inventory"][1]()
-        self.assertEqual(self.ui.messages, [("warning", "データ送信実行中")])
+    def test_one_transmission_at_a_time_across_items(self):
+        self.host.lock(GAS_BUSY).acquire()
+        self.host.refresh_all()
+        self.assertTrue(all(state == "disabled" for state in self.ui.states.values()))
+        self.host.actions["backlog_sales_transmission.run"][1]()
+        self.host.actions["complaint_transmission.run"][1]()
+        self.assertEqual(self.ui.messages, [("warning", "データ送信実行中")] * 2)
         self.assertEqual(self.shells, [])
 
-    def test_parallel_continues_after_first_report_fails(self):
+    def test_backlog_sales_continues_after_first_report_fails(self):
         self.replies.append(login_replies(prompt=False))           # 99.7.6.20 screen never appears
         sales = login_replies(prompt=False)
         sales["99.7.5.11\r"] = [(0.5, "Invoice")]
         sales[KEY_CTRL_F] = [(1.0, prn_stream())]
         self.replies.append(sales)
-        self.run_action("parallel")
+        self.run_item("backlog_sales_transmission.run")
         self.assertEqual(len(self.sent_to_gas), 1)
         payload, url = self.sent_to_gas[0]
-        self.assertEqual((payload["menu"], payload["data"], url), ("99.7.5.11", REPORT_ROWS, self.module.PARALLEL_GAS_URL))
+        self.assertEqual((payload["menu"], payload["data"], url), ("99.7.5.11", REPORT_ROWS, self.modules["backlog_sales"].GAS_URL))
         self.assertIn("一部エラー", self.ui.statuses[-1][0])
         self.assertNotIn("99.7.5.11\r", self.shells[0].sent)
 
     def test_complaint_input_is_checked_before_qad(self):
-        check = self.module.validate_complaint_input
+        check = self.modules["complaint"].validate_complaint_input
         self.assertEqual(check(" BW0100D ", "2026/04/01", "2026/10/02", ""), ("BW0100D", "04/01/26", "10/02/26", ""))
         for args in (("", "2026/04/01", "2026/10/02", ""), ("BW 01", "2026/04/01", "2026/10/02", ""),
                      ("製品", "2026/04/01", "2026/10/02", ""), ("BW0100D", "2026/02/30", "2026/10/02", ""),
@@ -112,7 +122,7 @@ class DataTransmissionTests(unittest.TestCase):
 
     def test_complaint_dialog_flow(self):
         captured = {}
-        self.module.ComplaintDialog = lambda parent, font, submit: captured.setdefault("submit", submit)
+        self.modules["complaint"].ComplaintDialog = lambda parent, font, submit: captured.setdefault("submit", submit)
 
         class Dialog:
             def __init__(self):
@@ -130,15 +140,11 @@ class DataTransmissionTests(unittest.TestCase):
         replies["99.3.21.4\r"] = [(0.5, "Item Number")]
         replies[KEY_CTRL_F] = [(1.0, prn_stream())]
         self.replies.append(replies)
-        self.host.actions["data_transmission.complaint"][1]()
+        self.host.actions["complaint_transmission.run"][1]()
         dialog = Dialog()
         captured["submit"](dialog, "BW0100D", "04/01/26", "10/02/26", "N123")
-        for thread in [t for t in __import__("threading").enumerate() if t.name.startswith("addon-data_transmission")]:
-            while thread.is_alive():
-                self.host.drain()
-                thread.join(0.01)
-        self.host.drain()
-        self.assertEqual(self.sent_to_gas, [(REPORT_ROWS, self.module.COMPLAINT_GAS_URL)])
+        self.wait_workers()
+        self.assertEqual(self.sent_to_gas, [(REPORT_ROWS, self.modules["complaint"].GAS_URL)])
         self.assertIn("BW0100D\rBW0100D\r\r\r04/01/26\r10/02/26\r1fgi\r1fgi\r\r\r\r\rN123\rN123\r" + "\r" * 11,
                       self.shells[0].sent)
         self.assertEqual(dialog.events[0], ("running", True))
@@ -185,7 +191,7 @@ class FakeTerminalApi:
 
 class OrderBookingTests(unittest.TestCase):
     def setUp(self):
-        self.module = load_module("quick_order_booking")
+        self.module = load_module("order_booking")
         self.clock = FakeClock()
 
     def run_macro(self, api):
@@ -194,8 +200,7 @@ class OrderBookingTests(unittest.TestCase):
     def test_success(self):
         api = FakeTerminalApi()
         self.run_macro(api)
-        self.assertEqual(api.sent[:2], ["\x1bOS", "99.7.6.20\r"])
-        self.assertEqual(api.sent[2], "\r" * 6 + "1fgi\r1fgi\r")
+        self.assertEqual(api.sent[:3], ["\x1bOS", "99.7.6.20\r", "\r" * 6 + "1fgi\r1fgi\r"])
         self.assertTrue(api.sent[3].startswith("\r" * 8))
         self.assertTrue(api.started)
 

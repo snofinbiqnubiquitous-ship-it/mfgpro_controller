@@ -431,15 +431,19 @@ Sold-To直後のF1の要否は現行ログだけでは確定できない。過�
 今回の確認結果: ヘッダー対象10件が通過。続いて `scripts/verify_order.py --acceptance` を1回実行し、回帰・受入79件すべて通過。実サーバー登録結果は未検証。
 
 
-## 15. 2026-10-02 クイックメニュー・データ送信のアドオン化
+## 15. 2026-10-02 クイックメニュー・データ送信の各ボタンのアドオン化
 
 ### 構成
 
-- `addon_host.py`：起動時に`addons/*.py`（`_`始まりは除外）を名前順に読み込み、`register(api)`を呼ぶ。失敗したアドオンは登録途中のボタン・アクションを取り消してエラー表示し、他は読み込む。IDは英小文字・数字・`_`、重複は拒否。
-- 表示・非表示は`config["addons_visible"][id]`。非表示はボタン非表示＋無効化（キーボードショートカットの`_invoke_shortcut_button`は無効ボタンを実行しない）、表示メニューのコマンド無効化、`run_action`拒否。バーは表示ボタンがなければ`grid_remove`。
-- `api`から本体への画面読み取り（`is_main_menu`、画面文字列、Output欄判定、接続状態）は`ui_query`でTkスレッドに渡して結果を待つ。ステータス等の更新は`call_in_ui`のキューを50msごとに処理する。背景スレッドから直接Tkを触らない（2.8）。
-- ボタンは名前付き`tk.Frame`（`addon_<id>_<button>`）に置き、ショートカット割り当て用のウィジェットパスを固定する。
-- `qad_report.py`：32prn解凍、`parse_report_to_rows`、`ReportShell`（独立SSHログイン、`wait_text`、`wait_main_menu`、`receive_32prn`）、GAS転送ページ。本体の旧`.pyw`には同名関数が2組あり、後の定義（実際に有効だったもの）を移した。前の`parse_report_to_rows`は列値を行に追加しない不具合があったが未使用だった。
+- バー（クイックメニュー・データ送信）は本体。ボタン1つ＝`addons/`の1ファイル：`01_order_booking.py`、`11_inventory_transmission.py`、`12_complaint_transmission.py`、`13_backlog_sales_transmission.py`。ファイル名順に読み込み・配置する。
+- `addon_host.py`：`addons/*.py`（`_`始まりと`_removed/`は対象外）を読み込み`register(api)`を呼ぶ。失敗時は登録途中のボタン・アクションを残さずエラー表示。IDは英小文字・数字・`_`、ID・アクションIDの重複は拒否。
+- 「ツール → アドオン」：項目ごとの表示チェック、追加（読み込み確認後に`addons/`へコピーして即時配置）、削除（ボタン破棄・アクション解除・ファイルを`addons/_removed/<名前>_<日時>.py`へ移動）、ボタン名の設定、フォルダを開く。再起動不要。
+- 非表示：`config["addons_visible"][id]`。ボタン非表示＋無効化（キーボードショートカットの`_invoke_shortcut_button`は無効ボタンを実行しない）、`run_action`拒否。表示ボタンのないバーは`grid_remove`。
+- ボタン名：`config["addon_button_names"]["<id>.<button>"]`。未設定時は旧`data_transmission_names`（`legacy_label`）→初期名の順。
+- 排他：`busy_group`。GAS送信3項目は`addon_kit.GAS_BUSY`を共有し、1つの実行中は全員無効。OrderBookingは`terminal_macro`。
+- `api`から本体の画面読み取りは`ui_query`でTkスレッドに渡して結果を待ち、更新は`call_in_ui`のキューを50msごとに処理（2.8）。
+- ボタンは名前付き`tk.Frame`（`addon_<id>_<button>`）に置き、ショートカット割り当て用のウィジェットパスを固定。
+- `qad_report.py`：32prn解凍、`parse_report_to_rows`、`ReportShell`（独立SSHログイン、`wait_text`、`wait_main_menu`、`receive_32prn`）、GAS転送ページ。旧`.pyw`の同名関数2組のうち、実際に有効だった後の定義を移した（前の`parse_report_to_rows`は列値を追加しない不具合があったが未使用）。
 
 ### キー列の不変条件
 
@@ -452,4 +456,4 @@ Sold-To直後のF1の要否は現行ログだけでは確定できない。過�
 
 ### 検証と限界
 
-`tests/test_qad_report.py`・`tests/test_addon_host.py`・`tests/test_addons.py`（偽SSH・仮想時計）と、SSHを遮断した実画面確認（`tests/check_addon_ui.py`）。実QADでの抽出・GAS転送、Complaint入力欄の実配置は未検証（VPN必須）。メインメニュー文言`Please select a function`が環境で異なる場合は停止するようになったため、初回の実機実行ログで確認すること。
+`tests/test_qad_report.py`・`tests/test_addon_host.py`・`tests/test_addons.py`（偽SSH・仮想時計）と、SSHを遮断し一時コピーのアドオンで行う実画面確認（`tests/check_addon_ui.py`：項目別の非表示、追加、削除、名前変更、排他）。実QADでの抽出・GAS転送、Complaint入力欄の実配置は未検証（VPN必須）。メインメニュー文言`Please select a function`が環境で異なる場合は停止するようになったため、初回の実機実行ログで確認すること。

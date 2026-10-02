@@ -1629,9 +1629,6 @@ class TerminalApp(ctk.CTk):
         view.add_checkbutton(label="画面サイズに自動調整 (Auto Fit)", variable=self.auto_fit_var, command=self.toggle_auto_fit)
         view.add_separator()
         view.add_command(label="🏷️ タブ表示名（エイリアス）の設定...", command=self.open_tab_alias_dialog)
-        # Add-on commands are inserted after this position when add-ons load.
-        self.view_menu = view
-        self._addon_view_menu_index = view.index("end")
         view.add_separator()
         view.add_command(label="ターミナルにフォーカス", command=self.focus_terminal)
         view.add_separator()
@@ -5286,7 +5283,7 @@ class TerminalApp(ctk.CTk):
             "・「ログイン」ボタンまたはメニュー「接続」→「ログイン / 接続」から開始します。\n"
             "・メニューバーの「ログイン情報」からホストやユーザー・パスワードを安全に登録・保存できます。\n\n"
             "【カラーパレット・テーマ】\n"
-            "・クイックメニューとデータ送信は addons フォルダのアドオンです。「ツール → アドオン」で表示・非表示を切り替えられます。\n"
+            "・クイックメニューとデータ送信の各ボタン（OrderBooking出力・在庫送信・Complaint送信・受注残＆売上送信）は addons フォルダのアドオンです。「ツール → アドオン」で表示・非表示・追加・削除ができます。\n"
             "・メニューバーの「ツール → カラーパレット」から、専用パレットウィンドウを開いてワンクリックで配色を変更できます。\n"
             "・ライト、ダーク、クラシックグリーン、アンバーの標準テンプレートや、カラーピッカーでの自由な色指定が可能です。\n\n"
             "【画面サイズ・余白調整】\n"

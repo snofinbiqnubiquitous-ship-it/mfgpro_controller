@@ -1,13 +1,12 @@
-"""Quick menu: OrderBooking report (99.7.6.20) in the active terminal tab.
+"""Quick menu item: OrderBooking report (99.7.6.20) in the active terminal tab.
 
 The key sequence is the one recorded as stable in the terminal log
-(2026-09-30). Each stage now stops when its screen cannot be confirmed instead
-of typing into an unknown screen.
+(2026-09-30). Each stage stops when its screen cannot be confirmed.
 """
 import datetime
 import time
 
-ADDON = {"id": "quick_order_booking", "name": "クイックメニュー: OrderBooking出力"}
+ADDON = {"id": "order_booking", "name": "OrderBooking出力"}
 
 KEY_F1 = "\x1bOP"
 KEY_F4 = "\x1bOS"
@@ -83,7 +82,7 @@ def register(api):
         if api.is_report_busy():
             api.set_status("❌ 現在別のレポート処理が実行中です。完了までお待ちください。", "error", clear_delay=4)
             return
-        if not api.try_acquire(BUSY):
+        if not api.begin_busy(BUSY):
             api.set_status("❌ OrderBooking 出力を実行中です。完了までお待ちください。", "error", clear_delay=4)
             return
         tab = api.active_tab()
@@ -97,10 +96,10 @@ def register(api):
                 api.log_error(f"OrderBooking 自動実行エラー: {exc}", exc_info=True)
                 api.set_status(f"❌ OrderBooking 自動実行エラー: {exc}", "error", clear_delay=8)
             finally:
-                api.release(BUSY)
+                api.end_busy(BUSY)
 
         api.run_in_background(worker, "order-booking")
 
-    api.add_button("order_booking", "⚡ OrderBooking出力 (99.7.6.20)", start, bar="quick",
-                   color="#2563EB", hover_color="#1D4ED8", requires_connection=True)
+    api.add_button("run", "⚡ OrderBooking出力 (99.7.6.20)", start, bar="quick", color="#2563EB",
+                   hover_color="#1D4ED8", requires_connection=True, busy_group=BUSY)
     api.register_action("order_booking.run", start)
