@@ -13,7 +13,11 @@ echo QAD / MFG:PRO - First-time setup
 echo.
 if not exist "requirements.txt" goto requirements_missing
 if not exist "*.pyw" goto application_missing
-for %%F in ("terminal_core.py" "order_entry.py" "order_history.py" "order_date_picker.py" "ui_fonts.py") do (
+if not exist "addons\" (
+    set "MFG_SETUP_MISSING_FILE=addons folder"
+    goto application_missing
+)
+for %%F in ("terminal_core.py" "order_entry.py" "order_history.py" "order_date_picker.py" "ui_fonts.py" "qad_report.py" "addon_host.py") do (
     if not exist "%%~F" (
         set "MFG_SETUP_MISSING_FILE=%%~F"
         goto application_missing
@@ -69,7 +73,7 @@ echo [3/4] Checking dependencies...
 if errorlevel 1 goto install_error
 
 echo [4/4] Checking application imports...
-".venv\Scripts\python.exe" -X utf8 -c "from pathlib import Path; assert Path('\u81ea\u4f5c\u30e2\u30c0\u30f3\u30bf\u30fc\u30df\u30ca\u30eb.pyw').is_file(), 'The main .pyw file is missing'; import customtkinter, paramiko, pyte, PIL, dateutil, tkcalendar, babel; import terminal_core, order_entry, order_history, order_date_picker, ui_fonts; print('Application imports: OK')"
+".venv\Scripts\python.exe" -X utf8 -c "from pathlib import Path; assert Path('\u81ea\u4f5c\u30e2\u30c0\u30f3\u30bf\u30fc\u30df\u30ca\u30eb.pyw').is_file(), 'The main .pyw file is missing'; import customtkinter, paramiko, pyte, PIL, dateutil, tkcalendar, babel; import terminal_core, order_entry, order_history, order_date_picker, ui_fonts, qad_report, addon_host; import glob, py_compile; [py_compile.compile(f, doraise=True) for f in glob.glob('addons/*.py')]; print('Application imports: OK')"
 if errorlevel 1 goto import_error
 
 echo.
