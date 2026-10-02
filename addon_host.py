@@ -20,6 +20,7 @@ BAR_DATA = "data"
 BARS = (BAR_QUICK, BAR_DATA)
 VISIBILITY_KEY = "addons_visible"
 NAMES_KEY = "addon_button_names"
+SHEET_WRITER_URL_KEY = "sheet_writer_gas_url"
 REMOVED_DIR = "_removed"
 ADDON_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,40}$")
 
@@ -567,7 +568,25 @@ class TkAddonUI:
         menu.add_cascade(label="アドオンを削除", menu=remove_menu, state="normal" if records else "disabled")
         menu.add_command(label="ボタン名の設定...", command=self.open_names,
                          state="normal" if self.host.buttons() else "disabled")
+        menu.add_command(label="シート書き込みGASのURL設定...", command=self.set_sheet_writer_url)
         menu.add_command(label="アドオンフォルダを開く", command=self.open_folder)
+
+    def set_sheet_writer_url(self):
+        """URL of the generic GAS used by add-ons that choose spreadsheetId / sheetName."""
+        import re
+        from tkinter import messagebox, simpledialog
+        current = self.config.get(SHEET_WRITER_URL_KEY, "")
+        url = simpledialog.askstring("シート書き込みGASのURL", "汎用GASウェブアプリのURL（…/exec）:",
+                                     initialvalue=current, parent=self.app)
+        if url is None:
+            return
+        url = url.strip()
+        if url and not re.match(r"^https://script\.google\.com/\S+/exec$", url):
+            messagebox.showerror("URLが正しくありません", "https://script.google.com/…/exec の形式で入力してください。", parent=self.app)
+            return
+        self.config[SHEET_WRITER_URL_KEY] = url
+        self.save_config()
+        self.app.set_status("シート書き込みGASのURLを保存しました" if url else "シート書き込みGASのURLを削除しました", "success", clear_delay=4)
 
     def install_dialog(self):
         from tkinter import filedialog, messagebox

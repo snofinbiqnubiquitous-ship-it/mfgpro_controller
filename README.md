@@ -32,7 +32,9 @@ python -m venv .venv
 | --- | --- |
 | `自作モダンターミナル.pyw` | 起動処理、設定、マルチタブGUI、接続操作、受注送信の開始、アドオンの読み込み |
 | `addon_host.py` | `addons/`の読み込み、ボタン配置、表示・非表示・追加・削除、ボタン名、送信中の排他、背景処理からの画面更新の受け渡し |
-| `addon_kit.py` | GAS送信系アドオンの共通部品（ログイン情報確認、送信中の排他、32prn受信） |
+| `addon_kit.py` | GAS送信系アドオンの共通部品（ログイン情報確認、送信中の排他、32prn受信、汎用GASへのシート書き込み） |
+| `addon_templates/sheet_report_template.py` | 汎用GASでシートへ書き込むアドオンの雛形（`addons/`には置かないため読み込まれない） |
+| `gas/sheet_writer.gs` | 汎用GAS（spreadsheetId・sheetName指定でシートを全消去して書き込む）のソース |
 | `addons/01_order_booking.py` | クイックメニュー：OrderBooking出力（99.7.6.20、表示中のタブを操作） |
 | `addons/11_inventory_transmission.py` | データ送信：在庫送信（99.3.6.1） |
 | `addons/12_complaint_transmission.py` | データ送信：Complaint送信（99.3.21.4） |
@@ -263,3 +265,15 @@ def register(api):
 - 重複していた32prn解凍・レポート解析の関数を1つにまとめました（実際に使われていた定義を移しています）。
 
 検証は、偽のSSHシェルと仮想時計による回帰テスト（`scripts/check_addon_keystrokes.py`、`tests/check_addon_ui.py`も含む）（`tests/test_qad_report.py`、`tests/test_addon_host.py`、`tests/test_addons.py`）、変更前のワーカーと新しいアドオンに同じ偽応答を与えた送信キー・固定待ちの一致確認、SSHを遮断した画面確認です。実際のQADからの抽出とGASへの転送は、VPN接続時に確認してください。
+
+
+### 汎用GASでシートへ書き込むアドオン
+
+既存の在庫送信・Complaint送信・受注残＆売上送信は、それぞれ専用のGASへ送る現在の方式のまま動きます。新しく作るアドオンは、書き込み先のスプレッドシートIDとシート名をアドオン内で指定し、汎用GAS（`gas/sheet_writer.gs`）へ送れます。汎用GASは指定シートの値をすべて消してから、抽出結果をA1から書き込みます。
+
+1. `gas/sheet_writer.gs`を新しいGASプロジェクトに貼り付け、ウェブアプリとしてデプロイします（既存のGASはそのまま）。
+2. 「ツール → アドオン → シート書き込みGASのURL設定...」に、デプロイしたURL（`…/exec`）を設定します。`terminal_config.json`の`sheet_writer_gas_url`に保存されます。
+3. `addon_templates/sheet_report_template.py`をコピーし、`ADDON`、`SPREADSHEET_ID`、`SHEET_NAME`、`extract`（レポートの条件入力）を書き換えます。
+4. 「ツール → アドオン → アドオンを追加...」で選ぶと、データ送信のバーにボタンが出ます。
+
+送信内容は`{"spreadsheetId": ..., "sheetName": ..., "data": 行データ}`です。IDの形式が誤っている、またはシート名が空のアドオンは「読み込みエラー」になります。URLが未設定の場合は、QADへ接続する前に止まります。アドオンごとに別の汎用GASを使う場合は`add_sheet_report_button(..., gas_url="…/exec")`を指定します。新しいボタンも既存の送信ボタンと同じ排他グループに入り、同時には送信しません。

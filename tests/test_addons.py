@@ -1,5 +1,6 @@
 """Offline behaviour tests for the four distributed add-ons (no SSH, no browser)."""
 import importlib.util
+import tempfile
 import threading
 import unittest
 from pathlib import Path
@@ -10,7 +11,8 @@ from qad_report import KEY_CTRL_F, KEY_F1, ReportShell
 from tests.qad_fakes import FakeClient, FakeClock, FakeShell, REPORT_ROWS, login_replies, prn_stream
 from tests.test_addon_host import FakeUI
 
-ADDONS = Path(__file__).resolve().parents[1] / "addons"
+ROOT = Path(__file__).resolve().parents[1]
+ADDONS = ROOT / "addons"
 FILES = {"order_booking": "01_order_booking.py", "inventory": "11_inventory_transmission.py",
          "complaint": "12_complaint_transmission.py", "backlog_sales": "13_backlog_sales_transmission.py"}
 
@@ -215,3 +217,87 @@ class OrderBookingTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Output"):
             self.run_macro(api)
         self.assertFalse(api.started)
+
+
+class SheetReportTests(unittest.TestCase):
+    """Generic GAS add-ons: destination chosen in the add-on, URL from the terminal setting."""
+
+    URL = "https://script.google.com/macros/s/TEST/exec"
+    SHEET_ID = "1AbCdEfGhIjKlMnOpQrStUvWxYz012345"
+
+    def setUp(self):
+        self.clock = FakeClock()
+        self.shells, self.sent = [], []
+        self.ui = AddonUI()
+        self.host = AddonHost(self.ui)
+        spec = importlib.util.spec_from_file_location("test_sheet_template", ROOT / "addon_templates" / "sheet_report_template.py")
+        self.template = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.template)
+
+    def register(self, spreadsheet_id=None, sheet_name="Inventory", **kwargs):
+        from addon_kit import add_sheet_report_button
+        record = AddonRecord("sheet_item", "シート送信", ROOT / "x.py")
+        api = AddonAPI(self.host, record)
+        add_sheet_report_button(api, "run", "📄 在庫をシートへ", extract=self.template.extract,
+                                spreadsheet_id=spreadsheet_id or self.SHEET_ID, sheet_name=sheet_name,
+                                menu="99.3.6.1", shell_factory=self.shell_factory,
+                                sender=lambda payload, url, title: self.sent.append((payload, url)), **kwargs)
+        self.host.records.append(record)
+        self.host._attach(record)
+        return record
+
+    def shell_factory(self, *login):
+        replies = login_replies()
+        replies[KEY_CTRL_F] = [(1.0, prn_stream())]
+        shell = FakeShell(self.clock, replies)
+        self.shells.append(shell)
+        return ReportShell(*login, client_factory=lambda: FakeClient(shell), clock=self.clock, sleep=self.clock.sleep)
+
+    def run_item(self):
+        self.host.actions["sheet_item.run"][1]()
+        for thread in [t for t in threading.enumerate() if t.name.startswith("addon-")]:
+            while thread.is_alive():
+                self.host.drain()
+                thread.join(0.01)
+        self.host.drain()
+
+    def test_rows_are_sent_with_destination_from_the_add_on(self):
+        self.ui.config["sheet_writer_gas_url"] = self.URL
+        self.register()
+        self.run_item()
+        self.assertEqual(self.sent, [({"spreadsheetId": self.SHEET_ID, "sheetName": "Inventory",
+                                       "data": REPORT_ROWS, "menu": "99.3.6.1"}, self.URL)])
+        self.assertEqual(self.shells[0].sent[3], "99.3.6.1\r")
+        self.assertIn("転送完了", self.ui.statuses[-1][0])
+        self.assertFalse(self.host.lock(GAS_BUSY).locked())
+
+    def test_add_on_url_overrides_the_terminal_setting(self):
+        self.ui.config["sheet_writer_gas_url"] = self.URL
+        other = "https://script.google.com/a/macros/example.com/s/OTHER/exec"
+        self.register(gas_url=other)
+        self.run_item()
+        self.assertEqual(self.sent[0][1], other)
+
+    def test_missing_url_stops_before_qad(self):
+        self.register()
+        self.run_item()
+        self.assertEqual(self.shells, [])
+        self.assertEqual(self.ui.messages, [("error", "送信先未設定")])
+        self.assertFalse(self.host.lock(GAS_BUSY).locked())
+
+    def test_wrong_destination_is_a_load_error(self):
+        for spreadsheet_id, sheet_name in (("short", "Inventory"), (self.SHEET_ID, "  ")):
+            with self.subTest(spreadsheet_id=spreadsheet_id), self.assertRaises(ValueError):
+                self.register(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name)
+
+    def test_template_needs_a_real_spreadsheet_id(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        text = (ROOT / "addon_templates" / "sheet_report_template.py").read_text(encoding="utf-8-sig")
+        Path(folder.name, "21_sample.py").write_text(text, encoding="utf-8")
+        records = AddonHost(AddonUI()).load_directory(folder.name)
+        self.assertIn("SPREADSHEET_ID", records[0].error)
+        Path(folder.name, "21_sample.py").write_text(
+            text.replace("ここに書き込み先スプレッドシートのIDを貼り付け", self.SHEET_ID), encoding="utf-8")
+        records = AddonHost(AddonUI()).load_directory(folder.name)
+        self.assertEqual((records[0].error, records[0].name), ("", "在庫をシートへ (サンプル)"))
