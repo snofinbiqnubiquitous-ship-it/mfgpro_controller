@@ -100,7 +100,7 @@ try:
     from dateutil.relativedelta import relativedelta
     from PIL import Image, ImageDraw, ImageTk
     import customtkinter as ctk
-    from ui_fonts import FONT_FAMILY, PREFERRED_TERMINAL_FONTS, configure_font_defaults
+    from ui_fonts import FONT_FAMILY, configure_font_defaults
     from qad_report import clean_printer_data, convert_date_format, decode_32prn_stream, parse_report_to_rows
     from addon_host import AddonHost, TkAddonUI
     from terminal_core import COLS, ROWS, KEY_SEQUENCES, TOOLBAR_GROUPS, TerminalSession, key_sequence
@@ -360,24 +360,6 @@ PALETTE_FG_PRESETS = [
     ("#FFB000", "アンバー"),
     ("#FBBF24", "ゴールド"),
 ]
-
-
-# --- フォント設定 ---
-PREFERRED_UI_FONTS = (FONT_FAMILY,)
-# PREFERRED_TERMINAL_FONTS は ui_fonts よりインポートした等幅フォントリストを使用
-
-
-def find_first_available_font(candidates, fallback="sans-serif"):
-    """利用可能なフォントファミリから最初に見つかったものを返す"""
-    try:
-        import tkinter.font as tkfont
-        available = set(tkfont.families())
-        for f in candidates:
-            if f in available:
-                return f
-    except Exception:
-        pass
-    return candidates[0] if candidates else fallback
 
 
 def parse_report_text_to_table(text, deduplicate=False):
@@ -1463,9 +1445,9 @@ class TerminalApp(ctk.CTk):
         ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
         super().__init__()
-        configure_font_defaults(self)
+        # UIはYu Gothic、QAD画面は罫線が揃う従来の等幅フォント
+        self.terminal_font_family = configure_font_defaults(self)
         self.ui_font_family = FONT_FAMILY
-        self.terminal_font_family = find_first_available_font(PREFERRED_TERMINAL_FONTS, fallback="Consolas")
 
         self.title("QAD / MFG:PRO")
         self.geometry("1460x780")

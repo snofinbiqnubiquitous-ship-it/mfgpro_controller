@@ -91,7 +91,7 @@ class OrderConsistencyTests(unittest.TestCase):
         chunks = []
         text = MagicMock()
         text.insert.side_effect = lambda index, value, *tags: chunks.append(value)
-        window = SimpleNamespace(submission_count=0, count_label=MagicMock(),
+        window = SimpleNamespace(submission_count=0, count_label=MagicMock(), _align_column=MagicMock(),
                                  textbox=SimpleNamespace(_textbox=text))
         payload = dict(required_date="2026-10-09", due_date="2026-10-07",
                        purchase_order="PO-TEST", remarks="備考", items=[])

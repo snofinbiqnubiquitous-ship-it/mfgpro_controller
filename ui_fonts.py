@@ -1,9 +1,16 @@
-"""Shared font policy for the application UI and terminal."""
+"""Shared font policy.
+
+The QAD terminal screen keeps the monospaced font it used before the Yu Gothic
+change (Consolas first), because the border alignment depends on fixed
+character widths. Everything else (menus, sidebar, dialogs, F3, logs) uses
+Yu Gothic.
+"""
 import tkinter.font as tkfont
+
 import customtkinter as ctk
 
 FONT_FAMILY = "Yu Gothic"
-PREFERRED_TERMINAL_FONTS = (
+TERMINAL_FONT_CANDIDATES = (
     "Consolas",       # Windows標準 等幅（罫線の上下隙間ゼロ・完全シームレス結合）
     "Cascadia Mono",  # Windows 11/10標準 等幅
     "Cascadia Code",
@@ -12,33 +19,27 @@ PREFERRED_TERMINAL_FONTS = (
     "BIZ UDゴシック",
     "MS Gothic",
     "ＭＳ ゴシック",
-    "monospace",
 )
 
 ctk.ThemeManager.theme["CTkFont"]["family"] = FONT_FAMILY
 
 
-def find_terminal_font():
-    """ターミナル画面用の等幅フォントを検出して返す"""
+def find_terminal_font(root):
+    """Return the first installed terminal font (same order as the old version)."""
     try:
-        available = set(tkfont.families())
-        for f in PREFERRED_TERMINAL_FONTS:
-            if f in available:
-                return f
+        available = set(tkfont.families(root))
     except Exception:
-        pass
-    return "Consolas"
-
-
-TERMINAL_FONT_FAMILY = find_terminal_font()
+        return TERMINAL_FONT_CANDIDATES[0]
+    return next((name for name in TERMINAL_FONT_CANDIDATES if name in available), TERMINAL_FONT_CANDIDATES[0])
 
 
 def configure_font_defaults(root):
+    """Apply Yu Gothic to the UI fonts and return the terminal screen font."""
     ctk.ThemeManager.theme["CTkFont"]["family"] = FONT_FAMILY
-    term_font = find_terminal_font()
+    terminal = find_terminal_font(root)
     for name in tkfont.names(root):
-        if name == "TkFixedFont":
-            tkfont.nametofont(name, root=root).configure(family=term_font)
-            continue
-        tkfont.nametofont(name, root=root).configure(family=FONT_FAMILY)
+        # TkFixedFont is the default of plain Text widgets and stays monospaced.
+        family = terminal if name == "TkFixedFont" else FONT_FAMILY
+        tkfont.nametofont(name, root=root).configure(family=family)
     root.option_add("*Font", "TkDefaultFont")
+    return terminal

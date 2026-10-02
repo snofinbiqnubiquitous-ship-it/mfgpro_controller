@@ -4058,6 +4058,13 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         except Exception:
             pass
 
+    def _align_column(self, tag, prefixes):
+        """Yu Gothic is proportional: set a measured tab stop so values start in one column."""
+        tb = self.textbox._textbox
+        font = tb.tag_cget(tag, "font") or tb.cget("font")
+        width = max(int(tb.tk.call("font", "measure", font, "-displayof", tb, text)) for text in prefixes)
+        tb.tag_configure(tag, tabs=(width + 12,))
+
     def show_empty_message(self):
         tb = self.textbox._textbox
         tb.configure(state="normal")
@@ -4106,6 +4113,7 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
             ("remarks",       "Remarks       (備考)     "),
             ("so_comment",    "SO Comment    (特記事項) "),
         ]
+        self._align_column("term_label", [f"   {label.rstrip()}" for _, label in header_map])
         for key, label in header_map:
             val = payload.get(key, "")
             if key in ("required_date", "due_date") and val:
@@ -4113,8 +4121,13 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
                     val = f"{val} ({format_order_date(date.fromisoformat(str(val)))})"
                 except Exception:
                     pass
-            tb.insert("end", f"   {label}: ", "term_label")
-            tb.insert("end", f"{val}\n", "term_val")
+            lines = [line for line in str(val).splitlines() if line.strip()] or [""]
+            tb.insert("end", f"   {label.rstrip()}\t: ", "term_label")
+            tb.insert("end", f"{lines[0]}\n", "term_val")
+            for line in lines[1:]:
+                # Continuation lines (e.g. the address) start in the value column.
+                tb.insert("end", "   \t  ", "term_label")
+                tb.insert("end", f"{line}\n", "term_val")
 
         # -------------------------------------------------------------
         # QAD 99.7.1.1 キーストローク＆貼り付けシミュレーション（Step 1 〜 Step 5）
@@ -4166,10 +4179,11 @@ class OrderOutputTerminalWindow(ctk.CTkToplevel):
         ]))
         paste_raw = "\n".join(val for val, _ in paste_items)
 
+        self._align_column("term_dim", [f"   | {desc}" for _, desc in paste_items])
         tb.insert("end", "   +" + "-" * 68 + "+\n", "term_dim")
         for val, desc in paste_items:
             disp_val = f'"{val}"' if val else '(空行: Enterスキップ)'
-            tb.insert("end", f"   | {desc:<52} -> ", "term_dim")
+            tb.insert("end", f"   | {desc}\t-> ", "term_dim")
             tb.insert("end", f"{disp_val}\n", "term_paste")
         tb.insert("end", "   +" + "-" * 68 + "+\n\n", "term_dim")
 
