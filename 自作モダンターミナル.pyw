@@ -100,7 +100,7 @@ try:
     from dateutil.relativedelta import relativedelta
     from PIL import Image, ImageDraw, ImageTk
     import customtkinter as ctk
-    from ui_fonts import FONT_FAMILY, configure_font_defaults
+    from ui_fonts import FONT_FAMILY, PREFERRED_TERMINAL_FONTS, configure_font_defaults
     from qad_report import clean_printer_data, convert_date_format, decode_32prn_stream, parse_report_to_rows
     from addon_host import AddonHost, TkAddonUI
     from terminal_core import COLS, ROWS, KEY_SEQUENCES, TOOLBAR_GROUPS, TerminalSession, key_sequence
@@ -364,7 +364,7 @@ PALETTE_FG_PRESETS = [
 
 # --- フォント設定 ---
 PREFERRED_UI_FONTS = (FONT_FAMILY,)
-PREFERRED_TERMINAL_FONTS = (FONT_FAMILY,)
+# PREFERRED_TERMINAL_FONTS は ui_fonts よりインポートした等幅フォントリストを使用
 
 
 def find_first_available_font(candidates, fallback="sans-serif"):
@@ -1465,7 +1465,7 @@ class TerminalApp(ctk.CTk):
         super().__init__()
         configure_font_defaults(self)
         self.ui_font_family = FONT_FAMILY
-        self.terminal_font_family = FONT_FAMILY
+        self.terminal_font_family = find_first_available_font(PREFERRED_TERMINAL_FONTS, fallback="Consolas")
 
         self.title("QAD / MFG:PRO")
         self.geometry("1460x780")
